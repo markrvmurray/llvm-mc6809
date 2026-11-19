@@ -260,11 +260,8 @@ bool MC6809StaticStackAlloc::runOnModule(Module &M) {
       Constant *Aliasee = Stack;
       if (Offset) {
         Type *I16 = Type::getInt16Ty(Stack->getContext());
-        Aliasee = ConstantExpr::getGetElementPtr(
-            Stack->getValueType(), Stack,
-            SmallVector<Constant *>{ConstantInt::get(I16, 0),
-                                    ConstantInt::get(I16, Offset)},
-            /*InBounds=*/true);
+        Aliasee = ConstantExpr::getPtrAdd(Stack, ConstantInt::get(I16, Offset),
+                                          GEPNoWrapFlags::inBounds());
       }
       Offset += Size;
       auto *Alias = GlobalAlias::create(

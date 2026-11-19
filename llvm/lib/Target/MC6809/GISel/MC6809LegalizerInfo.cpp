@@ -783,7 +783,7 @@ bool MC6809LegalizerInfo::legalizeCustom(LegalizerHelper &Helper, MachineInstr &
     LLT Ty = MRI.getType(Dst);
     int64_t Bits = MI.getOperand(2).getImm();
     if (Bits % 8 != 0 || Ty.getSizeInBits() % 8 != 0 ||
-        Bits >= Ty.getSizeInBits())
+        Bits >= static_cast<int64_t>(Ty.getSizeInBits()))
       return Helper.lower(MI, 0, LLT()) != LegalizerHelper::UnableToLegalize;
     MachineIRBuilder &B = Helper.MIRBuilder;
     // The 6309 sign-extends a byte into D (SEX) and D into Q (SEXW), both

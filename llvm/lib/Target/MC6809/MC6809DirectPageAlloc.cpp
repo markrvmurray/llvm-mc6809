@@ -351,7 +351,7 @@ bool MC6809DirectPageAlloc::runOnModule(Module &M) {
         Constant *Aliasee = Stack;
         if (Cand->Comp->DPOffset) {
           Type *I16 = Type::getInt16Ty(Stack->getContext());
-          Aliasee = ConstantExpr::getGetElementPtr(Stack->getValueType(), Stack, SmallVector<Constant *>{ConstantInt::get(I16, 0), ConstantInt::get(I16, Cand->Comp->DPOffset)}, /*InBounds=*/true);
+          Aliasee = ConstantExpr::getPtrAdd(Stack, ConstantInt::get(I16, Cand->Comp->DPOffset), GEPNoWrapFlags::inBounds());
         }
         Cand->Comp->DPOffset += SCCGraph.MFDPSizes[&MF];
         Type *Typ = ArrayType::get(Type::getInt8Ty(M.getContext()), Cand->Comp->DPSize);

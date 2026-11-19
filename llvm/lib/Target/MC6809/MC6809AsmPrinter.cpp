@@ -222,7 +222,6 @@ bool MC6809AsmPrinter::PrintAsmOperand(const MachineInstr *MI, unsigned OpNo, co
     return false;
 
   const MachineOperand &MO = MI->getOperand(OpNo);
-  const MC6809RegisterInfo &TRI = *MO.getParent()->getMF()->getSubtarget<MC6809Subtarget>().getRegisterInfo();
 
   switch (MO.getType()) {
   default:

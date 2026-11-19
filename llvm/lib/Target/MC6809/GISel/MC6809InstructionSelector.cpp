@@ -1550,7 +1550,7 @@ bool MC6809InstructionSelector::tryFusePostIncAtAccess(MachineInstr &MI) const {
     if (const RegisterBank *RB = MRI->getRegBankOrNull(Val);
         RB && RB->getID() == MC6809::INDEXRegBankID && ValTy == LLT::scalar(16))
       return false;
-    if (const TargetRegisterClass *Cur = MRI->getRegClassOrNull(Val)) {
+    if (MRI->getRegClassOrNull(Val)) {
       if (!MRI->constrainRegClass(Val, ValRC))
         return false;
     } else {
@@ -2189,7 +2189,7 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
   if (MI.getOpcode() == TargetOpcode::G_LOAD ||
       MI.getOpcode() == TargetOpcode::G_STORE) {
     bool IsLoad = MI.getOpcode() == TargetOpcode::G_LOAD;
-    Register AddrReg = MI.getOperand(IsLoad ? 1 : 1).getReg();
+    Register AddrReg = MI.getOperand(1).getReg(); // a load's and a store's address alike
     LLT AddrTy = MRI->getType(AddrReg);
     // Fold a G_GLOBAL_VALUE address directly into the load/store as a deferred
     // _Sym pseudo. The value register is left in its broad class so regalloc

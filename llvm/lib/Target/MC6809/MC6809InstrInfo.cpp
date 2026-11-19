@@ -9256,9 +9256,9 @@ bool MC6809InstrInfo::verifyInstruction(const MachineInstr &MI,
   case MC6809::SUBRp:
   case MC6809::SBCRp:
   case MC6809::EORRp: {
-    Register R1 = MI.getOperand(1).getReg();
-    Register R2 = MI.getOperand(2).getReg();
-    if (R1 == R2 && isHD6309RegRegPostbyteReg(R1)) {
+    Register Reg1 = MI.getOperand(1).getReg();
+    Register Reg2 = MI.getOperand(2).getReg();
+    if (Reg1 == Reg2 && isHD6309RegRegPostbyteReg(Reg1)) {
       ErrInfo = "HD6309 non-commutative reg-reg op with degenerate "
                 "same-reg postbyte (op X,X is always 0 / always equal)";
       return false;
@@ -9266,9 +9266,9 @@ bool MC6809InstrInfo::verifyInstruction(const MachineInstr &MI,
     break;
   }
   case MC6809::CMPRp: {
-    Register R1 = MI.getOperand(0).getReg();
-    Register R2 = MI.getOperand(1).getReg();
-    if (R1 == R2 && isHD6309RegRegPostbyteReg(R1)) {
+    Register Reg1 = MI.getOperand(0).getReg();
+    Register Reg2 = MI.getOperand(1).getReg();
+    if (Reg1 == Reg2 && isHD6309RegRegPostbyteReg(Reg1)) {
       ErrInfo = "HD6309 CMPR with degenerate same-reg postbyte "
                 "(CMPR X,X is always equal — flags = 0,1,0,0)";
       return false;

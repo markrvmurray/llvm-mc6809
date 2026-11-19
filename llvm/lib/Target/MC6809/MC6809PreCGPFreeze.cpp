@@ -106,7 +106,7 @@ bool MC6809PreCGPFreeze::runOnFunction(Function &F) {
     return false;
 
   for (ICmpInst *Cmp : Candidates) {
-    IRBuilder<> B(Cmp->getParent(), std::next(Cmp->getIterator()));
+    IRBuilder<> B(std::next(Cmp->getIterator()));
     Value *Frozen = B.CreateFreeze(Cmp, Cmp->getName() + ".precgpfrz");
 
     SmallVector<SelectInst *, 4> Selects;
