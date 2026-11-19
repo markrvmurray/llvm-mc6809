@@ -4,6 +4,64 @@ Each release has a section headed `## <version>`, which the release workflow
 publishes on that release's GitHub page above the table of test results.  A
 tag with no section here is not published.
 
+## 1.0.1-rc1
+
+The first candidate for llvm-mc6809 1.0.1: faster and smaller code, wrong
+code fixed, and interrupt handlers.
+
+### Smaller and faster
+
+Against 1.0, the C library for the 6809 at `-Os` is 22% smaller (146,820
+bytes of code, from 188,946), and the test programs take 17-20% fewer cycles
+on the 6809 at every level measured (`-O0`, `-O2`, `-Os`, `-Os` with LTO and
+with floating point).
+
+* Values kept in the direct-page registers are no longer saved and restored
+  around every use that borrows an accumulator: a register is saved only
+  where its value is read again.
+* Fewer redundant loads and stores of the same memory, by one set of rules
+  shared by the passes that remove them.
+* `clr` in place of loading zero, and on the 6309 `aim`, `oim` and `eim`
+  in place of loading, changing and storing a byte; `inc` and `dec` on
+  memory on both processors.
+* An 8-bit by 8-bit multiply uses `MUL`; epilogues end in `puls ...,pc`;
+  `strcmp` works a byte at a time.
+
+### Wrong code fixed
+
+* On the 6309, sign-extending the low part of a loaded `long` read its high
+  bytes.
+* At `-O0`, a branch on the borrow of a subtraction whose result was unused
+  tested a stale carry.
+* A reload could be removed, or a value reused, across a store that wrote
+  the same memory: a store through another pointer that may alias it, a
+  store that overlapped it only in part, a 6309 `stq` or `sts`, or an
+  access whose offset is a symbol (`tbl,x`) taken for one at offset 0.
+
+### Interrupt handlers
+
+On bare metal, `__attribute__((interrupt))` makes a function an interrupt
+handler: it returns with `rti` and preserves everything the interrupted code
+may be using, so it can interrupt any compiled code and call any compiled
+function. `interrupt("firq")` makes a fast-interrupt handler, which saves the
+registers it uses itself. The start-up code holds the vector table,
+`$FFF0`-`$FFFF`; a program installs a handler by defining the function of the
+vector's name (`__irq_handler`, `__firq_handler`, `__nmi_handler` and so on).
+See "Interrupt handlers" in MC6809-Toolchain-Usage.md.
+
+### C library
+
+* A program can declare the least heap it needs (`-Wl,--defsym=__heap_size_min=N`);
+  if the heap it gets is smaller, the link fails rather than the program.
+
+### Known issues
+
+* NitrOS-9 up to its current release, v3.3.0, cuts a file name short at the
+  first character it does not accept, without an error, so a program can open
+  or delete the wrong file. Names made of letters, digits, `_` and `.` are
+  safe on every version.
+* There is no Windows bundle.
+
 ## 1.0
 
 llvm-mc6809 1.0, the first release of a C compiler for the Motorola 6809 and
