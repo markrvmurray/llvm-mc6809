@@ -1,0 +1,24 @@
+# The MC6809 backend takes the repository's checks, with two changes.
+InheritParentConfig: true
+
+# Passes override runOnMachineFunction, getAnalysisUsage and the rest as
+# public, as every LLVM target does; the check would have them all
+# rewritten against that convention.
+Checks: >
+  -misc-override-with-different-visibility
+
+# Names that LLVM, TableGen or a convention fixes, not this backend:
+#   LLVMInitialize*                   the target's C entry points
+#   CC_*, RetCC_*                     calling-convention functions the
+#                                     generated MC6809GenCallingConv.inc calls
+#   Decode*                           the disassembler's decoder hooks, named
+#                                     in the generated tables
+#   ParseSubtargetFeatures            generated subtarget interface
+#   child_begin, child_end            GraphTraits interface
+#   m_*, *_match                      MIPatternMatch matchers and their classes
+#   expand<Name>_i8/16/32/64_<form>   named after the pseudo they expand
+CheckOptions:
+  - key:             readability-identifier-naming.FunctionIgnoredRegexp
+    value:           '^(LLVMFuzzerTestOneInput|LLVMInitialize.*|CC_.*|RetCC_.*|Decode.*|ParseSubtargetFeatures|child_begin|child_end|m_.*|expand.*_i(8|16|32|64)(_.*)?)$'
+  - key:             readability-identifier-naming.ClassIgnoredRegexp
+    value:           '^.*_match$'

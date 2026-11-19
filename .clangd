@@ -31,16 +31,16 @@ Diagnostics:
     - pp_file_not_found
 
 # Per-file overrides.  Empty for now; add If: blocks as the project
-# accumulates conventions.
-
----
-
+# accumulates conventions.  (A further YAML document holding only
+# comments is an empty document, which clangd rejects as "Config should
+# be a dictionary" -- keep commented-out examples in this one.)
+#
 # llvm/lib/Target/MC6809/nitros9-fmt.h has Microware-spec constant
 # names (F_Exit, I_Read, ...) that intentionally don't follow LLVM
-# camelCase.  The header carries NOLINTBEGIN/END markers, but the
-# YAML below is here as documentation in case future config wants
-# a path-scoped override.
+# camelCase.  The header carries NOLINTBEGIN/END markers; a path-scoped
+# override would look like this, as a separate document:
 #
+# ---
 # If:
 #   PathMatch: .*nitros9-fmt\.h
 # Diagnostics:
