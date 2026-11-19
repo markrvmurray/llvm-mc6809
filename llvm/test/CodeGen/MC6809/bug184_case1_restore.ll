@@ -47,19 +47,21 @@ define void @sext_i16_to_i32_then_store(ptr %out, i16 %x) {
 ; CHECK-NEXT:    pshs u
 ; CHECK-NEXT:    leas -4,s
 ; CHECK-NEXT:    ldu 8,s
-; CHECK-NEXT:    ldb #0
 ; CHECK-NEXT:    cmpu #0
-; CHECK-NEXT:    bge .LBB0_2
+; CHECK-NEXT:    blt .LBB0_2
 ; CHECK-NEXT:  ; %bb.1:
-; CHECK-NEXT:    ldb #1
+; CHECK-NEXT:    clrb
+; CHECK-NEXT:    bra .LBB0_3
 ; CHECK-NEXT:  .LBB0_2:
+; CHECK-NEXT:    ldb #1
+; CHECK-NEXT:  .LBB0_3:
 ; CHECK-NEXT:    tfr b,a
 ; CHECK-NEXT:    anda #1
 ; CHECK-NEXT:    nega
 ; CHECK-NEXT:    sta ,s ; 1-byte Folded Spill
-; CHECK-NEXT:    ldb #0
+; CHECK-NEXT:    clrb
 ; CHECK-NEXT:    stb 3,s ; 1-byte Folded Spill
-; CHECK-NEXT:    ldb #0
+; CHECK-NEXT:    clrb
 ; CHECK-NEXT:    subb 9,s
 ; CHECK-NEXT:    stb 2,s ; 1-byte Folded Spill
 ; CHECK-NEXT:    ldb #0

@@ -142,7 +142,7 @@ define i32 @shl_i32_8(i32 %x) {
 ; O0-NEXT:    lda <__rs0lo
 ; O0-NEXT:    ldb <__rs0hi
 ; O0-NEXT:    stb ,s ; 1-byte Folded Spill
-; O0-NEXT:    ldb #0
+; O0-NEXT:    clrb
 ; O0-NEXT:    std <__rs0
 ; O0-NEXT:    ldb 0,s
 ; O0-NEXT:    lda 1,s
@@ -164,7 +164,7 @@ define i32 @shl_i32_8(i32 %x) {
 ; O2-NEXT:    lda <__rs1lo
 ; O2-NEXT:    ldb <__rs1hi
 ; O2-NEXT:    stb ,s ; 1-byte Folded Spill
-; O2-NEXT:    ldb #0
+; O2-NEXT:    clrb
 ; O2-NEXT:    std <__rs1
 ; O2-NEXT:    lda <__rs0lo
 ; O2-NEXT:    ldb ,s
@@ -393,7 +393,7 @@ define i32 @lshr_i32_8(i32 %x) {
 ; O0-NEXT:    stb 1,s ; 1-byte Folded Spill
 ; O0-NEXT:    ldb 0,s
 ; O0-NEXT:    std <__rs0
-; O0-NEXT:    lda #0
+; O0-NEXT:    clra
 ; O0-NEXT:    ldb 1,s
 ; O0-NEXT:    pshs d
 ; O0-NEXT:    ldd <__rs0

@@ -26,7 +26,7 @@ define i64 @shl_i64_by_i8(i64 %x, i8 %n) {
 ; O0-NEXT:    stx <__rs2
 ; O0-NEXT:    ldx 24,s
 ; O0-NEXT:    stx <__rs3
-; O0-NEXT:    lda #0
+; O0-NEXT:    clra
 ; O0-NEXT:    tfr d,d
 ; O0-NEXT:    ldx <__rs0
 ; O0-NEXT:    stx 6,s

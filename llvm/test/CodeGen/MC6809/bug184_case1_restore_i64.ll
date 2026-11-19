@@ -30,13 +30,13 @@ define void @sext_i32_to_i64_then_store(ptr %out, i32 %x) {
 ; CHECK-NEXT:    cmpb #0
 ; CHECK-NEXT:    blt .LBB0_2
 ; CHECK-NEXT:  ; %bb.1:
-; CHECK-NEXT:    ldb #0
+; CHECK-NEXT:    clrb
 ; CHECK-NEXT:    bra .LBB0_3
 ; CHECK-NEXT:  .LBB0_2:
 ; CHECK-NEXT:    ldb #1
 ; CHECK-NEXT:  .LBB0_3:
 ; CHECK-NEXT:    negb
-; CHECK-NEXT:    lda #0
+; CHECK-NEXT:    clra
 ; CHECK-NEXT:    suba 12,s
 ; CHECK-NEXT:    sta 6,s ; 1-byte Folded Spill
 ; CHECK-NEXT:    lda #0

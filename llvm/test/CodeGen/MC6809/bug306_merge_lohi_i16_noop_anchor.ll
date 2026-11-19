@@ -49,6 +49,6 @@ lor.end:
 ; would write garbage in the $aa half of the stored i16.
 ;
 ; CHECK-LABEL: bug306_short_circuit_or:
-; CHECK:       lda #0
+; CHECK:       clra
 ; CHECK-NEXT:  tfr d,d
 ; CHECK:       std

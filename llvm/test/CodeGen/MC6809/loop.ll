@@ -197,12 +197,12 @@ define dso_local i16 @loop(ptr nocapture noundef readonly %pa, i8 noundef signex
 ; HD6309:       ; %bb.0: ; %entry
 ; HD6309-NEXT:    pshs u
 ; HD6309-NEXT:    tfr s,u
-; HD6309-NEXT:    ldw #0
+; HD6309-NEXT:    clrw
 ; HD6309-NEXT:    tstb
 ; HD6309-NEXT:    ble .LBB0_3
 ; HD6309-NEXT:  ; %bb.1: ; %for.body.preheader
 ; HD6309-NEXT:    clra
-; HD6309-NEXT:    ldw #0
+; HD6309-NEXT:    clrw
 ; HD6309-NEXT:  .LBB0_2: ; %for.body
 ; HD6309-NEXT:    ; =>This Inner Loop Header: Depth=1
 ; HD6309-NEXT:    addw ,x++

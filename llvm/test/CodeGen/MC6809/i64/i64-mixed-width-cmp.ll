@@ -29,7 +29,7 @@ define i1 @eq_i64_sext_i32(i64 %a, i32 %b) {
 ; O0-NEXT:    cmpb #0
 ; O0-NEXT:    blt .LBB0_2
 ; O0-NEXT:  ; %bb.1:
-; O0-NEXT:    ldb #0
+; O0-NEXT:    clrb
 ; O0-NEXT:    bra .LBB0_3
 ; O0-NEXT:  .LBB0_2:
 ; O0-NEXT:    ldb #1
@@ -66,7 +66,7 @@ define i1 @eq_i64_sext_i32(i64 %a, i32 %b) {
 ; O0-NEXT:    cmpb #1
 ; O0-NEXT:    beq .LBB0_5
 ; O0-NEXT:  ; %bb.4:
-; O0-NEXT:    ldb #0
+; O0-NEXT:    clrb
 ; O0-NEXT:    bra .LBB0_6
 ; O0-NEXT:  .LBB0_5:
 ; O0-NEXT:    ldb #1
@@ -88,7 +88,7 @@ define i1 @eq_i64_sext_i32(i64 %a, i32 %b) {
 ; O2-NEXT:    cmpb #0
 ; O2-NEXT:    blt .LBB0_2
 ; O2-NEXT:  ; %bb.1:
-; O2-NEXT:    ldb #0
+; O2-NEXT:    clrb
 ; O2-NEXT:    bra .LBB0_3
 ; O2-NEXT:  .LBB0_2:
 ; O2-NEXT:    ldb #1
@@ -119,7 +119,7 @@ define i1 @eq_i64_sext_i32(i64 %a, i32 %b) {
 ; O2-NEXT:    cmpb #1
 ; O2-NEXT:    beq .LBB0_5
 ; O2-NEXT:  ; %bb.4:
-; O2-NEXT:    ldb #0
+; O2-NEXT:    clrb
 ; O2-NEXT:    leas 21,s
 ; O2-NEXT:    puls u,pc
 ; O2-NEXT:  .LBB0_5:
@@ -163,7 +163,7 @@ define i1 @ult_i64_zext_i16(i64 %a, i16 %b) {
 ; O0-NEXT:    cmpb #0
 ; O0-NEXT:    beq .LBB1_2
 ; O0-NEXT:  ; %bb.1:
-; O0-NEXT:    ldb #0
+; O0-NEXT:    clrb
 ; O0-NEXT:    bra .LBB1_3
 ; O0-NEXT:  .LBB1_2:
 ; O0-NEXT:    ldb #1
@@ -201,7 +201,7 @@ define i1 @ult_i64_zext_i16(i64 %a, i16 %b) {
 ; O2-NEXT:    cmpb #0
 ; O2-NEXT:    beq .LBB1_2
 ; O2-NEXT:  ; %bb.1:
-; O2-NEXT:    ldb #0
+; O2-NEXT:    clrb
 ; O2-NEXT:    leas 20,s
 ; O2-NEXT:    puls u,pc
 ; O2-NEXT:  .LBB1_2:
@@ -226,12 +226,14 @@ define i1 @sgt_i64_sext_i8(i64 %a, i8 %b) {
 ; O0-NEXT:    stx <__rs2
 ; O0-NEXT:    ldx 24,s
 ; O0-NEXT:    stx <__rs3
-; O0-NEXT:    lda #0
 ; O0-NEXT:    cmpb #0
-; O0-NEXT:    bge .LBB2_2
+; O0-NEXT:    blt .LBB2_2
 ; O0-NEXT:  ; %bb.1:
-; O0-NEXT:    lda #1
+; O0-NEXT:    clra
+; O0-NEXT:    bra .LBB2_3
 ; O0-NEXT:  .LBB2_2:
+; O0-NEXT:    lda #1
+; O0-NEXT:  .LBB2_3:
 ; O0-NEXT:    anda #1
 ; O0-NEXT:    nega
 ; O0-NEXT:    ldx <__rs0
@@ -264,13 +266,13 @@ define i1 @sgt_i64_sext_i8(i64 %a, i8 %b) {
 ; O0-NEXT:    lbsr __cmpdi2
 ; O0-NEXT:    ldd 2,u
 ; O0-NEXT:    cmpb #2
-; O0-NEXT:    beq .LBB2_4
-; O0-NEXT:  ; %bb.3:
-; O0-NEXT:    ldb #0
-; O0-NEXT:    bra .LBB2_5
-; O0-NEXT:  .LBB2_4:
-; O0-NEXT:    ldb #1
+; O0-NEXT:    beq .LBB2_5
+; O0-NEXT:  ; %bb.4:
+; O0-NEXT:    clrb
+; O0-NEXT:    bra .LBB2_6
 ; O0-NEXT:  .LBB2_5:
+; O0-NEXT:    ldb #1
+; O0-NEXT:  .LBB2_6:
 ; O0-NEXT:    leas 20,s
 ; O0-NEXT:    puls u,pc
 ;
@@ -286,12 +288,14 @@ define i1 @sgt_i64_sext_i8(i64 %a, i8 %b) {
 ; O2-NEXT:    stx <__rs2
 ; O2-NEXT:    ldx 25,s
 ; O2-NEXT:    stx <__rs3
-; O2-NEXT:    lda #0
 ; O2-NEXT:    cmpb #0
-; O2-NEXT:    bge .LBB2_2
+; O2-NEXT:    blt .LBB2_2
 ; O2-NEXT:  ; %bb.1:
-; O2-NEXT:    lda #1
+; O2-NEXT:    clra
+; O2-NEXT:    bra .LBB2_3
 ; O2-NEXT:  .LBB2_2:
+; O2-NEXT:    lda #1
+; O2-NEXT:  .LBB2_3:
 ; O2-NEXT:    anda #1
 ; O2-NEXT:    nega
 ; O2-NEXT:    sta 16,s ; 1-byte Folded Spill
@@ -314,12 +318,12 @@ define i1 @sgt_i64_sext_i8(i64 %a, i8 %b) {
 ; O2-NEXT:    lbsr __cmpdi2
 ; O2-NEXT:    ldd 2,u
 ; O2-NEXT:    cmpb #2
-; O2-NEXT:    beq .LBB2_4
-; O2-NEXT:  ; %bb.3:
-; O2-NEXT:    ldb #0
+; O2-NEXT:    beq .LBB2_5
+; O2-NEXT:  ; %bb.4:
+; O2-NEXT:    clrb
 ; O2-NEXT:    leas 21,s
 ; O2-NEXT:    puls u,pc
-; O2-NEXT:  .LBB2_4:
+; O2-NEXT:  .LBB2_5:
 ; O2-NEXT:    ldb #1
 ; O2-NEXT:    leas 21,s
 ; O2-NEXT:    puls u,pc
@@ -341,7 +345,7 @@ define i1 @ne_i64_zext_i8(i64 %a, i8 %b) {
 ; O0-NEXT:    stx <__rs2
 ; O0-NEXT:    ldx 24,s
 ; O0-NEXT:    stx <__rs3
-; O0-NEXT:    lda #0
+; O0-NEXT:    clra
 ; O0-NEXT:    tfr d,d
 ; O0-NEXT:    ldx <__rs0
 ; O0-NEXT:    stx 6,s
@@ -363,7 +367,7 @@ define i1 @ne_i64_zext_i8(i64 %a, i8 %b) {
 ; O0-NEXT:    cmpb #1
 ; O0-NEXT:    bne .LBB3_2
 ; O0-NEXT:  ; %bb.1:
-; O0-NEXT:    ldb #0
+; O0-NEXT:    clrb
 ; O0-NEXT:    bra .LBB3_3
 ; O0-NEXT:  .LBB3_2:
 ; O0-NEXT:    ldb #1
@@ -404,7 +408,7 @@ define i1 @ne_i64_zext_i8(i64 %a, i8 %b) {
 ; O2-NEXT:    cmpb #1
 ; O2-NEXT:    bne .LBB3_2
 ; O2-NEXT:  ; %bb.1:
-; O2-NEXT:    ldb #0
+; O2-NEXT:    clrb
 ; O2-NEXT:    leas 20,s
 ; O2-NEXT:    puls u,pc
 ; O2-NEXT:  .LBB3_2:

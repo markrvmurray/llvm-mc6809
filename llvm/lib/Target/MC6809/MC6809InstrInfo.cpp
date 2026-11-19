@@ -6780,6 +6780,44 @@ void MC6809InstrInfo::expandLoad1Imm(MachineIRBuilder &Builder, MachineInstr &MI
   addMissingImplicitOperands(MI);
 }
 
+/// Load 0 into R with a clear when that is no worse: `clra` is a byte
+/// shorter than `lda #0` and as fast, and sets N, Z and V the same way --
+/// but it also clears C, so only when C is dead after MI (exact: the code
+/// after MI is already expanded). D on the 6809 takes `clra ; clrb`, a byte
+/// shorter and a cycle slower, so only when optimising for size.
+static bool buildClearForZero(MachineIRBuilder &Builder, MachineInstr &MI,
+                              Register R, const MachineOperand &ValOp) {
+  if (!(ValOp.isImm() || ValOp.isCImm()) ||
+      (ValOp.isImm() ? ValOp.getImm() : ValOp.getCImm()->getSExtValue()) != 0)
+    return false;
+  MachineBasicBlock &MBB = *MI.getParent();
+  const MachineFunction &MF = *MBB.getParent();
+  const TargetRegisterInfo &TRI = *MF.getSubtarget().getRegisterInfo();
+  bool Is6309 = MF.getSubtarget<MC6809Subtarget>().has6309();
+  SmallVector<unsigned, 2> Opcs;
+  switch (R) {
+  case MC6809::AA: Opcs = {MC6809::CLRAa}; break;
+  case MC6809::AB: Opcs = {MC6809::CLRBa}; break;
+  case MC6809::AE: Opcs = {MC6809::CLREa}; break;
+  case MC6809::AF: Opcs = {MC6809::CLRFa}; break;
+  case MC6809::AW: Opcs = {MC6809::CLRWa}; break;
+  case MC6809::AD:
+    if (Is6309)
+      Opcs = {MC6809::CLRDa};
+    else if (MF.getFunction().hasOptSize())
+      Opcs = {MC6809::CLRAa, MC6809::CLRBa};
+    break;
+  default:
+    break;
+  }
+  if (Opcs.empty() ||
+      stagingRegReadLater(MBB, std::next(MI.getIterator()), MC6809::C, TRI))
+    return false;
+  for (unsigned Opc : Opcs)
+    Builder.buildInstr(Opc);
+  return true;
+}
+
 void MC6809InstrInfo::expandLoadImm(MachineIRBuilder &Builder, MachineInstr &MI) const {
 
   auto DestRegOp = MI.getOperand(0);
@@ -6818,16 +6856,19 @@ void MC6809InstrInfo::expandLoadImm(MachineIRBuilder &Builder, MachineInstr &MI)
     // regalloc may have left live across this pseudo (its Defs are
     // deliberately empty). Preserve it (see pushStagingReg).
     unsigned StagePushed = pushStagingReg(Builder, RealReg);
-    auto OpcodePair = LoadImmediateOpcode.find(RealReg);
-    assert(OpcodePair != LoadImmediateOpcode.end());
-    auto NewMI = Builder.buildInstr(OpcodePair->getSecond()).addDef(RealReg, RegState::Implicit);
-    if (ValOp.isGlobal())
-      NewMI.addGlobalAddress(ValOp.getGlobal(), ValOp.getOffset(), ValOp.getTargetFlags());
-    else if (ValOp.isSymbol())
-      NewMI.addExternalSymbol(ValOp.getSymbolName(), ValOp.getTargetFlags());
-    else {
-      int64_t Val = ValOp.isImm() ? ValOp.getImm() : ValOp.getCImm()->getSExtValue();
-      NewMI.addImm(Val);
+    if (!buildClearForZero(Builder, MI, RealReg, ValOp)) {
+      auto OpcodePair = LoadImmediateOpcode.find(RealReg);
+      assert(OpcodePair != LoadImmediateOpcode.end());
+      auto NewMI = Builder.buildInstr(OpcodePair->getSecond())
+                       .addDef(RealReg, RegState::Implicit);
+      if (ValOp.isGlobal())
+        NewMI.addGlobalAddress(ValOp.getGlobal(), ValOp.getOffset(),
+                               ValOp.getTargetFlags());
+      else if (ValOp.isSymbol())
+        NewMI.addExternalSymbol(ValOp.getSymbolName(), ValOp.getTargetFlags());
+      else
+        NewMI.addImm(ValOp.isImm() ? ValOp.getImm()
+                                   : ValOp.getCImm()->getSExtValue());
     }
     dematerializeReg(Builder, RealReg, DestRegOp.getReg(), MF);
     pullStagingReg(Builder, RealReg, StagePushed);
@@ -6836,6 +6877,10 @@ void MC6809InstrInfo::expandLoadImm(MachineIRBuilder &Builder, MachineInstr &MI)
   }
 
   auto ValOp = MI.getOperand(1);
+  if (buildClearForZero(Builder, MI, DestRegOp.getReg(), ValOp)) {
+    MI.removeFromParent();
+    return;
+  }
   auto OpcodePair = LoadImmediateOpcode.find(MI.getOperand(0).getReg());
   if (OpcodePair == LoadImmediateOpcode.end())
     llvm_unreachable("Unexpected LoadImm register.");

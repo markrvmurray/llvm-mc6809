@@ -270,7 +270,18 @@ static bool foldLoadIntoCopy(MachineBasicBlock &MBB,
       Prev = Prev->getPrevNode();
     if (!Prev)
       continue;
-    bool Imm = FromD && Prev->getOpcode() == MC6809::LDDi16;
+    // D set to a constant: `ldd #n`, or a clear (`clrd`, `clra ; clrb`),
+    // chosen only where C is dead -- and a transfer does not read C.
+    MachineInstr *PrevA = nullptr; // the `clra` of a `clra ; clrb` pair
+    if (FromD && Prev->getOpcode() == MC6809::CLRBa) {
+      PrevA = Prev->getPrevNode();
+      while (PrevA && PrevA->isDebugInstr())
+        PrevA = PrevA->getPrevNode();
+      if (PrevA && PrevA->getOpcode() != MC6809::CLRAa)
+        PrevA = nullptr;
+    }
+    bool Zero = FromD && (Prev->getOpcode() == MC6809::CLRDa || PrevA);
+    bool Imm = FromD && (Prev->getOpcode() == MC6809::LDDi16 || Zero);
     Register PB;
     int64_t PO;
     if (!Imm && (!isIndexedLoad(Prev->getOpcode()) ||
@@ -289,8 +300,13 @@ static bool foldLoadIntoCopy(MachineBasicBlock &MBB,
       unsigned NewOpc = R2 == MC6809::IX   ? MC6809::LDXi16
                         : R2 == MC6809::IY ? MC6809::LDYi16
                                            : MC6809::LDUi16;
-      BuildMI(MBB, *Prev, Prev->getDebugLoc(), TII.get(NewOpc))
-          .add(Prev->getOperand(0));
+      auto New = BuildMI(MBB, *Prev, Prev->getDebugLoc(), TII.get(NewOpc));
+      if (Zero)
+        New.addImm(0);
+      else
+        New.add(Prev->getOperand(0));
+      if (PrevA)
+        PrevA->eraseFromParent();
       Prev->eraseFromParent();
       MI.eraseFromParent();
       ++NumImmIntoIndex;

@@ -27,7 +27,7 @@ define dso_local signext i8 @if_s8(i8 noundef signext %a, i8 noundef signext %b)
 ; O0-NEXT:    tsta
 ; O0-NEXT:    bgt .LBB0_2
 ; O0-NEXT:  ; %bb.1: ; %if.end
-; O0-NEXT:    ldb #0
+; O0-NEXT:    clrb
 ; O0-NEXT:    subb 2,s
 ; O0-NEXT:    bra .LBB0_2
 ; O0-NEXT:  .LBB0_2: ; %return
@@ -42,7 +42,7 @@ define dso_local signext i8 @if_s8(i8 noundef signext %a, i8 noundef signext %b)
 ; O1-NEXT:  ; %bb.1: ; %return
 ; O1-NEXT:    rts
 ; O1-NEXT:  .LBB0_2: ; %if.end
-; O1-NEXT:    ldb #0
+; O1-NEXT:    clrb
 ; O1-NEXT:    subb 2,s
 ; O1-NEXT:    rts
 ;
@@ -55,7 +55,7 @@ define dso_local signext i8 @if_s8(i8 noundef signext %a, i8 noundef signext %b)
 ; O2-NEXT:  ; %bb.1: ; %return
 ; O2-NEXT:    rts
 ; O2-NEXT:  .LBB0_2: ; %if.end
-; O2-NEXT:    ldb #0
+; O2-NEXT:    clrb
 ; O2-NEXT:    subb 2,s
 ; O2-NEXT:    rts
 ;
@@ -68,7 +68,7 @@ define dso_local signext i8 @if_s8(i8 noundef signext %a, i8 noundef signext %b)
 ; O3-NEXT:  ; %bb.1: ; %return
 ; O3-NEXT:    rts
 ; O3-NEXT:  .LBB0_2: ; %if.end
-; O3-NEXT:    ldb #0
+; O3-NEXT:    clrb
 ; O3-NEXT:    subb 2,s
 ; O3-NEXT:    rts
 entry:
@@ -488,7 +488,7 @@ define dso_local i32 @if_s32(i32 noundef %a, i32 noundef %b) local_unnamed_addr 
 ; O1-NEXT:    stb 1,s ; 1-byte Folded Spill
 ; O1-NEXT:    lda #-128
 ; O1-NEXT:    eora 4,s
-; O1-NEXT:    ldb #0
+; O1-NEXT:    clrb
 ; O1-NEXT:    subb 7,s
 ; O1-NEXT:    ldb #0
 ; O1-NEXT:    sbcb 6,s
@@ -501,7 +501,7 @@ define dso_local i32 @if_s32(i32 noundef %a, i32 noundef %b) local_unnamed_addr 
 ; O1-NEXT:    sbcb #0
 ; O1-NEXT:    bne .LBB4_2
 ; O1-NEXT:  ; %bb.1: ; %if.end
-; O1-NEXT:    ldb #0
+; O1-NEXT:    clrb
 ; O1-NEXT:    subb 11,s
 ; O1-NEXT:    stb 1,s ; 1-byte Folded Spill
 ; O1-NEXT:    ldb #0
@@ -536,7 +536,7 @@ define dso_local i32 @if_s32(i32 noundef %a, i32 noundef %b) local_unnamed_addr 
 ; O2-NEXT:    stb 1,s ; 1-byte Folded Spill
 ; O2-NEXT:    lda #-128
 ; O2-NEXT:    eora 4,s
-; O2-NEXT:    ldb #0
+; O2-NEXT:    clrb
 ; O2-NEXT:    subb 7,s
 ; O2-NEXT:    ldb #0
 ; O2-NEXT:    sbcb 6,s
@@ -549,7 +549,7 @@ define dso_local i32 @if_s32(i32 noundef %a, i32 noundef %b) local_unnamed_addr 
 ; O2-NEXT:    sbcb #0
 ; O2-NEXT:    bne .LBB4_2
 ; O2-NEXT:  ; %bb.1: ; %if.end
-; O2-NEXT:    ldb #0
+; O2-NEXT:    clrb
 ; O2-NEXT:    subb 11,s
 ; O2-NEXT:    stb 1,s ; 1-byte Folded Spill
 ; O2-NEXT:    ldb #0
@@ -584,7 +584,7 @@ define dso_local i32 @if_s32(i32 noundef %a, i32 noundef %b) local_unnamed_addr 
 ; O3-NEXT:    stb 1,s ; 1-byte Folded Spill
 ; O3-NEXT:    lda #-128
 ; O3-NEXT:    eora 4,s
-; O3-NEXT:    ldb #0
+; O3-NEXT:    clrb
 ; O3-NEXT:    subb 7,s
 ; O3-NEXT:    ldb #0
 ; O3-NEXT:    sbcb 6,s
@@ -597,7 +597,7 @@ define dso_local i32 @if_s32(i32 noundef %a, i32 noundef %b) local_unnamed_addr 
 ; O3-NEXT:    sbcb #0
 ; O3-NEXT:    bne .LBB4_2
 ; O3-NEXT:  ; %bb.1: ; %if.end
-; O3-NEXT:    ldb #0
+; O3-NEXT:    clrb
 ; O3-NEXT:    subb 11,s
 ; O3-NEXT:    stb 1,s ; 1-byte Folded Spill
 ; O3-NEXT:    ldb #0

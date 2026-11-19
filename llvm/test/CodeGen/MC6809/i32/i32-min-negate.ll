@@ -52,9 +52,9 @@ define i32 @neg_i32(i32 %x) {
 ; O2-LABEL: neg_i32:
 ; O2:       ; %bb.0:
 ; O2-NEXT:    leas -3,s
-; O2-NEXT:    ldb #0
+; O2-NEXT:    clrb
 ; O2-NEXT:    stb 2,s ; 1-byte Folded Spill
-; O2-NEXT:    ldb #0
+; O2-NEXT:    clrb
 ; O2-NEXT:    subb 8,s
 ; O2-NEXT:    stb 1,s ; 1-byte Folded Spill
 ; O2-NEXT:    ldb #0
@@ -112,9 +112,9 @@ define i32 @mul_neg1(i32 %x) {
 ; O2-LABEL: mul_neg1:
 ; O2:       ; %bb.0:
 ; O2-NEXT:    leas -3,s
-; O2-NEXT:    ldb #0
+; O2-NEXT:    clrb
 ; O2-NEXT:    stb 2,s ; 1-byte Folded Spill
-; O2-NEXT:    ldb #0
+; O2-NEXT:    clrb
 ; O2-NEXT:    subb 8,s
 ; O2-NEXT:    stb 1,s ; 1-byte Folded Spill
 ; O2-NEXT:    ldb #0
