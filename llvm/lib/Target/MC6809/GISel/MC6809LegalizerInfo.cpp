@@ -483,7 +483,7 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
        G_FPOW,
        G_FEXP, G_FEXP2,
        G_FLOG, G_FLOG2, G_FLOG10,
-       G_FMINNUM, G_FMAXNUM,
+       G_FMINNUM, G_FMAXNUM, G_FMINIMUMNUM, G_FMAXIMUMNUM,
        G_FCEIL, G_FFLOOR, G_FRINT, G_FNEARBYINT,
        G_FSQRT,
        G_FCOS, G_FSIN, G_FTAN, G_FSINCOS,
@@ -497,6 +497,12 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
   // __xorsi3 libcalls (~30 bytes per call site). The ROM-backed
   // __abssf2/__absdf2 / __negsf2/__negdf2 wrappers are each a single
   // ~5-byte LBSR.
+  // C23's fminimum and fmaximum (NaN wins, -0 < +0) as calls of picolibc's
+  // functions: the optimizer can form llvm.minimum/maximum, and the generic
+  // libcall path has no entry for them.
+  getActionDefinitionsBuilder({G_FMINIMUM, G_FMAXIMUM})
+      .customFor({s32, s64});
+
   getActionDefinitionsBuilder(G_FABS)
       .libcallFor({s32, s64});
   getActionDefinitionsBuilder(G_FNEG)
@@ -728,6 +734,23 @@ bool MC6809LegalizerInfo::legalizeCustom(LegalizerHelper &Helper, MachineInstr &
   default:
     // No idea what to do.
     return false;
+  case G_FMINIMUM:
+  case G_FMAXIMUM: {
+    Register Dst = MI.getOperand(0).getReg();
+    bool Is64 = MRI.getType(Dst).getSizeInBits() == 64;
+    auto &Ctx = MI.getMF()->getFunction().getContext();
+    Type *Ty = Is64 ? Type::getDoubleTy(Ctx) : Type::getFloatTy(Ctx);
+    const char *Name =
+        MI.getOpcode() == G_FMINIMUM ? (Is64 ? "fminimum" : "fminimumf")
+                                     : (Is64 ? "fmaximum" : "fmaximumf");
+    if (!Helper.createLibcall(Name, {Dst, Ty, 0},
+                              {{MI.getOperand(1).getReg(), Ty, 0},
+                               {MI.getOperand(2).getReg(), Ty, 1}},
+                              CallingConv::C, LocObserver))
+      return false;
+    MI.eraseFromParent();
+    return true;
+  }
   case G_TRAP:
   case G_DEBUGTRAP:
   case G_UBSANTRAP: {
