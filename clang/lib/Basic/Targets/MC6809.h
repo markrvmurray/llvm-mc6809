@@ -33,6 +33,12 @@ public:
 
   SmallVector<Builtin::InfosShard> getTargetBuiltins() const override;
 
+  // Every type's alignment is 1: nothing on the 6809 runs faster aligned.
+  // Without this, clang would still prefer 8-byte alignment for a long
+  // long or double object, padding globals and making a function with
+  // such a local realign its stack frame.
+  bool allowsLargerPreferedTypeAlignment() const override { return false; }
+
   BuiltinVaListKind getBuiltinVaListKind() const override {
     return TargetInfo::VoidPtrBuiltinVaList;
   }
