@@ -104,6 +104,9 @@ BitVector MC6809RegisterInfo::getReservedRegs(const MachineFunction &MF) const {
   const MC6809FrameLowering *TFI = getFrameLowering(MF);
   if (TFI->hasFP(MF) || MF.getTarget().getTargetTriple().isOSOS9())
     Reserved.set(MC6809::SU);
+  // OS-9's frame pointer, in a function that realigns its frame, is Y.
+  if (TFI->hasFP(MF))
+    Reserved.set(getFrameRegister(MF));
 
   // The RS 16-bit imaginaries are genuine allocation targets (the MOS
   // model): with the SPILL_D escape registers retired, they are what makes
@@ -210,7 +213,7 @@ bool MC6809RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II, int
   const MC6809FrameLowering *TFI = getFrameLowering(MF);
   DebugLoc dl = MI.getDebugLoc();
   int FrameIndex = MI.getOperand(FIOperandNum).getIndex();
-  unsigned BasePtr = (TFI->hasFP(MF) ? MC6809::SU : MC6809::SS);
+  unsigned BasePtr = getFrameRegister(MF);
   const MachineFrameInfo &MFI = MF.getFrameInfo();
   const bool Realign = TFI->realignsStack(MF);
   const MC6809InstrInfo &TII =
@@ -359,14 +362,13 @@ bool MC6809RegisterInfo::shouldCoalesce(
   return true;
 }
 
-bool MC6809RegisterInfo::canRealignStack(const MachineFunction &MF) const {
-  return !MF.getTarget().getTargetTriple().isOSOS9() &&
-         TargetRegisterInfo::canRealignStack(MF);
-}
-
 Register MC6809RegisterInfo::getFrameRegister(const MachineFunction &MF) const {
+  // U, except on OS-9, where U is the process's data-area base and the frame
+  // pointer (taken only to realign the frame) is Y.
   const TargetFrameLowering *TFI = getFrameLowering(MF);
-  return TFI->hasFP(MF) ? MC6809::SU : MC6809::SS;
+  if (!TFI->hasFP(MF))
+    return MC6809::SS;
+  return MF.getTarget().getTargetTriple().isOSOS9() ? MC6809::IY : MC6809::SU;
 }
 
 bool MC6809RegisterInfo::getRegAllocationHints(Register VirtReg, ArrayRef<MCPhysReg> Order, SmallSetVector<MCPhysReg, 16> &Hints, const MachineFunction &MF, const VirtRegMap *VRM, const LiveRegMatrix *Matrix) const {

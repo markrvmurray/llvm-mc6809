@@ -354,10 +354,10 @@ bool MC6809FrameLowering::enableCalleeSaveSkip(const MachineFunction &MF) const 
 void MC6809FrameLowering::determineCalleeSaves(MachineFunction &MF, BitVector &SavedRegs, RegScavenger *RS) const {
   TargetFrameLowering::determineCalleeSaves(MF, SavedRegs, RS);
 
-  // If we have a frame pointer, the frame register SU needs to be saved as
-  // well, since the code that uses it hasn't yet been emitted.
+  // If we have a frame pointer, the frame register (U, or Y on OS-9) needs to
+  // be saved as well, since the code that uses it hasn't yet been emitted.
   if (hasFP(MF))
-    SavedRegs.set(MC6809::SU);
+    SavedRegs.set(MF.getSubtarget().getRegisterInfo()->getFrameRegister(MF));
 
   // A direct-page register is saved by loading it into D and pushing that.
   // In a FIRQ handler D belongs to the interrupted code, so it is saved
@@ -491,17 +491,13 @@ void MC6809FrameLowering::emitPrologue(MachineFunction &MF, MachineBasicBlock &M
   int64_t StackSize = MFI.getStackSize();
 
   // A local aligned beyond what this frame can provide would silently be
-  // misaligned: say so instead. OS-9 has no register to spare for the frame
-  // pointer a realigned frame needs, and a realigned frame with
-  // variable-sized objects would need a base pointer as well.
+  // misaligned: say so instead. A realigned frame with variable-sized
+  // objects would need a base pointer as well as the frame pointer.
   if (TRI.shouldRealignStack(MF) &&
       (!realignsStack(MF) || MFI.hasVarSizedObjects()))
     MF.getFunction().getContext().diagnose(DiagnosticInfoUnsupported(
-        MF.getFunction(),
-        MF.getTarget().getTargetTriple().isOSOS9()
-            ? "a local aligned beyond 1 byte: OS-9 cannot realign the stack"
-            : "a local aligned beyond 1 byte in a function with "
-              "variable-sized objects"));
+        MF.getFunction(), "a local aligned beyond 1 byte in a function with "
+                          "variable-sized objects"));
 
   // Bug #164 Tier 2: initial CFI.  At function entry (just after the caller's
   // JSR/BSR has pushed the 2-byte return address) the canonical frame address
@@ -739,8 +735,10 @@ bool MC6809FrameLowering::isFrameBase(const MachineFunction &MF,
                                       Register Reg) const {
   if (Reg == MC6809::SS)
     return true;
-  return Reg == MC6809::SU &&
-         (hasFP(MF) || MF.getTarget().getTargetTriple().isOSOS9());
+  if (Reg == MC6809::SU && MF.getTarget().getTargetTriple().isOSOS9())
+    return true;
+  return hasFP(MF) &&
+         Reg == MF.getSubtarget().getRegisterInfo()->getFrameRegister(MF);
 }
 
 bool MC6809FrameLowering::hasFP(const MachineFunction &MF) const {
@@ -752,18 +750,19 @@ bool MC6809FrameLowering::hasFP(const MachineFunction &MF) const {
   // gone again when the callee returns, and the code that pushes a register
   // in the middle of a function adjusts its own stack offsets for the push.
   const MachineFrameInfo &MFI = MF.getFrameInfo();
-  bool Needed = MFI.isFrameAddressTaken() || MFI.hasVarSizedObjects() ||
-                realignsStack(MF);
+  bool Needed = MFI.isFrameAddressTaken() || MFI.hasVarSizedObjects();
   if (MF.getTarget().getTargetTriple().isOSOS9()) {
+    // U is the process's data-area base, so OS-9's frame pointer is Y, and
+    // only a realigned frame takes one.
     if (Needed)
       report_fatal_error(
-          "OS-9 MC6809 does not support a U-based frame pointer; U is the "
-          "process data-area base");
-    return false;
+          "OS-9 MC6809 does not support a taken frame address or "
+          "variable-sized objects");
+    return realignsStack(MF);
   }
   // Also when asked for one (-fno-omit-frame-pointer). Not on OS-9, whose U
   // is never free.
-  return Needed || MF.disableFramePointerElim();
+  return Needed || realignsStack(MF) || MF.disableFramePointerElim();
 }
 
 bool MC6809FrameLowering::realignsStack(const MachineFunction &MF) const {

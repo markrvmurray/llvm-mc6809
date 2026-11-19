@@ -43,15 +43,16 @@ public:
   bool hasFP(const MachineFunction &MF) const;
   // Whether the frame is realigned: a local is aligned more strictly than
   // the stack (alignas). The prologue then rounds S down after allocating
-  // the locals, which are addressed from S, and keeps U as the frame
-  // pointer to reach the incoming arguments. Never on OS-9, where U is
-  // the data-area base.
+  // the locals, which are addressed from S, and keeps the frame pointer --
+  // U, or Y on OS-9, where U is the data-area base -- to reach the incoming
+  // arguments.
   bool realignsStack(const MachineFunction &MF) const;
   // Whether an access based on Reg is to this function's own frame -- or,
   // on OS-9, to the process's data area -- rather than through a pointer
-  // that could be anywhere: S always; U only when it is the frame pointer or
-  // the OS-9 data-area base. Anywhere else U is an ordinary allocatable
-  // register and may hold any address, the frame included.
+  // that could be anywhere: S always; the frame pointer (U, or Y on OS-9)
+  // in a function that has one; U on OS-9 as the data-area base. Anywhere
+  // else U and Y are ordinary allocatable registers and may hold any
+  // address, the frame included.
   bool isFrameBase(const MachineFunction &MF, Register Reg) const;
 
   // Computes bytes occupied by callee-saved registers pushed on the hardware
