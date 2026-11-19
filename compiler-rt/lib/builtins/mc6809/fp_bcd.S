@@ -42,6 +42,16 @@
 ;
 ; void __mc6839_bindec_f64(uint8_t *bcd, int k, double val);
 ; void __mc6839_bindec_f32(uint8_t *bcd, int k, float  val);
+; void __mc6839_bindec_f64_rz(uint8_t *bcd, int k, double val);
+; void __mc6839_bindec_f32_rz(uint8_t *bcd, int k, float  val);
+;
+; The plain entries round in the current rounding mode; the _rz ones
+; truncate (the truncating control blocks).  For a value just below a
+; power of ten under 1, BINDEC's decade correction (CHEKW) can miss and
+; leave the digits one place too high.  Rounded, that result reads as the
+; power of ten; truncated, it comes back with a leading zero, which the
+; printf engines can see.  They take a digit more than they need,
+; truncated, and round the last one off themselves.
 ;
 ; X holds bcd (caller's first pointer arg).  At LBSR:
 ;   S+0..1 = return PC
@@ -69,6 +79,26 @@ __mc6839_bindec_f32:
         FP_ENTRY __mc6839_fpcb_f32
         ldu     6+FP_SLOT,s                 ; U = k
         leay    8+FP_SLOT,s                 ; Y -> float val (4 bytes at S+8..11)
+        FP_CALL FPOP_BINDEC
+        puls    u,y
+        rts
+
+        .global __mc6839_bindec_f64_rz
+__mc6839_bindec_f64_rz:
+        pshs    u,y
+        FP_ENTRY __mc6839_fpcb_f64_trunc
+        ldu     6+FP_SLOT,s                 ; U = k
+        leay    8+FP_SLOT,s                 ; Y -> double val
+        FP_CALL FPOP_BINDEC
+        puls    u,y
+        rts
+
+        .global __mc6839_bindec_f32_rz
+__mc6839_bindec_f32_rz:
+        pshs    u,y
+        FP_ENTRY __mc6839_fpcb_f32_trunc
+        ldu     6+FP_SLOT,s                 ; U = k
+        leay    8+FP_SLOT,s                 ; Y -> float val
         FP_CALL FPOP_BINDEC
         puls    u,y
         rts
