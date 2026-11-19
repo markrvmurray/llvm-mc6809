@@ -927,7 +927,7 @@ InstructionSelector::ComplexRendererFns MC6809InstructionSelector::selectAMUnmer
     //Register SrcReg = RootDef->getOperand(2).getReg();
     unsigned EltSize = MRI.getType(Root.getReg()).getSizeInBytes();
     bool IsLo = Root.getReg() == RootDef->getOperand(0).getReg();
-    unsigned mergeoffset = IsLo ? EltSize : 0;
+    unsigned MergeOffset = IsLo ? EltSize : 0;
     MachineInstr *LoadDef = MRI.getVRegDef(RootDef->getOperand(2).getReg());
     if (LoadDef->getOpcode() == TargetOpcode::G_LOAD) {
       MachineInstr *FrameDef = MRI.getVRegDef(LoadDef->getOperand(1).getReg());
@@ -936,7 +936,7 @@ InstructionSelector::ComplexRendererFns MC6809InstructionSelector::selectAMUnmer
                            AA)) {
         return {{
             [=](MachineInstrBuilder &MIB) { MIB.add(FrameDef->getOperand(1)); },
-            [=](MachineInstrBuilder &MIB) { MIB.addImm(mergeoffset); },
+            [=](MachineInstrBuilder &MIB) { MIB.addImm(MergeOffset); },
         }};
       }
     }
@@ -2733,9 +2733,9 @@ skip_globalvalue_fold:
     //   GE    = !(N^V)   LT    = N^V
     //   GT    = !Z & !(N^V)   LE = Z | (N^V)
     //   RA    = always   RN    = never
-    auto FlagsReadBy = [](int64_t cc) {
+    auto FlagsReadBy = [](int64_t Cond) {
       SmallVector<MCPhysReg, 3> Out;
-      switch (cc) {
+      switch (Cond) {
       case MC6809CC::CC: case MC6809CC::CS:
         Out.push_back(MC6809::C); break;
       case MC6809CC::HI: case MC6809CC::LS:
@@ -3401,7 +3401,7 @@ skip_globalvalue_fold:
         DebugLoc DL = MI.getDebugLoc();
         bool IsSub = (MI.getOpcode() == TargetOpcode::G_SUB);
 
-        LLT s16 = LLT::scalar(16);
+        LLT S16 = LLT::scalar(16);
 
         // Constrain the original INDEX-bank operands to INDEX16 register class.
         RBI.constrainGenericRegister(Src1, MC6809::INDEX16RegClass, *MRI);
@@ -3410,7 +3410,7 @@ skip_globalvalue_fold:
 
         if (!IsSub) {
           // ADD: copy one operand to D, then LEAX D,X (single instruction).
-          Register AccSrc = MRI->createGenericVirtualRegister(s16);
+          Register AccSrc = MRI->createGenericVirtualRegister(S16);
           MRI->setRegClass(AccSrc, &MC6809::ACC16RegClass);
           BuildMI(MBB, MI, DL, TII.get(TargetOpcode::COPY), AccSrc).addReg(Src2);
           auto LEA = BuildMI(MBB, MI, DL, TII.get(MC6809::LEAPtrAdd_Reg16), DstReg)
@@ -3421,9 +3421,9 @@ skip_globalvalue_fold:
           // SUB: compute -b as (0 - b), then LEAX D,X.
           // Trace Src2 back to its defining load to get the memory operand,
           // so we can SUBD directly from memory: LDD #0; SUBD offset,S; LEAX D,X.
-          Register AccZero = MRI->createGenericVirtualRegister(s16);
+          Register AccZero = MRI->createGenericVirtualRegister(S16);
           MRI->setRegClass(AccZero, &MC6809::ACC16RegClass);
-          Register AccNegB = MRI->createGenericVirtualRegister(s16);
+          Register AccNegB = MRI->createGenericVirtualRegister(S16);
           MRI->setRegClass(AccNegB, &MC6809::ACC16RegClass);
 
           // Find the memory source of Src2 by looking through COPYs.
@@ -3451,7 +3451,7 @@ skip_globalvalue_fold:
             // on plain 6809, so the old explicit Push_i16 + Sub_i16_Pull
             // pair (whose push-to-pull window the register allocator could
             // fill with S-relative spill code) is not needed.
-            Register AccSrc2 = MRI->createGenericVirtualRegister(s16);
+            Register AccSrc2 = MRI->createGenericVirtualRegister(S16);
             MRI->setRegClass(AccSrc2, &MC6809::ACC16RegClass);
             BuildMI(MBB, MI, DL, TII.get(TargetOpcode::COPY), AccSrc2).addReg(Src2);
             auto Zero = BuildMI(MBB, MI, DL, TII.get(MC6809::Load_i16_Imm), AccZero)

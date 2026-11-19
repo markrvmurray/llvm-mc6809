@@ -114,7 +114,7 @@ void MC6809AsmBackend::applyFixup(const MCFragment &F, const MCFixup &Fixup,
   // One safety net at the same layer for every short-encoding fixup.)
   if (IsResolved) {
     auto SignedValue = static_cast<int64_t>(Value);
-    auto fail = [&](const char *Name, int64_t Lo, int64_t Hi) {
+    auto Fail = [&](const char *Name, int64_t Lo, int64_t Hi) {
       std::string Msg;
       raw_string_ostream OS(Msg);
       OS << "MC6809: " << Name << " fixup value " << SignedValue
@@ -125,11 +125,11 @@ void MC6809AsmBackend::applyFixup(const MCFragment &F, const MCFixup &Fixup,
       report_fatal_error(StringRef(Msg));
     };
     if (Kind == MC6809::PCRel8 && !isInt<8>(SignedValue))
-      fail("PCRel8", -128, 127);
+      Fail("PCRel8", -128, 127);
     if (Kind == MC6809::Rel8   && !isInt<8>(SignedValue))
-      fail("Rel8 (_o8 indexed offset)", -128, 127);
+      Fail("Rel8 (_o8 indexed offset)", -128, 127);
     if (Kind == MC6809::Rel5   && !isInt<5>(SignedValue))
-      fail("Rel5 (_o5 indexed offset)", -16, 15);
+      Fail("Rel5 (_o5 indexed offset)", -16, 15);
   }
 
   // Rel5 is a 5-bit signed indexed offset packed into the low 5 bits of a

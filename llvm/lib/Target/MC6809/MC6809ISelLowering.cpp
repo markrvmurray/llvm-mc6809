@@ -253,7 +253,7 @@ static MachineBasicBlock *emitLeaOS9Weak(MachineInstr &MI, MachineBasicBlock *MB
   MachineFunction *F = MBB->getParent();
   MachineRegisterInfo &MRI = F->getRegInfo();
   const TargetInstrInfo &TII = *F->getSubtarget().getInstrInfo();
-  const BasicBlock *LLVM_BB = MBB->getBasicBlock();
+  const BasicBlock *LLVMBB = MBB->getBasicBlock();
   DebugLoc DL = MI.getDebugLoc();
   Register Dst = MI.getOperand(0).getReg();
   const MachineOperand SymOp = MI.getOperand(1);
@@ -269,7 +269,7 @@ static MachineBasicBlock *emitLeaOS9Weak(MachineInstr &MI, MachineBasicBlock *MB
     // MI was the last instruction: make the merge block, steering the
     // successor's phis to it.
     MachineBasicBlock *OrigSucc = &*I;
-    TailMBB = F->CreateMachineBasicBlock(LLVM_BB);
+    TailMBB = F->CreateMachineBasicBlock(LLVMBB);
     F->insert(OrigSucc->getIterator(), TailMBB);
     TailMBB->addSuccessor(OrigSucc);
     HeadMBB->replaceSuccessor(OrigSucc, TailMBB);
@@ -282,7 +282,7 @@ static MachineBasicBlock *emitLeaOS9Weak(MachineInstr &MI, MachineBasicBlock *MB
   }
   HeadMBB->removeSuccessor(TailMBB);
 
-  MachineBasicBlock *AddMBB = F->CreateMachineBasicBlock(LLVM_BB);
+  MachineBasicBlock *AddMBB = F->CreateMachineBasicBlock(LLVMBB);
   F->insert(TailMBB->getIterator(), AddMBB);
   for (const auto &LiveIn : TailMBB->liveins())
     AddMBB->addLiveIn(LiveIn);
@@ -343,7 +343,7 @@ static MachineBasicBlock *emitConditionalImm(MachineInstr &MI, MachineBasicBlock
   int64_t TrueValue = MI.getOperand(3).getImm();
   int64_t FalseValue = MI.getOperand(4).getImm();
 
-  const BasicBlock *LLVM_BB = MBB->getBasicBlock();
+  const BasicBlock *LLVMBB = MBB->getBasicBlock();
   MachineFunction::iterator I = ++MBB->getIterator();
   MachineIRBuilder Builder(MI);
 
@@ -367,7 +367,7 @@ static MachineBasicBlock *emitConditionalImm(MachineInstr &MI, MachineBasicBlock
   // Create a merge block and update the successor's PHIs.
   if (TailMBB == HeadMBB) {
     MachineBasicBlock *OrigSucc = &*I;
-    TailMBB = F->CreateMachineBasicBlock(LLVM_BB);
+    TailMBB = F->CreateMachineBasicBlock(LLVMBB);
     F->insert(OrigSucc->getIterator(), TailMBB);
     TailMBB->addSuccessor(OrigSucc);
     HeadMBB->replaceSuccessor(OrigSucc, TailMBB);
@@ -382,7 +382,7 @@ static MachineBasicBlock *emitConditionalImm(MachineInstr &MI, MachineBasicBlock
   HeadMBB->removeSuccessor(TailMBB);
 
   // Add the false block between HeadMBB and TailMBB
-  MachineBasicBlock *IfFalseMBB = F->CreateMachineBasicBlock(LLVM_BB);
+  MachineBasicBlock *IfFalseMBB = F->CreateMachineBasicBlock(LLVMBB);
   F->insert(TailMBB->getIterator(), IfFalseMBB);
   HeadMBB->addSuccessor(IfFalseMBB);
   for (const auto &LiveIn : TailMBB->liveins())
@@ -390,7 +390,7 @@ static MachineBasicBlock *emitConditionalImm(MachineInstr &MI, MachineBasicBlock
       IfFalseMBB->addLiveIn(LiveIn);
   IfFalseMBB->addSuccessor(TailMBB);
 
-  MachineBasicBlock *IfTrueMBB = F->CreateMachineBasicBlock(LLVM_BB);
+  MachineBasicBlock *IfTrueMBB = F->CreateMachineBasicBlock(LLVMBB);
   F->insert(TailMBB->getIterator(), IfTrueMBB);
   IfTrueMBB->addSuccessor(TailMBB);
   // Add the unconditional branch from IfFalseMBB to TailMBB.
@@ -423,7 +423,7 @@ static MachineBasicBlock *emitConditionalImm(MachineInstr &MI, MachineBasicBlock
   // (long-branch form), so the only difference vs. the short-branch path
   // is the encoded branch range — exactly what Option A asked for.
   MachineRegisterInfo *MFRMRI = &MRI;
-  auto tryEmitFusedCompareBranch = [&]() -> bool {
+  auto TryEmitFusedCompareBranch = [&]() -> bool {
     if (!Flag.isVirtual())
       return false;
     if (!MFRMRI->hasOneNonDBGUse(Flag))
@@ -464,7 +464,7 @@ static MachineBasicBlock *emitConditionalImm(MachineInstr &MI, MachineBasicBlock
     return true;
   };
 
-  if (!tryEmitFusedCompareBranch()) {
+  if (!TryEmitFusedCompareBranch()) {
     // Fallback: emit the separated ConditionalLongBranchRelative.
     // This path remains vulnerable to mid-window flag clobbers, but
     // the only producers that reach it are non-Compare/Test sources
@@ -526,7 +526,7 @@ static MachineBasicBlock *emitSelectImm(MachineInstr &MI, MachineBasicBlock *MBB
   int64_t TrueValue = MI.getOperand(2).getImm();
   int64_t FalseValue = MI.getOperand(3).getImm();
 
-  const BasicBlock *LLVM_BB = MBB->getBasicBlock();
+  const BasicBlock *LLVMBB = MBB->getBasicBlock();
   MachineFunction::iterator I = ++MBB->getIterator();
   MachineIRBuilder Builder(MI);
 
@@ -546,7 +546,7 @@ static MachineBasicBlock *emitSelectImm(MachineInstr &MI, MachineBasicBlock *MBB
   HeadMBB->removeSuccessor(TailMBB);
 
   // Add the false block between HeadMBB and TailMBB
-  MachineBasicBlock *IfFalseMBB = F->CreateMachineBasicBlock(LLVM_BB);
+  MachineBasicBlock *IfFalseMBB = F->CreateMachineBasicBlock(LLVMBB);
   F->insert(TailMBB->getIterator(), IfFalseMBB);
   HeadMBB->addSuccessor(IfFalseMBB);
   for (const auto &LiveIn : TailMBB->liveins())
@@ -557,7 +557,7 @@ static MachineBasicBlock *emitSelectImm(MachineInstr &MI, MachineBasicBlock *MBB
   // Add a true block if necessary to avoid clobbering NZ.
   MachineBasicBlock *IfTrueMBB = nullptr;
   if (Flag == MC6809::N || Flag == MC6809::Z) {
-    IfTrueMBB = F->CreateMachineBasicBlock(LLVM_BB);
+    IfTrueMBB = F->CreateMachineBasicBlock(LLVMBB);
     F->insert(TailMBB->getIterator(), IfTrueMBB);
     IfTrueMBB->addSuccessor(TailMBB);
 

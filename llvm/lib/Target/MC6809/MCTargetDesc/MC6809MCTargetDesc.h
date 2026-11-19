@@ -68,7 +68,7 @@ std::unique_ptr<MCObjectTargetWriter> createMC6809ELFObjectWriter(uint8_t OSABI)
 
 namespace llvm {
 template <> struct enum_iteration_traits<decltype(MC6809::NoRegister)> {
-  static constexpr bool is_iterable = true;
+  static constexpr bool IsIterable = true;
 };
 
 namespace MC6809Op {

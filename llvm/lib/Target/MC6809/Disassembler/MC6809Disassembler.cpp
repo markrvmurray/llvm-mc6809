@@ -156,12 +156,12 @@ static DecodeStatus DecodeRegListOperand(MCInst &MI, uint64_t Bits, uint64_t Add
   if (Bits == 0 or Bits >= 256)
     return MCDisassembler::Fail;
 
-  for (unsigned i = 0; i < 8; i++)
-    if (Bits & (1 << i)) {
+  for (unsigned I = 0; I < 8; I++)
+    if (Bits & (1 << I)) {
       if (MI.getOpcode() == MC6809::PSHSs || MI.getOpcode() == MC6809::PULSs)
-        MI.addOperand(MCOperand::createReg(RegsS[i]));
+        MI.addOperand(MCOperand::createReg(RegsS[I]));
       else
-        MI.addOperand(MCOperand::createReg(RegsU[i]));
+        MI.addOperand(MCOperand::createReg(RegsU[I]));
     }
 
   return MCDisassembler::Success;
@@ -221,9 +221,9 @@ DecodeStatus MC6809Disassembler::getInstruction(MCInst &Instr, uint64_t &Size, A
     uint64_t Insn = 0;
     for (size_t Byte : seq((size_t)0, InsnSize))
       Insn |= ((uint64_t)Bytes[Byte]) << (8 * Byte);
-    for (unsigned i = 0; i < DecoderTableSize; i++) {
-      if (DecoderTable[i].Size == InsnSize) {
-        DecodeStatus Result = decodeInstruction(DecoderTable[i].Table, Instr, Insn, Address, this, STI);
+    for (unsigned I = 0; I < DecoderTableSize; I++) {
+      if (DecoderTable[I].Size == InsnSize) {
+        DecodeStatus Result = decodeInstruction(DecoderTable[I].Table, Instr, Insn, Address, this, STI);
         if (Result != MCDisassembler::Fail) {
           // In the OS-9 environment SWI2 is the kernel entry and the byte
           // that follows it is the in-line function code, which the kernel

@@ -211,7 +211,7 @@ bool MC6809RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II, int
   MachineBasicBlock &MBB = *MI.getParent();
   MachineFunction &MF = *MBB.getParent();
   const MC6809FrameLowering *TFI = getFrameLowering(MF);
-  DebugLoc dl = MI.getDebugLoc();
+  DebugLoc DL = MI.getDebugLoc();
   int FrameIndex = MI.getOperand(FIOperandNum).getIndex();
   unsigned BasePtr = getFrameRegister(MF);
   const MachineFrameInfo &MFI = MF.getFrameInfo();
@@ -256,7 +256,7 @@ bool MC6809RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II, int
     // (at FIOperandNum, FIOperandNum+1) collapse into the target index.
     // Explicit operands after the pair (a fused compare-branch's label)
     // follow it.
-    auto MIB = BuildMI(MBB, MI, dl, TII.get(SymOpc));
+    auto MIB = BuildMI(MBB, MI, DL, TII.get(SymOpc));
     for (unsigned I = 0; I < FIOperandNum; ++I)
       MIB.add(MI.getOperand(I));
     MIB.addTargetIndex(MC6809::TI_STATIC_STACK, StaticOff);

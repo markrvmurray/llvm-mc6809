@@ -66,7 +66,7 @@ void MC6809TargetStreamer::stronglyReference(StringRef Name, StringRef Comment) 
   stronglyReference(Sym);
 }
 
-static bool HasPrefix(StringRef Name, StringRef Prefix) {
+static bool hasPrefix(StringRef Name, StringRef Prefix) {
   SmallString<32> PrefixDot = Prefix;
   PrefixDot += ".";
   return Name == Prefix || Name.starts_with(PrefixDot);
@@ -74,13 +74,13 @@ static bool HasPrefix(StringRef Name, StringRef Prefix) {
 
 void MC6809TargetAsmStreamer::changeSection(const MCSection *CurSection, MCSection *Section, uint32_t SubSection, raw_ostream &OS) {
   MCTargetStreamer::changeSection(CurSection, Section, SubSection, OS);
-  HasBSS |= HasPrefix(Section->getName(), ".bss");
-  HasDPBSS |= HasPrefix(Section->getName(), ".dp.bss");
-  HasData |= HasPrefix(Section->getName(), ".data");
-  HasDPData |= HasPrefix(Section->getName(), ".dp.data");
-  HasDPData |= HasPrefix(Section->getName(), ".dp.rodata");
-  HasInitArray |= HasPrefix(Section->getName(), ".init_array");
-  HasFiniArray |= HasPrefix(Section->getName(), ".fini_array");
+  HasBSS |= hasPrefix(Section->getName(), ".bss");
+  HasDPBSS |= hasPrefix(Section->getName(), ".dp.bss");
+  HasData |= hasPrefix(Section->getName(), ".data");
+  HasDPData |= hasPrefix(Section->getName(), ".dp.data");
+  HasDPData |= hasPrefix(Section->getName(), ".dp.rodata");
+  HasInitArray |= hasPrefix(Section->getName(), ".init_array");
+  HasFiniArray |= hasPrefix(Section->getName(), ".fini_array");
 }
 
 void MC6809TargetAsmStreamer::stronglyReference(MCSymbol *Sym) { getStreamer().emitSymbolAttribute(Sym, MCSA_Global); }

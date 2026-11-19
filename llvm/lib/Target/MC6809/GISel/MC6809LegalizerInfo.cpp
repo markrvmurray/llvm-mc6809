@@ -37,36 +37,36 @@ using namespace MIPatternMatch;
 MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget(STI) {
   bool IsHD6309 = Subtarget.has6309();
 
-  LLT p = LLT::pointer(0, 16);
-  LLT p1 = LLT::pointer(1, 8); // direct page, bug #178
-  LLT s1 = LLT::scalar(1);
+  LLT P = LLT::pointer(0, 16);
+  LLT P1 = LLT::pointer(1, 8); // direct page, bug #178
+  LLT S1 = LLT::scalar(1);
   // LLT s3 = LLT::scalar(3);
-  LLT s8 = LLT::scalar(8);
-  LLT s16 = LLT::scalar(16);
-  LLT s32 = LLT::scalar(32);
-  LLT s64 = LLT::scalar(64);
-  LLT sMax = IsHD6309 ? s32 : s16;
-  LLT sMaxLogic = IsHD6309 ? s16 : s8;
+  LLT S8 = LLT::scalar(8);
+  LLT S16 = LLT::scalar(16);
+  LLT S32 = LLT::scalar(32);
+  LLT S64 = LLT::scalar(64);
+  LLT SMax = IsHD6309 ? S32 : S16;
+  LLT SMaxLogic = IsHD6309 ? S16 : S8;
   // LLT sOther = IsHD6309 ? s16 : s32;
 
-  auto LegalTypes32 = {p, s8, s16, s32};
-  auto LegalTypes16 = {p, s8, s16};
+  auto LegalTypes32 = {P, S8, S16, S32};
+  auto LegalTypes16 = {P, S8, S16};
   // LegalAccumulators: kept at {s8, s16} for HD6309 G_MUL (MULD needs s16).
   // G_ADD/G_SUB use s8-only rules — see the byte-decomposition comment below.
   // [[maybe_unused]] preserves the constant for upcoming work without
   // tripping -Wunused-variable on the current rule set.
-  [[maybe_unused]] auto LegalAccumulators = {s8, s16};
+  [[maybe_unused]] auto LegalAccumulators = {S8, S16};
   auto LegalTypes = IsHD6309 ? LegalTypes32 : LegalTypes16;
-  auto LegalTypesWithOne32 = {p, s1, s8, s16, s32};
-  auto LegalTypesWithOne16 = {p, s1, s8, s16};
+  auto LegalTypesWithOne32 = {P, S1, S8, S16, S32};
+  auto LegalTypesWithOne16 = {P, S1, S8, S16};
   auto LegalTypesWithOne = IsHD6309 ? LegalTypesWithOne32 : LegalTypesWithOne16;
-  auto LegalScalars32 = {s8, s16, s32};
-  auto LegalScalars16 = {s8, s16};
+  auto LegalScalars32 = {S8, S16, S32};
+  auto LegalScalars16 = {S8, S16};
   auto LegalScalars = IsHD6309 ? LegalScalars32 : LegalScalars16;
-  auto LegalLibcallScalars32 = {s16, s32, s64};
-  auto LegalLibcallScalars16 = {s16, s32, s64};
+  auto LegalLibcallScalars32 = {S16, S32, S64};
+  auto LegalLibcallScalars16 = {S16, S32, S64};
   auto LegalLibcallScalars = IsHD6309 ? LegalLibcallScalars32 : LegalLibcallScalars16;
-  auto NotMaxWithOne32 = {s1, s8, s16}, NotMaxWithOne16 = {s1, s8};
+  auto NotMaxWithOne32 = {S1, S8, S16}, NotMaxWithOne16 = {S1, S8};
   auto NotMaxWithOne = IsHD6309 ? NotMaxWithOne32 : NotMaxWithOne16;
 
 
@@ -87,17 +87,17 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
   // `LegalTypesWithOne` ceiling but are required for picolibc compilation.
   getActionDefinitionsBuilder(G_IMPLICIT_DEF)
       .legalFor(LegalTypesWithOne)
-      .legalFor({s32, s64});
+      .legalFor({S32, S64});
 
   getActionDefinitionsBuilder(G_MERGE_VALUES)
-      .legalForCartesianProduct({s16, s32, s64}, {s8, s16, s32});
+      .legalForCartesianProduct({S16, S32, S64}, {S8, S16, S32});
   //.clampScalar(0, *NotMin.begin(), *std::prev(NotMin.end()))
   //.clampScalar(1, *NotMax.begin(), *std::prev(NotMax.end()))
   //.lower();
   //.unsupported();
 
   getActionDefinitionsBuilder(G_UNMERGE_VALUES)
-      .legalForCartesianProduct({s8, s16, s32}, {s16, s32, s64});
+      .legalForCartesianProduct({S8, S16, S32}, {S16, S32, S64});
   //.clampScalar(0, *NotMax.begin(), *std::prev(NotMax.end()))
   //.clampScalar(1, *NotMin.begin(), *std::prev(NotMin.end()))
   //.lower();
@@ -115,15 +115,15 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
   // over the generic legal cartesian product.
   auto &ZExtBuilder = getActionDefinitionsBuilder({G_ZEXT, G_ANYEXT})
       .customIf([=](const LegalityQuery &Query) {
-        return Query.Types[1] == s1 &&
-               (Query.Types[0] == s16 || Query.Types[0] == s32 ||
-                Query.Types[0] == s64);
+        return Query.Types[1] == S1 &&
+               (Query.Types[0] == S16 || Query.Types[0] == S32 ||
+                Query.Types[0] == S64);
       });
   if (IsHD6309)
-    ZExtBuilder.lowerFor({{s32, s8}});
+    ZExtBuilder.lowerFor({{S32, S8}});
   ZExtBuilder
       .legalForCartesianProduct(LegalScalars, NotMaxWithOne)
-      .lowerFor({{s64, s32}})
+      .lowerFor({{S64, S32}})
       .clampScalar(0, *LegalScalars.begin(), *std::prev(LegalScalars.end()))
       .clampScalar(1, *NotMaxWithOne.begin(), *std::prev(NotMaxWithOne.end()));
 
@@ -146,11 +146,11 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
   // on plain 6809 it still uses upstream lowerEXT.
   {
     auto &B = getActionDefinitionsBuilder(G_SEXT)
-        .legalFor({{s8, s1}, {s16, s8}});
+        .legalFor({{S8, S1}, {S16, S8}});
     if (IsHD6309)
-      B.legalFor({{s32, s16}});  // Bug #161 Phase 4: SEXW single instruction
-    B.lowerFor({{s32, s16}, {s32, s8}, {s64, s16}, {s64, s8}})
-        .customFor({{s16, s1}, {s32, s1}, {s64, s1}, {s64, s32}});
+      B.legalFor({{S32, S16}});  // Bug #161 Phase 4: SEXW single instruction
+    B.lowerFor({{S32, S16}, {S32, S8}, {S64, S16}, {S64, S8}})
+        .customFor({{S16, S1}, {S32, S1}, {S64, S1}, {S64, S32}});
   }
 
   getActionDefinitionsBuilder({G_SEXTLOAD, G_ZEXTLOAD})
@@ -175,20 +175,20 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
   // Legalizer-side: add `(s16, s32)` to the legal set; selector picks
   // the sub-register extract for free.
   auto &TruncBuilder = getActionDefinitionsBuilder(G_TRUNC)
-      .legalForCartesianProduct({s8}, LegalScalars)
-      .legalFor({{s1, s8}});
+      .legalForCartesianProduct({S8}, LegalScalars)
+      .legalFor({{S1, S8}});
   if (IsHD6309)
-    TruncBuilder.legalFor({{s16, s32}});
-  TruncBuilder.customFor({{s1, s16}});
+    TruncBuilder.legalFor({{S16, S32}});
+  TruncBuilder.customFor({{S1, S16}});
   if (IsHD6309)
-    TruncBuilder.customFor({{s1, s32}});  // Bug #243 Class B
+    TruncBuilder.customFor({{S1, S32}});  // Bug #243 Class B
   TruncBuilder
       .clampScalar(1, *LegalScalars.begin(), *std::prev(LegalScalars.end()))
       .clampScalar(0, *NotMaxWithOne.begin(), *std::prev(NotMaxWithOne.end()));
 
   getActionDefinitionsBuilder({G_FREEZE, G_CONSTANT})
       .legalFor(LegalTypesWithOne)
-      .clampScalar(0, s8, s16);  // Bug #243 Class B: same rationale as G_PHI
+      .clampScalar(0, S8, S16);  // Bug #243 Class B: same rationale as G_PHI
 
   // Bug #239 / Bug #317 (2026-05-21): PHI legalisation.
   //
@@ -212,15 +212,15 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
   // ACC32 register class.
   if (IsHD6309)
     getActionDefinitionsBuilder(G_PHI)
-        .legalFor({p, s1, s8, s16, s32})
-        .clampScalar(0, s8, s32);
+        .legalFor({P, S1, S8, S16, S32})
+        .clampScalar(0, S8, S32);
   else
     getActionDefinitionsBuilder(G_PHI)
-        .legalFor({p, s1, s8, s16})
-        .clampScalar(0, s8, s16);
+        .legalFor({P, S1, S8, S16})
+        .clampScalar(0, S8, S16);
 
   getActionDefinitionsBuilder(G_FCONSTANT)
-      .customFor({s32, s64});
+      .customFor({S32, S64});
 
   getActionDefinitionsBuilder(G_PTRTOINT)
       .legalIf(IsScalarPointer(0, 1, std::equal_to<>{}))
@@ -237,16 +237,16 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
   // offset), which only the selector can express; p0 -> p1 keeps the in-page
   // offset, i.e. the address's low byte.
   getActionDefinitionsBuilder(G_ADDRSPACE_CAST)
-      .legalFor({{p, p1}})
-      .customFor({{p1, p}});
+      .legalFor({{P, P1}})
+      .customFor({{P1, P}});
 
   getActionDefinitionsBuilder(G_PTR_ADD)
-      .legalFor({{p, s16}, {p, s8}})
+      .legalFor({{P, S16}, {P, S8}})
       // A direct-page (p1) pointer add is an in-page index that never crosses
       // the 256-byte page, so lower it to an 8-bit in-page add that keeps the
       // result p1 (see legalizeCustom). The offset is clamped to s16 first.
-      .customFor({{p1, s16}})
-      .clampScalar(1, s16, s16);
+      .customFor({{P1, S16}})
+      .clampScalar(1, S16, S16);
 
   // G_PTRMASK (p0, s16): decompose to PTRTOINT + AND + INTTOPTR.
   // legalFor uses a single type list — must not accidentally match on
@@ -283,14 +283,14 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
   // the cmp_imm_byte_load_phi.ll atoi sentinel codegen is unchanged.
   if (IsHD6309)
     getActionDefinitionsBuilder({G_ADD, G_SUB})
-        .legalFor({s8, s32})
-        .narrowScalarIf(LegalityPredicates::typeIs(0, s16),
-                        LegalizeMutations::changeTo(0, s8))
-        .clampScalar(0, s8, s32);
+        .legalFor({S8, S32})
+        .narrowScalarIf(LegalityPredicates::typeIs(0, S16),
+                        LegalizeMutations::changeTo(0, S8))
+        .clampScalar(0, S8, S32);
   else
     getActionDefinitionsBuilder({G_ADD, G_SUB})
-        .legalFor({s8})
-        .clampScalar(0, s8, s8);
+        .legalFor({S8})
+        .clampScalar(0, S8, S8);
 
   // Bug #311 Phase 2: HD6309 has native ADDW+ADCD for i32 carry chains;
   // selector + expander wire those up (see selectAddO/AddE/SubO/SubE and
@@ -303,14 +303,14 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
   // issues at -O0 that pre-date Phase 2).  Plain MC6809 unchanged.
   if (IsHD6309)
     getActionDefinitionsBuilder({G_UADDO, G_UADDE, G_USUBO, G_USUBE, G_SADDO, G_SADDE, G_SSUBO, G_SSUBE})
-        .legalForCartesianProduct({s8, s32}, {s1, s16})
-        .narrowScalarIf(LegalityPredicates::typeIs(0, s16),
-                        LegalizeMutations::changeTo(0, s8))
-        .clampScalar(0, s1, s32);
+        .legalForCartesianProduct({S8, S32}, {S1, S16})
+        .narrowScalarIf(LegalityPredicates::typeIs(0, S16),
+                        LegalizeMutations::changeTo(0, S8))
+        .clampScalar(0, S1, S32);
   else
     getActionDefinitionsBuilder({G_UADDO, G_UADDE, G_USUBO, G_USUBE, G_SADDO, G_SADDE, G_SSUBO, G_SSUBE})
-        .legalForCartesianProduct({s8}, {s1, s16})
-        .clampScalar(0, s1, s8);
+        .legalForCartesianProduct({S8}, {S1, S16})
+        .clampScalar(0, S1, S8);
 
   // MUL is 8x8→16 on standard 6809. 16x16 only on HD6309 (MULD).
   // On 6809, i8 mul is native (MUL instruction: A×B→D). Wider multiplies
@@ -339,16 +339,16 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
     // Bug #161 round 16's narrowScalar concern is obsolete since
     // s32/s64 are already libcallFor — no narrowing path active.
     getActionDefinitionsBuilder(G_MUL)
-        .legalFor({s8})
-        .customFor({s16}) // a byte times a byte is MUL; see legalizeMul
-        .libcallFor({s32, s64})
-        .clampScalar(0, s1, sMaxLogic);
+        .legalFor({S8})
+        .customFor({S16}) // a byte times a byte is MUL; see legalizeMul
+        .libcallFor({S32, S64})
+        .clampScalar(0, S1, SMaxLogic);
   } else {
     getActionDefinitionsBuilder(G_MUL)
-        .legalFor({s8})
-        .customFor({s16}) // a byte times a byte is MUL; see legalizeMul
-        .libcallFor({s32, s64})
-        .clampScalar(0, s8, s64);
+        .legalFor({S8})
+        .customFor({S16}) // a byte times a byte is MUL; see legalizeMul
+        .libcallFor({S32, S64})
+        .clampScalar(0, S8, S64);
   }
 
   // InstCombine turns (ext(a) * ext(b)) >> width into llvm.[su]mulh. There is
@@ -357,16 +357,16 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
   // this target does not have. MUL is unsigned, so only G_UMULH is native at
   // s8.
   getActionDefinitionsBuilder(G_UMULH)
-      .legalFor({s8})
-      .lowerFor({s16, s32})
-      .minScalar(0, s8);
+      .legalFor({S8})
+      .lowerFor({S16, S32})
+      .minScalar(0, S8);
   getActionDefinitionsBuilder(G_SMULH)
-      .lowerFor({s8, s16, s32})
-      .minScalar(0, s8);
+      .lowerFor({S8, S16, S32})
+      .minScalar(0, S8);
 
   getActionDefinitionsBuilder({G_SDIV, G_UDIV, G_SREM, G_UREM})
       .libcallFor(LegalLibcallScalars)
-      .clampScalar(0, s16, s32);
+      .clampScalar(0, S16, S32);
 
   // Bitwise AND/OR/XOR: s8 and s16 legal on all targets.
   // On 6809, i16 pseudos expand post-RA into ANDA+ANDB byte pairs.
@@ -381,9 +381,9 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
   // handler widens to s8 via G_ZEXT, performs the bitwise op, and
   // truncates back to s1.
   getActionDefinitionsBuilder({G_AND, G_OR, G_XOR})
-      .legalFor({s8, s16})
-      .customFor({s1, s32})
-      .clampScalar(0, s8, s16);
+      .legalFor({S8, S16})
+      .customFor({S1, S32})
+      .clampScalar(0, S8, S16);
 
   // Shifts/rotates: shift-by-1 is a native instruction (ASL/LSR/ASR).
   // Constant shifts (s8 amount) are handled in the instruction selector
@@ -401,16 +401,16 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
   // clampScalar(0) can narrow the value from s64 to s32.
   // Rotates don't have i64 libcalls, so they stay on the old path.
   getActionDefinitionsBuilder({G_SHL, G_LSHR, G_ASHR})
-      .customForCartesianProduct({s64}, {s8})
-      .legalForCartesianProduct(LegalScalars, {s1})
-      .customForCartesianProduct(LegalScalars, {s8})
-      .customForCartesianProduct({s32}, {s8})
+      .customForCartesianProduct({S64}, {S8})
+      .legalForCartesianProduct(LegalScalars, {S1})
+      .customForCartesianProduct(LegalScalars, {S8})
+      .customForCartesianProduct({S32}, {S8})
       // A shift amount of an odd width -- an s3 out of a lowered bit
       // reverse, say -- is neither the by-one form nor the by-a-byte one,
       // and clamping alone leaves it between them with no rule to match.
       .widenScalarToNextPow2(1, /*Min=*/8)
-      .clampScalar(1, s1, s8)
-      .clampScalar(0, s8, s32);
+      .clampScalar(1, S1, S8)
+      .clampScalar(0, S8, S32);
   // Rotates: s8/s16 by 1 = legal (native ROL/ROR). s8/s16 by s8 =
   // custom (legalizeShiftRotate). s32 = lower to FSHL/FSHR (which
   // the G_FSHL/G_FSHR custom handler decomposes to shifts + OR).
@@ -420,13 +420,13 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
   // fshl.i16 carries an i16 amount); the custom handler truncates it to s8
   // itself, since narrowScalar on a rotate amount is unsupported upstream.
   getActionDefinitionsBuilder({G_ROTR, G_ROTL})
-      .legalForCartesianProduct(LegalScalars, {s1})
-      .customForCartesianProduct(LegalScalars, {s8, s16, s32})
+      .legalForCartesianProduct(LegalScalars, {S1})
+      .customForCartesianProduct(LegalScalars, {S8, S16, S32})
       .lowerIf([=](const LegalityQuery &Q) {
         return Q.Types[0].getSizeInBits() >= 32;
       })
-      .clampScalar(1, s1, s8)
-      .clampScalar(0, s8, s32);
+      .clampScalar(1, S1, S8)
+      .clampScalar(0, S8, S32);
 
   // G_ABS: custom legalization to avoid the default ASHR+ADD+XOR pattern
   // which creates massive byte-level shift chains on the 6809. Instead,
@@ -434,7 +434,7 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
   // G_ABS: custom legalization decomposes to compare + negate + select,
   // avoiding the default ASHR+XOR pattern that creates massive shift chains.
   getActionDefinitionsBuilder(G_ABS)
-      .customFor({s8, s16, s32, s64});
+      .customFor({S8, S16, S32, S64});
 
   // G_FSHL/G_FSHR: decompose to two shifts + OR via legalizeFunnelShift.
   // The custom handler produces G_SHL + G_LSHR + G_OR, all of which
@@ -467,8 +467,8 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
   // 32 bits). The s64 path needs the broader i64 plumbing — see the
   // long-long roadmap memory.
   getActionDefinitionsBuilder(G_UMULO)
-      .customForCartesianProduct({s8, s16, s32, s64}, {s1})
-      .clampScalar(0, s8, s64);
+      .customForCartesianProduct({S8, S16, S32, S64}, {S1})
+      .clampScalar(0, S8, S64);
 
   getActionDefinitionsBuilder({G_MEMCPY, G_MEMCPY_INLINE, G_MEMMOVE, G_MEMSET})
       .custom();
@@ -489,7 +489,7 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
        G_FCOS, G_FSIN, G_FTAN, G_FSINCOS,
        G_FACOS, G_FASIN, G_FATAN, G_FATAN2,
        G_FCOSH, G_FSINH, G_FTANH})
-      .libcallFor({s32, s64});
+      .libcallFor({S32, S64});
 
   // G_FABS / G_FNEG go via the MC6839 ROM dispatchers (Bug #254 follow-up):
   // the default `lowerFor` produces a bit-AND with 0x7FFFFFFF / a bit-XOR
@@ -501,40 +501,40 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
   // functions: the optimizer can form llvm.minimum/maximum, and the generic
   // libcall path has no entry for them.
   getActionDefinitionsBuilder({G_FMINIMUM, G_FMAXIMUM})
-      .customFor({s32, s64});
+      .customFor({S32, S64});
 
   getActionDefinitionsBuilder(G_FABS)
-      .libcallFor({s32, s64});
+      .libcallFor({S32, S64});
   getActionDefinitionsBuilder(G_FNEG)
-      .libcallFor({s32, s64});
+      .libcallFor({S32, S64});
   // G_FCOPYSIGN remains on the standard bit-OR lowering — MC6839 has no
   // FCOPYSIGN op exposed.
 
   getActionDefinitionsBuilder({G_INTRINSIC_LRINT, G_LROUND})
-      .libcallForCartesianProduct({s32}, {s32, s64});
+      .libcallForCartesianProduct({S32}, {S32, S64});
 
   getActionDefinitionsBuilder({G_LLROUND, G_INTRINSIC_LLRINT})
-      .libcallForCartesianProduct({s64}, {s32, s64});
+      .libcallForCartesianProduct({S64}, {S32, S64});
 
   getActionDefinitionsBuilder(G_FPEXT)
-      .libcallFor({{s64, s32}});
+      .libcallFor({{S64, S32}});
 
   getActionDefinitionsBuilder(G_FPTRUNC)
-      .libcallFor({{s32, s64}});
+      .libcallFor({{S32, S64}});
 
   getActionDefinitionsBuilder({G_FPTOSI, G_FPTOUI})
-      .libcallForCartesianProduct({s32, s64}, {s32, s64}).clampScalar(0, s32, s64);
+      .libcallForCartesianProduct({S32, S64}, {S32, S64}).clampScalar(0, S32, S64);
 
   getActionDefinitionsBuilder({G_SITOFP, G_UITOFP})
-      .libcallForCartesianProduct({s32, s64}, {s32, s64}).clampScalar(1, s32, s64);
+      .libcallForCartesianProduct({S32, S64}, {S32, S64}).clampScalar(1, S32, S64);
 
   getActionDefinitionsBuilder(G_FCOPYSIGN)
-      .lowerFor({{s32, s32}, {s64, s64}});
+      .lowerFor({{S32, S32}, {S64, S64}});
 
   // G_IS_FPCLASS: float classification (isnan, isinf, isfinite, etc.).
   // No MC6839 equivalent; lower to comparisons via LegalizerHelper.
   getActionDefinitionsBuilder(G_IS_FPCLASS)
-      .lowerFor({{s1, s32}, {s1, s64}});
+      .lowerFor({{S1, S32}, {S1, S64}});
 
   // On 6809, s32 load/store has no instruction — narrow to s16 pairs.
   // Bug #161 round 10 (2026-04) extended the narrowing to HD6309 too
@@ -600,17 +600,17 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
         uint64_t MemSize = Query.MMODescrs[0].MemoryTy.getSizeInBits();
         return TypeSize == 32 && MemSize == 16;
       })
-      .legalForCartesianProduct(LegalTypes, {p, p1})
+      .legalForCartesianProduct(LegalTypes, {P, P1})
       .lowerIfMemSizeNotByteSizePow2()
-      .clampScalar(0, s8, sMax);
+      .clampScalar(0, S8, SMax);
 
   // G_GLOBAL_VALUE may produce a p1 pointer (addrspace(1) global);
   // legalize that too so the address can be materialised before the
   // load/store consumes it.
   getActionDefinitionsBuilder({G_FRAME_INDEX, G_GLOBAL_VALUE, G_BRINDIRECT, G_JUMP_TABLE})
-      .legalFor({p, p1});
+      .legalFor({P, P1});
 
-  getActionDefinitionsBuilder(G_VASTART).customFor({p});
+  getActionDefinitionsBuilder(G_VASTART).customFor({P});
   // G_VAARG: dst type can be anything the va_list might hold. The custom
   // handler (legalizeVAArg) is type-agnostic — it loads ValTy.getSizeInBytes()
   // bytes from the current va_list pointer and bumps by that amount. Wider
@@ -621,7 +621,7 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
   //
   // Closes bug #85 once paired with the matching G_LOAD narrow-scalar path.
   getActionDefinitionsBuilder(G_VAARG)
-      .customForCartesianProduct({p, s8, s16, s32, s64}, {p});
+      .customForCartesianProduct({P, S8, S16, S32, S64}, {P});
 
   // G_ICMP: s8/s16 native; pointer via custom; s32/s64 via libcall to
   // __{u,}cmp{s,d}i2. Inline i32/i64 compare decomposes into a multi-
@@ -631,15 +631,15 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
   // replaces that whole sequence with one LBSR, which is a hard barrier
   // against regalloc inserting spills in the compare→branch gap.
   getActionDefinitionsBuilder(G_ICMP)
-      .legalForCartesianProduct({s1}, {s8, s16})
-      .customForCartesianProduct({s1}, {p, s32, s64})
-      .clampScalar(1, s8, s16);
+      .legalForCartesianProduct({S1}, {S8, S16})
+      .customForCartesianProduct({S1}, {P, S32, S64})
+      .clampScalar(1, S8, S16);
 
   // G_FCMP: no native FP compare — lower to GNU comparison libcalls
   // (__cmpsf2/__cmpdf2 and predicate variants). LegalizerHelper::libcall()
   // handles the return-int-then-compare-to-zero pattern.
   getActionDefinitionsBuilder(G_FCMP)
-      .libcallForCartesianProduct({s1}, {s32, s64});
+      .libcallForCartesianProduct({S1}, {S32, S64});
 
   // An unconditional branch carries no type, so it needs no rule beyond
   // being legal. It used to fall through to the legacy legalizer's default;
@@ -654,19 +654,19 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
   getActionDefinitionsBuilder({G_TRAP, G_DEBUGTRAP, G_UBSANTRAP}).custom();
 
   getActionDefinitionsBuilder(G_BRCOND)
-      .legalFor({s1});
+      .legalFor({S1});
 
   getActionDefinitionsBuilder(G_BRJT)
-      .legalForCartesianProduct({p}, LegalScalars)
-      .clampScalar(1, s8, sMax);
+      .legalForCartesianProduct({P}, LegalScalars)
+      .clampScalar(1, S8, SMax);
 
   // G_SELECT s32/s64: decompose to pairs of narrower selects to avoid
   // multiple ACC16 values competing for D in the PHI path.
   getActionDefinitionsBuilder(G_SELECT)
       .customIf([=](const LegalityQuery &Query) {
-        return Query.Types[0] == s32 || Query.Types[0] == s64;
+        return Query.Types[0] == S32 || Query.Types[0] == S64;
       })
-      .legalForCartesianProduct(LegalTypesWithOne, {s1}).clampScalar(0, s8, sMax);
+      .legalForCartesianProduct(LegalTypesWithOne, {S1}).clampScalar(0, S8, SMax);
 
   // Sign extension in a register of a whole number of bytes keeps the low
   // bytes and fills the rest with the sign of the top one (custom); any
@@ -690,33 +690,33 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
   // Both type indices are widened, since a source narrower than 16 bits has
   // no libcall of its own.
   getActionDefinitionsBuilder({G_CTTZ, G_CTTZ_ZERO_POISON})
-      .libcallFor({{s16, s16}, {s32, s32}, {s64, s64}})
+      .libcallFor({{S16, S16}, {S32, S32}, {S64, S64}})
       .widenScalarToNextPow2(0, /*Min=*/16)
-      .clampScalar(0, s16, s64)
+      .clampScalar(0, S16, S64)
       .widenScalarToNextPow2(1, /*Min=*/16)
-      .clampScalar(1, s16, s64);
+      .clampScalar(1, S16, S64);
 
   getActionDefinitionsBuilder({G_CTLZ, G_CTLZ_ZERO_POISON})
-      .libcallFor({{s16, s16}, {s32, s32}, {s64, s64}})
+      .libcallFor({{S16, S16}, {S32, S32}, {S64, S64}})
       .widenScalarToNextPow2(0, /*Min=*/16)
-      .clampScalar(0, s16, s64)
+      .clampScalar(0, S16, S64)
       .widenScalarToNextPow2(1, /*Min=*/16)
-      .clampScalar(1, s16, s64);
+      .clampScalar(1, S16, S64);
 
   getActionDefinitionsBuilder(G_CTPOP)
-      .libcallFor({{s16, s16}, {s32, s32}, {s64, s64}})
+      .libcallFor({{S16, S16}, {S32, S32}, {S64, S64}})
       .widenScalarToNextPow2(0, /*Min=*/16)
-      .clampScalar(0, s16, s64)
+      .clampScalar(0, S16, S64)
       .widenScalarToNextPow2(1, /*Min=*/16)
-      .clampScalar(1, s16, s64);
+      .clampScalar(1, S16, S64);
 
   // Swapping the bytes of a 16-bit value has no instruction (EXG A,B is one,
   // but the value is not always in D and the halves of an imaginary register
   // are not addressable as a pair), and marking it legal left nothing to
   // select it: expand it as the shifts and the OR it is.  Wider values are
   // the compiler-rt byte-swap builtins.
-  getActionDefinitionsBuilder(G_BSWAP).lowerFor({s16}).libcallFor({s32, s64})
-      .clampScalar(0, s16, s64);
+  getActionDefinitionsBuilder(G_BSWAP).lowerFor({S16}).libcallFor({S32, S64})
+      .clampScalar(0, S16, S64);
 
   // Reversing the bits of a value has no instruction and no libcall (LLVM
   // has no RTLIB entry for it), so it is always expanded in place -- the
@@ -832,7 +832,7 @@ bool MC6809LegalizerInfo::legalizeCustom(LegalizerHelper &Helper, MachineInstr &
     // need to recognise it as an immediate, which they can't do through a
     // ptrtoint.
     if (OpTy.isPointer()) {
-      auto toS16 = [&](Register R) -> Register {
+      auto ToS16 = [&](Register R) -> Register {
         // Look through G_PTRTOINT / G_INTTOPTR / COPY to find an underlying
         // G_CONSTANT (a pointer constant such as null carries a p0 type, which
         // getIConstantVRegValWithLookThrough won't treat as an integer
@@ -861,7 +861,7 @@ bool MC6809LegalizerInfo::legalizeCustom(LegalizerHelper &Helper, MachineInstr &
         }
         return B.buildPtrToInt(S16, R).getReg(0);
       };
-      B.buildICmp(Pred, Dst, toS16(Lhs), toS16(Rhs));
+      B.buildICmp(Pred, Dst, ToS16(Lhs), ToS16(Rhs));
       MI.eraseFromParent();
       return true;
     }
@@ -2084,16 +2084,16 @@ bool MC6809LegalizerInfo::legalizeMemOp(LegalizerHelper &Helper, MachineRegister
       auto *DstMMO0 = *MI.memoperands_begin();
       auto *SrcMMO0 = IsSet ? nullptr : *std::next(MI.memoperands_begin());
       Register SetVal = IsSet ? MI.getOperand(1).getReg() : Register();
-      for (uint64_t i = 0; i < N; ++i) {
-        Register Off = Builder.buildConstant(OffTy, i).getReg(0);
+      for (uint64_t I = 0; I < N; ++I) {
+        Register Off = Builder.buildConstant(OffTy, I).getReg(0);
         Register CurDst = Builder.buildPtrAdd(PtrTy, Dst, Off).getReg(0);
-        auto *DstMMO = MF->getMachineMemOperand(DstMMO0, i, I8);
+        auto *DstMMO = MF->getMachineMemOperand(DstMMO0, I, I8);
         Register Byte;
         if (IsSet) {
           Byte = SetVal;  // i8 fill byte (already legal as scalar(8))
         } else {
           Register CurSrc = Builder.buildPtrAdd(PtrTy, Src, Off).getReg(0);
-          auto *SrcMMO = MF->getMachineMemOperand(SrcMMO0, i, I8);
+          auto *SrcMMO = MF->getMachineMemOperand(SrcMMO0, I, I8);
           Byte = Builder.buildLoad(I8, CurSrc, *SrcMMO).getReg(0);
         }
         Builder.buildStore(Byte, CurDst, *DstMMO);
@@ -2350,7 +2350,7 @@ bool MC6809LegalizerInfo::tryTFMBlockCopy(LegalizerHelper &Helper, MachineRegist
   // REGTFM ({IX,IY}) class the BlockCopy_* pseudo expects.
   LLT P = LLT::pointer(0, 16);
   LLT S16 = LLT::scalar(16);
-  auto materializeAddrIntoReg = [&](const MachineOperand &MO,
+  auto MaterializeAddrIntoReg = [&](const MachineOperand &MO,
                                      int64_t ExtraOffset) -> Register {
     Register Vreg = MRI.createGenericVirtualRegister(P);
     if (MO.isReg()) {
@@ -2397,14 +2397,14 @@ bool MC6809LegalizerInfo::tryTFMBlockCopy(LegalizerHelper &Helper, MachineRegist
   // a register pointer already in X no longer forces a `tfr x,y` swap. BlockOpc
   // selects the increment mode: Inc_Inc (ascending copy), Dec_Dec (descending
   // memmove), or Stay_Inc (memset fill -- src holds the byte and stays put).
-  auto emitBlockCopy = [&](const MachineOperand &SrcMO,
+  auto EmitBlockCopy = [&](const MachineOperand &SrcMO,
                            const MachineOperand &DstMO, int64_t ExtraOffset,
                            const MachineOperand &CountMO, unsigned BlockOpc,
                            MachinePointerInfo SrcPI, MachinePointerInfo DstPI) {
     Register SrcTFM = MRI.createVirtualRegister(&MC6809::REGTFMRegClass);
-    Builder.buildCopy(SrcTFM, materializeAddrIntoReg(SrcMO, ExtraOffset));
+    Builder.buildCopy(SrcTFM, MaterializeAddrIntoReg(SrcMO, ExtraOffset));
     Register DstTFM = MRI.createVirtualRegister(&MC6809::REGTFMRegClass);
-    Builder.buildCopy(DstTFM, materializeAddrIntoReg(DstMO, ExtraOffset));
+    Builder.buildCopy(DstTFM, MaterializeAddrIntoReg(DstMO, ExtraOffset));
     // Put the byte count into the W register the TFM reads. BlockCopy carries
     // AW implicitly (its Defs/Uses), so the count is not an explicit operand.
     // Stay target-opcode-free pre-RA: a generic G_CONSTANT (immediate length)
@@ -2444,7 +2444,7 @@ bool MC6809LegalizerInfo::tryTFMBlockCopy(LegalizerHelper &Helper, MachineRegist
   // Note that Descending transfers must be done in backwards order.
   if (KnownLen <= BytesPerTransfer) {
     uint64_t AdjOfs = Descending ? (KnownLen - 1) : 0;
-    emitBlockCopy(Src.value(), Dst.value(), AdjOfs, Len.value(), BlockOpc,
+    EmitBlockCopy(Src.value(), Dst.value(), AdjOfs, Len.value(), BlockOpc,
                   SrcPointerInfo, DstPointerInfo);
   } else {
     for (uint64_t TOfs = 0; TOfs < KnownLen; TOfs += BytesPerTransfer) {
@@ -2452,7 +2452,7 @@ bool MC6809LegalizerInfo::tryTFMBlockCopy(LegalizerHelper &Helper, MachineRegist
       uint64_t AdjTOfs = Descending ? (KnownLen - TOfs - 1) : TOfs;
       uint64_t AdjTOfsMO = Descending ? (KnownLen - TOfs - TLen) : TOfs;
       MachineOperand TLenMO = MachineOperand::CreateImm(TLen);
-      emitBlockCopy(Src.value(), Dst.value(), AdjTOfs, TLenMO, BlockOpc,
+      EmitBlockCopy(Src.value(), Dst.value(), AdjTOfs, TLenMO, BlockOpc,
                     SrcPointerInfo.getWithOffset(AdjTOfsMO),
                     DstPointerInfo.getWithOffset(AdjTOfsMO));
     }

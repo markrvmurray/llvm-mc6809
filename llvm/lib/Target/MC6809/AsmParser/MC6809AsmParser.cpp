@@ -413,7 +413,7 @@ public:
   }
 
   bool parseDirectpage(SMLoc DirectiveLoc) {
-    auto parseOp = [&]() -> bool {
+    auto ParseOp = [&]() -> bool {
       StringRef Name;
       SMLoc Loc = getTok().getLoc();
       if (Parser.parseIdentifier(Name))
@@ -429,7 +429,7 @@ public:
       return false;
     };
 
-    return parseMany(parseOp);
+    return parseMany(ParseOp);
   }
 
   signed char hexToChar(const signed char Letter) {
@@ -492,14 +492,14 @@ public:
     SMLoc S = Parser.getTok().getLoc();
 
     // Check for sign
-    AsmToken tokens[2];
-    size_t ReadCount = Parser.getLexer().peekTokens(tokens);
+    AsmToken Tokens[2];
+    size_t ReadCount = Parser.getLexer().peekTokens(Tokens);
 
     if (ReadCount == 2) {
-      if ((tokens[0].getKind() == AsmToken::Identifier && tokens[1].getKind() == AsmToken::LParen) || (tokens[0].getKind() == AsmToken::LParen && tokens[1].getKind() == AsmToken::Minus)) {
+      if ((Tokens[0].getKind() == AsmToken::Identifier && Tokens[1].getKind() == AsmToken::LParen) || (Tokens[0].getKind() == AsmToken::LParen && Tokens[1].getKind() == AsmToken::Minus)) {
 
         AsmToken::TokenKind CurTok = Parser.getLexer().getKind();
-        if (CurTok == AsmToken::Minus || tokens[1].getKind() == AsmToken::Minus) {
+        if (CurTok == AsmToken::Minus || Tokens[1].getKind() == AsmToken::Minus) {
           IsNegated = true;
         } else {
           assert(CurTok == AsmToken::Plus);
@@ -584,7 +584,7 @@ public:
         return Error(Parser.getTok().getLoc(), "unknown modifier");
       }
 
-      if (tokens[1].getKind() == AsmToken::Minus || tokens[1].getKind() == AsmToken::Plus) {
+      if (Tokens[1].getKind() == AsmToken::Minus || Tokens[1].getKind() == AsmToken::Plus) {
         Parser.Lex();
         assert(Parser.getTok().getKind() == AsmToken::LParen);
         Parser.Lex(); // Eat the sign and parenthesis
@@ -593,7 +593,7 @@ public:
       if (getParser().parseExpression(InnerExpression))
         return true;
 
-      if (tokens[1].getKind() == AsmToken::Minus || tokens[1].getKind() == AsmToken::Plus) {
+      if (Tokens[1].getKind() == AsmToken::Minus || Tokens[1].getKind() == AsmToken::Plus) {
         assert(Parser.getTok().getKind() == AsmToken::RParen);
         Parser.Lex(); // Eat closing parenthesis
       }

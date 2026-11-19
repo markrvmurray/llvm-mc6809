@@ -304,7 +304,7 @@ bool MC6809FinalLowering::elideStoreReload(MachineFunction &MF) {
 // harmless (we just no-op when nothing's left to fold) and provides
 // defence-in-depth.
 bool MC6809FinalLowering::foldBranchOverBranch(MachineFunction &MF) {
-  auto isCondBranch = [](unsigned Opc) {
+  auto IsCondBranch = [](unsigned Opc) {
     // Bug #206 + #271 cat-1: Bbc_NoC / Bbc_OnlyC / LBlbc_NoC /
     // LBlbc_OnlyC are encoding-equivalent codegen-only variants that
     // just declare a tighter Uses set; treat identically.
@@ -315,7 +315,7 @@ bool MC6809FinalLowering::foldBranchOverBranch(MachineFunction &MF) {
            Opc == MC6809::ConditionalBranchRelative ||
            Opc == MC6809::ConditionalLongBranchRelative;
   };
-  auto isUncondBranch = [](unsigned Opc) {
+  auto IsUncondBranch = [](unsigned Opc) {
     return Opc == MC6809::BRAb || Opc == MC6809::LBRAlb ||
            Opc == MC6809::BranchRelative ||
            Opc == MC6809::LongBranchRelative;
@@ -327,7 +327,7 @@ bool MC6809FinalLowering::foldBranchOverBranch(MachineFunction &MF) {
     // (must be a conditional branch). Skip blocks that don't end in
     // exactly this two-terminator shape.
     auto It = MBB.getLastNonDebugInstr();
-    if (It == MBB.end() || !isUncondBranch(It->getOpcode()))
+    if (It == MBB.end() || !IsUncondBranch(It->getOpcode()))
       continue;
     MachineBasicBlock::iterator UncondMI = It;
 
@@ -338,7 +338,7 @@ bool MC6809FinalLowering::foldBranchOverBranch(MachineFunction &MF) {
     --Prev;
     while (Prev != MBB.begin() && Prev->isDebugInstr())
       --Prev;
-    if (Prev->isDebugInstr() || !isCondBranch(Prev->getOpcode()))
+    if (Prev->isDebugInstr() || !IsCondBranch(Prev->getOpcode()))
       continue;
     MachineBasicBlock::iterator CondMI = Prev;
 

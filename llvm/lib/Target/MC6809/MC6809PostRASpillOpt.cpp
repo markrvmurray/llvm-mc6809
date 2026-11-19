@@ -404,14 +404,14 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
     // are FinalLowering's, on the same tracker.)
     MC6809ValueTracker T(MF, TRI);
     using SlotInfo = MC6809ValueTracker::Mirror;
-    auto findSlot = [&](const SlotKey &Key) {
+    auto FindSlot = [&](const SlotKey &Key) {
       return T.find({Key.BaseReg, Key.Offset});
     };
-    auto setSlot = [&](const SlotKey &Key, Register Reg, MachineInstr &Est,
+    auto SetSlot = [&](const SlotKey &Key, Register Reg, MachineInstr &Est,
                        bool SourceKilled = false) {
       T.set({Key.BaseReg, Key.Offset}, Reg, Est, SourceKilled);
     };
-    auto clearReg = [&](Register Reg) { T.clearHolder(Reg); };
+    auto ClearReg = [&](Register Reg) { T.clearHolder(Reg); };
 
     for (MachineInstr &MI : make_early_inc_range(MBB)) {
       // An indexed access with a symbolic offset is no slot: the model sees
@@ -465,7 +465,7 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
         // source register. If yes, the slot has the value but the
         // register is dead — see SlotInfo::SourceKilled.
         bool SourceKilled = MI.killsRegister(AccReg, &TRI);
-        setSlot(Key, AccReg, MI, SourceKilled);
+        SetSlot(Key, AccReg, MI, SourceKilled);
         // Bug #271 cat-1 (cross-store kill): when this store kills its
         // source register, ALL prior slots that recorded `Reg == AccReg`
         // become stale from a liveness perspective — the register is now
@@ -511,7 +511,7 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
         // the accumulator.) This was the getopt `ldy 18,u; ldy ,y` miscompile.
         bool SelfBase = TRI.regsOverlap(Key.BaseReg, AccReg);
         bool IsIndex = (AccReg == MC6809::IX || AccReg == MC6809::IY);
-        SlotInfo *Info = SelfBase ? nullptr : findSlot(Key);
+        SlotInfo *Info = SelfBase ? nullptr : FindSlot(Key);
         // Bug #271 cat-1: the SourceKilled gate. When the establishing
         // store killed its source register, the load is re-establishing
         // the register's live range and must NOT be deleted, even
@@ -569,9 +569,9 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
           // path's tracker update (the load that would have done it is gone):
           // mark the slot read, drop AccReg's stale mirrors / any slot it bases,
           // and establish AccReg as a fresh mirror of this slot.
-          clearReg(AccReg);
+          ClearReg(AccReg);
           T.clearBase(AccReg);
-          setSlot(Key, AccReg, MI);
+          SetSlot(Key, AccReg, MI);
           continue;
         }
         // Bug #362: dead frame/spill-slot load. A load from the U/S-relative
@@ -603,7 +603,7 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
           continue;
         }
         // Load defines the register — update tracking.
-        clearReg(AccReg);
+        ClearReg(AccReg);
         // The load redefines AccReg. If AccReg is an index register it may be
         // the base of other tracked slots, whose addresses just changed — drop
         // their mirrors (the generic def-loop below does this, but the load
@@ -613,7 +613,7 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
         // Don't establish a mirror for a self-based load: the key is unstable
         // (see SelfBase above).
         if (!SelfBase)
-          setSlot(Key, AccReg, MI);
+          SetSlot(Key, AccReg, MI);
         continue;
       }
 
@@ -622,7 +622,7 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
       for (const MachineOperand &MO : MI.operands()) {
         if (MO.isReg() && MO.isDef() && MO.getReg().isPhysical()) {
           Register Def = MO.getReg();
-          clearReg(Def);
+          ClearReg(Def);
           // Also invalidate any slot whose BASE register was modified
           // (e.g., LEAY changes IY, invalidating all {IY, *} slots).
           T.clearBase(Def);
@@ -640,7 +640,7 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
         // shapes at -Os-lto-hd6309-mame-fp post-PHANTOM_CARRY (Bug #302
         // follow-up commits d7b209e75f5e + 4e932bb52ba3).
         if (MO.isReg() && MO.isKill() && MO.getReg().isPhysical()) {
-          clearReg(MO.getReg());
+          ClearReg(MO.getReg());
         }
       }
 
@@ -851,9 +851,9 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
       MI2.setDesc(TII.get(NewOpc));
       if (WasO5) {
         // The first explicit operand is the imm; remove it.
-        for (unsigned i = 0, e = MI2.getNumExplicitOperands(); i != e; ++i) {
-          if (MI2.getOperand(i).isImm()) {
-            MI2.removeOperand(i);
+        for (unsigned I = 0, E = MI2.getNumExplicitOperands(); I != E; ++I) {
+          if (MI2.getOperand(I).isImm()) {
+            MI2.removeOperand(I);
             break;
           }
         }
@@ -1053,9 +1053,9 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
       //   5. Re-add the saved implicit operands.
       SmallVector<MachineOperand, 8> Implicits;
       unsigned OldNumExplicit = MI2.getNumExplicitOperands();
-      for (unsigned i = OldNumExplicit, e = MI2.getNumOperands();
-           i < e; ++i)
-        Implicits.push_back(MI2.getOperand(i));
+      for (unsigned I = OldNumExplicit, E = MI2.getNumOperands();
+           I < E; ++I)
+        Implicits.push_back(MI2.getOperand(I));
       while (MI2.getNumOperands() > 0)
         MI2.removeOperand(0);
       MI2.setDesc(TII.get(NewOpc));

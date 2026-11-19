@@ -52,7 +52,7 @@ bool MC6809LowerSelect::runOnMachineFunction(MachineFunction &MF) {
 
   bool Changed = false;
   for (auto I = MF.rbegin(), E = MF.rend(); I != E; ++I) {
-    for (MachineInstr &MBBI : mbb_reverse(*I)) {
+    for (MachineInstr &MBBI : mbbReverse(*I)) {
       if (auto *S = dyn_cast<GSelect>(&MBBI)) {
         LLVM_DEBUG(dbgs() << "Lowering: " << S);
         Changed = true;
@@ -111,7 +111,7 @@ MachineFunction::reverse_iterator MC6809LowerSelect::lowerSelect(GSelect &MI) {
   SmallSet<Register, 8> UsedRegs;
   for (const MachineOperand &MO : MI.all_uses())
     UsedRegs.insert(MO.getReg());
-  for (MachineInstr &MBBI : mbb_reverse(MBB.begin(), MI)) {
+  for (MachineInstr &MBBI : mbbReverse(MBB.begin(), MI)) {
     for (const MachineOperand &MO : MBBI.all_uses())
       UsedRegs.insert(MO.getReg());
 
@@ -133,7 +133,7 @@ MachineFunction::reverse_iterator MC6809LowerSelect::lowerSelect(GSelect &MI) {
   // control-flow pattern. The incoming instruction knows the destination
   // vreg to set, the condition to branch on, and the true/false values to
   // select between.
-  const BasicBlock *LLVM_BB = MBB.getBasicBlock();
+  const BasicBlock *LLVMBB = MBB.getBasicBlock();
   MachineFunction::iterator It = std::next(MBB.getIterator());
 
   //  thisMBB:
@@ -143,9 +143,9 @@ MachineFunction::reverse_iterator MC6809LowerSelect::lowerSelect(GSelect &MI) {
   //   ...
   //   G_BRCOND %Tst, %TrueMBB
   //   G_BR --> %FalseMBB
-  MachineBasicBlock *TrueMBB = MF.CreateMachineBasicBlock(LLVM_BB);
-  MachineBasicBlock *FalseMBB = MF.CreateMachineBasicBlock(LLVM_BB);
-  MachineBasicBlock *SinkMBB = MF.CreateMachineBasicBlock(LLVM_BB);
+  MachineBasicBlock *TrueMBB = MF.CreateMachineBasicBlock(LLVMBB);
+  MachineBasicBlock *FalseMBB = MF.CreateMachineBasicBlock(LLVMBB);
+  MachineBasicBlock *SinkMBB = MF.CreateMachineBasicBlock(LLVMBB);
   MF.insert(It, TrueMBB);
   MF.insert(It, FalseMBB);
   MF.insert(It, SinkMBB);
@@ -361,7 +361,7 @@ void MC6809LowerSelect::moveAwayFromCalls(MachineFunction &MF) {
 void MC6809LowerSelect::sinkSelectsToBranchUses(MachineFunction &MF) {
   const auto &MRI = MF.getRegInfo();
   for (MachineBasicBlock &MBB : MF) {
-    for (MachineInstr &MI : make_early_inc_range(mbb_reverse(MBB))) {
+    for (MachineInstr &MI : make_early_inc_range(mbbReverse(MBB))) {
       if (MI.getOpcode() != MC6809::G_SELECT)
         continue;
       Register Dst = MI.getOperand(0).getReg();

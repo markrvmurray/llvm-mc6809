@@ -256,8 +256,8 @@ inline static MC6809CC::CondCode getSwappedCondition(MC6809CC::CondCode CC) {
 // converts the forward iterators to native reverse iterators that are not
 // behind-by-one and therefore handle erasures correctly when combined with
 // make_early_inc_range().
-inline auto mbb_reverse(MachineBasicBlock::iterator Begin, MachineBasicBlock::iterator End) { return make_range(MachineBasicBlock::reverse_iterator(End), MachineBasicBlock::reverse_iterator(Begin)); }
-template <typename ContainerTy> inline auto mbb_reverse(ContainerTy &&C) { return mbb_reverse(C.begin(), C.end()); }
+inline auto mbbReverse(MachineBasicBlock::iterator Begin, MachineBasicBlock::iterator End) { return make_range(MachineBasicBlock::reverse_iterator(End), MachineBasicBlock::reverse_iterator(Begin)); }
+template <typename ContainerTy> inline auto mbbReverse(ContainerTy &&C) { return mbbReverse(C.begin(), C.end()); }
 
 } // namespace llvm
 

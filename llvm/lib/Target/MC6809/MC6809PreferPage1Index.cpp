@@ -230,10 +230,10 @@ bool MC6809PreferPage1Index::processBlock(MachineBasicBlock &MBB) {
   auto LO = LiveOutXY.lookup(&MBB);
   auto LI = LiveInXY.lookup(&MBB);
   bool LiveIX = LO.first, LiveIY = LO.second;
-  for (int k = (int)NumMI - 1; k >= 0; --k) {
-    LiveAfterIX[k] = LiveIX;
-    LiveAfterIY[k] = LiveIY;
-    MachineInstr *MI = Instrs[k];
+  for (int K = (int)NumMI - 1; K >= 0; --K) {
+    LiveAfterIX[K] = LiveIX;
+    LiveAfterIY[K] = LiveIY;
+    MachineInstr *MI = Instrs[K];
     if (MI->readsRegister(MC6809::IX, TRI))
       LiveIX = true;
     else if (MI->modifiesRegister(MC6809::IX, TRI))
@@ -250,16 +250,16 @@ bool MC6809PreferPage1Index::processBlock(MachineBasicBlock &MBB) {
   };
 
   bool Changed = false;
-  for (unsigned k = 0; k < NumMI;) {
-    MachineInstr *MI = Instrs[k];
+  for (unsigned K = 0; K < NumMI;) {
+    MachineInstr *MI = Instrs[K];
     // A fresh IY value begins where an instruction defines IY and IY was dead
     // immediately before it. At the top of the block "dead before" means NOT
     // live-in: a value arriving from a predecessor (e.g. `leay 3,y` on a
     // live-in IY as the block's first instruction) is not a fresh def -- its
     // reaching def is outside the block and cannot be renamed with the range.
-    bool IYDeadBefore = (k == 0) ? !LI.second : !LiveAfterIY[k - 1];
+    bool IYDeadBefore = (K == 0) ? !LI.second : !LiveAfterIY[K - 1];
     if (!(MI->definesRegister(MC6809::IY, TRI) && IYDeadBefore)) {
-      ++k;
+      ++K;
       continue;
     }
 
@@ -267,13 +267,13 @@ bool MC6809PreferPage1Index::processBlock(MachineBasicBlock &MBB) {
     // is still live after instruction j). The loop stops at the instruction
     // that kills IY -- its last use, after which IY is dead -- or at the block
     // end if the value is live-out.
-    unsigned End = k;
+    unsigned End = K;
     while (End < NumMI && LiveAfterIY[End])
       ++End;
     if (End == NumMI) {
       // IY is live after the last instruction: the value escapes to a
       // successor, so not every read is in this block -- cannot rename.
-      ++k;
+      ++K;
       continue;
     }
     // End is the last-use instruction (IY dead after it); include it.
@@ -281,12 +281,12 @@ bool MC6809PreferPage1Index::processBlock(MachineBasicBlock &MBB) {
 
     // Validate the range.
     bool OK = true;
-    for (unsigned j = k; j <= Last && OK; ++j) {
-      MachineInstr *R = Instrs[j];
+    for (unsigned J = K; J <= Last && OK; ++J) {
+      MachineInstr *R = Instrs[J];
       if (R->isCall())
         OK = false; // calls clobber X; renamed value wouldn't survive.
       // IX must be dead across the whole span, including just before the def.
-      if (LiveAfterIX[j])
+      if (LiveAfterIX[J])
         OK = false;
       // Every IY-referencing instruction must have a page-1 sibling.
       if (RefsIY(R) && !YtoX.count(R->getOpcode()))
@@ -294,11 +294,11 @@ bool MC6809PreferPage1Index::processBlock(MachineBasicBlock &MBB) {
     }
     // IX dead immediately before the def too (don't clobber a live IX). At
     // the top of the block that means IX must not be live-in.
-    if ((k == 0) ? LI.first : LiveAfterIX[k - 1])
+    if ((K == 0) ? LI.first : LiveAfterIX[K - 1])
       OK = false;
 
     if (!OK) {
-      ++k;
+      ++K;
       continue;
     }
 
@@ -313,11 +313,11 @@ bool MC6809PreferPage1Index::processBlock(MachineBasicBlock &MBB) {
     //     there, so a live incoming IX value must not exist), and
     //   * IY must be provably dead just after the range (the value really does
     //     not escape to a later use this block's scan missed).
-    MachineBasicBlock::const_iterator AtDef(Instrs[k]);
+    MachineBasicBlock::const_iterator AtDef(Instrs[K]);
     if (MBB.computeRegisterLiveness(TRI, MC6809::IX, AtDef,
                                     /*Neighborhood=*/32) !=
         MachineBasicBlock::LQR_Dead) {
-      ++k;
+      ++K;
       continue;
     }
     MachineBasicBlock::const_iterator AfterLast =
@@ -325,13 +325,13 @@ bool MC6809PreferPage1Index::processBlock(MachineBasicBlock &MBB) {
     if (MBB.computeRegisterLiveness(TRI, MC6809::IY, AfterLast,
                                     /*Neighborhood=*/32) !=
         MachineBasicBlock::LQR_Dead) {
-      ++k;
+      ++K;
       continue;
     }
 
     // Rename the range: IY-form opcodes -> IX-form, IY operands -> IX.
-    for (unsigned j = k; j <= Last; ++j) {
-      MachineInstr *R = Instrs[j];
+    for (unsigned J = K; J <= Last; ++J) {
+      MachineInstr *R = Instrs[J];
       if (!RefsIY(R))
         continue;
       R->setDesc(TII->get(YtoX[R->getOpcode()]));
@@ -340,11 +340,11 @@ bool MC6809PreferPage1Index::processBlock(MachineBasicBlock &MBB) {
           MO.setReg(MC6809::IX);
       ++NumInstrs;
     }
-    LLVM_DEBUG(dbgs() << "  PreferPage1: renamed IY range [" << k << "," << Last
+    LLVM_DEBUG(dbgs() << "  PreferPage1: renamed IY range [" << K << "," << Last
                       << "] to IX in " << MBB.getName() << "\n");
     ++NumRanges;
     Changed = true;
-    k = End + 1;
+    K = End + 1;
   }
   return Changed;
 }

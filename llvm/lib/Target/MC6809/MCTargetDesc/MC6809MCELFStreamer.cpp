@@ -42,7 +42,7 @@ void MC6809MCELFStreamer::initSections(const MCSubtargetInfo &STI) {
   emitCodeAlignment(Align(1), STI);
 }
 
-static bool HasPrefix(StringRef Name, StringRef Prefix) {
+static bool hasPrefix(StringRef Name, StringRef Prefix) {
   SmallString<32> PrefixDot = Prefix;
   PrefixDot += ".";
   return Name == Prefix || Name.starts_with(PrefixDot);
@@ -50,13 +50,13 @@ static bool HasPrefix(StringRef Name, StringRef Prefix) {
 
 void MC6809MCELFStreamer::changeSection(MCSection *Section, uint32_t Subsection) {
   MCELFStreamer::changeSection(Section, Subsection);
-  HasBSS |= HasPrefix(Section->getName(), ".bss");
-  HasDPBSS |= HasPrefix(Section->getName(), ".dp.bss");
-  HasData |= HasPrefix(Section->getName(), ".data");
-  HasDPData |= HasPrefix(Section->getName(), ".dp.data");
-  HasDPData |= HasPrefix(Section->getName(), ".dp.rodata");
-  HasInitArray |= HasPrefix(Section->getName(), ".init_array");
-  HasFiniArray |= HasPrefix(Section->getName(), ".fini_array");
+  HasBSS |= hasPrefix(Section->getName(), ".bss");
+  HasDPBSS |= hasPrefix(Section->getName(), ".dp.bss");
+  HasData |= hasPrefix(Section->getName(), ".data");
+  HasDPData |= hasPrefix(Section->getName(), ".dp.data");
+  HasDPData |= hasPrefix(Section->getName(), ".dp.rodata");
+  HasInitArray |= hasPrefix(Section->getName(), ".init_array");
+  HasFiniArray |= hasPrefix(Section->getName(), ".fini_array");
   MState = MXFlagUnknown;
   XState = MXFlagUnknown;
 }

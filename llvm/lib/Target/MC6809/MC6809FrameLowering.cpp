@@ -146,7 +146,7 @@ bool MC6809FrameLowering::spillCalleeSavedRegisters(MachineBasicBlock &MBB, Mach
   // doesn't actually affect the encoded bitmask — the encoder just OR-s
   // bits — but keeping the source list sorted is good hygiene and
   // matches how the disassembler will print the fused form.)
-  auto pshsMask = [](Register R) -> unsigned {
+  auto PshsMask = [](Register R) -> unsigned {
     switch (R) {
     case MC6809::SU: case MC6809::SS: return 0x40;  // S/U
     case MC6809::IY: return 0x20;
@@ -160,7 +160,7 @@ bool MC6809FrameLowering::spillCalleeSavedRegisters(MachineBasicBlock &MBB, Mach
     }
   };
   llvm::sort(Fusible, [&](Register A, Register B) {
-    return pshsMask(A) > pshsMask(B);
+    return PshsMask(A) > PshsMask(B);
   });
 
   if (!Fusible.empty()) {
@@ -306,7 +306,7 @@ bool MC6809FrameLowering::restoreCalleeSavedRegisters(MachineBasicBlock &MBB, Ma
     // OR-s bitmask bits regardless of def/use status, so source-list
     // order doesn't affect the encoded mask — but we keep the same
     // mask-descending sort as the spill side for output consistency.
-    auto pshsMask = [](Register R) -> unsigned {
+    auto PshsMask = [](Register R) -> unsigned {
       switch (R) {
       case MC6809::SU: case MC6809::SS: return 0x40;
       case MC6809::IY: return 0x20;
@@ -320,7 +320,7 @@ bool MC6809FrameLowering::restoreCalleeSavedRegisters(MachineBasicBlock &MBB, Ma
       }
     };
     llvm::sort(Fusible, [&](Register A, Register B) {
-      return pshsMask(A) > pshsMask(B);
+      return PshsMask(A) > PshsMask(B);
     });
     auto MIB = Builder.buildInstr(MC6809::PULSs);
     for (Register R : Fusible)
@@ -471,7 +471,7 @@ MachineBasicBlock::iterator MC6809FrameLowering::eliminateCallFramePseudoInstr(M
 // carries the index.  The base-class AsmPrinter::emitFunctionBody switch
 // dispatches CFI_INSTRUCTION to AsmPrinter::emitCFIInstruction which
 // calls OutStreamer->emitCFI*(…).
-static void BuildCFI(MachineBasicBlock &MBB, MachineBasicBlock::iterator I,
+static void buildCFI(MachineBasicBlock &MBB, MachineBasicBlock::iterator I,
                      const DebugLoc &DL, const MCCFIInstruction &CFIInst,
                      MachineInstr::MIFlag Flag = MachineInstr::FrameSetup) {
   MachineFunction &MF = *MBB.getParent();
@@ -507,9 +507,9 @@ void MC6809FrameLowering::emitPrologue(MachineFunction &MF, MachineBasicBlock &M
   unsigned SPDwarf = MRI->getDwarfRegNum(MC6809::SS, /*isEH=*/true);
   unsigned PCDwarf = MRI->getDwarfRegNum(MC6809::PC, /*isEH=*/true);
   auto EntryMBBI = MBB.begin();
-  BuildCFI(MBB, EntryMBBI, {},
+  buildCFI(MBB, EntryMBBI, {},
            MCCFIInstruction::cfiDefCfa(nullptr, SPDwarf, 2));
-  BuildCFI(MBB, EntryMBBI, {},
+  buildCFI(MBB, EntryMBBI, {},
            MCCFIInstruction::createOffset(nullptr, PCDwarf, -2));
 
   if (!hasFP(MF)) {
@@ -526,11 +526,11 @@ void MC6809FrameLowering::emitPrologue(MachineFunction &MF, MachineBasicBlock &M
     // the middle of the body moves S for a few instructions without a note.)
     int64_t CSRBytes = getHardStackCalleeSavedSize(MF);
     if (CSRBytes)
-      BuildCFI(MBB, Builder.getInsertPt(), {},
+      buildCFI(MBB, Builder.getInsertPt(), {},
                MCCFIInstruction::cfiDefCfaOffset(nullptr, CSRBytes + 2));
     if (StackSize) {
       offsetSP(Builder, -StackSize);
-      BuildCFI(MBB, Builder.getInsertPt(), {},
+      buildCFI(MBB, Builder.getInsertPt(), {},
                MCCFIInstruction::cfiDefCfaOffset(nullptr,
                                                  CSRBytes + StackSize + 2));
     }
@@ -573,7 +573,7 @@ void MC6809FrameLowering::emitPrologue(MachineFunction &MF, MachineBasicBlock &M
   // AsmPrinter skip the successor BB label, producing an "Undefined temporary
   // symbol" assembler error (fixed for bug #164 Tier 2 regression).
   auto AfterTFR = Builder.getInsertPt();
-  BuildCFI(MBB, AfterTFR, {},
+  buildCFI(MBB, AfterTFR, {},
            MCCFIInstruction::cfiDefCfa(nullptr, FPDwarf, TotalOffset));
 
   if (Realign) {
@@ -688,7 +688,7 @@ void MC6809FrameLowering::emitEpilogue(MachineFunction &MF, MachineBasicBlock &M
   // Restore the stack pointer from the frame pointer.
   if (hasFP(MF)) {
     // Skip the callee-saved push instructions.
-    auto MBBI = find_if_not(mbb_reverse(MBB.begin(), Builder.getInsertPt()), [](const MachineInstr &MI) { return MI.getFlag(MachineInstr::FrameDestroy); });
+    auto MBBI = find_if_not(mbbReverse(MBB.begin(), Builder.getInsertPt()), [](const MachineInstr &MI) { return MI.getFlag(MachineInstr::FrameDestroy); });
     Builder.setInsertPt(MBB, MachineBasicBlock::iterator(MBBI));
 
     // Set the stack pointer to the frame pointer.
@@ -701,7 +701,7 @@ void MC6809FrameLowering::emitEpilogue(MachineFunction &MF, MachineBasicBlock &M
   if (!hasFP(MF)) {
     // The frame sits below the callee-saved registers (see emitPrologue):
     // release it before they are pulled.
-    auto MBBI = find_if_not(mbb_reverse(MBB.begin(), Builder.getInsertPt()), [](const MachineInstr &MI) { return MI.getFlag(MachineInstr::FrameDestroy); });
+    auto MBBI = find_if_not(mbbReverse(MBB.begin(), Builder.getInsertPt()), [](const MachineInstr &MI) { return MI.getFlag(MachineInstr::FrameDestroy); });
     Builder.setInsertPt(MBB, MachineBasicBlock::iterator(MBBI));
   }
 
@@ -713,7 +713,7 @@ void MC6809FrameLowering::emitEpilogue(MachineFunction &MF, MachineBasicBlock &M
     // say where the CFA is until they are.
     int64_t CSRBytes = getHardStackCalleeSavedSize(MF);
     if (!hasFP(MF) && CSRBytes)
-      BuildCFI(MBB, Builder.getInsertPt(), {},
+      buildCFI(MBB, Builder.getInsertPt(), {},
                MCCFIInstruction::cfiDefCfaOffset(nullptr, CSRBytes + 2),
                MachineInstr::FrameDestroy);
   }
@@ -723,7 +723,7 @@ void MC6809FrameLowering::emitEpilogue(MachineFunction &MF, MachineBasicBlock &M
   // back to SP + 2 (just the return address remains).
   if (hasFP(MF) || StackSize || getHardStackCalleeSavedSize(MF)) {
     unsigned SPDwarf = MRI->getDwarfRegNum(MC6809::SS, /*isEH=*/true);
-    BuildCFI(MBB, MBB.getFirstTerminator(), {},
+    buildCFI(MBB, MBB.getFirstTerminator(), {},
              MCCFIInstruction::cfiDefCfa(nullptr, SPDwarf, 2),
              MachineInstr::FrameDestroy);
   }

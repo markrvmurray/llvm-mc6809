@@ -34,10 +34,10 @@ class MC6809ObjectTargetWriter : public MCELFObjectTargetWriter {
 public:
   MC6809ObjectTargetWriter()
       : MCELFObjectTargetWriter(false, 0, ELF::EM_MC6809, false) {
-    val = ELF::EM_MC6809;
+    Val = ELF::EM_MC6809;
   }
 
-  ~MC6809ObjectTargetWriter() override { val = 0; }
+  ~MC6809ObjectTargetWriter() override { Val = 0; }
 
   unsigned getRelocType(const MCFixup &Fixup, const MCValue &Target,
                         bool IsPCRel) const override {
@@ -48,7 +48,7 @@ public:
     return Triple::ObjectFormatType::ELF;
   }
 
-  int val;
+  int Val;
 };
 
 /// Utilities for manipulating generated MC6809 machine code.

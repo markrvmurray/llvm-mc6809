@@ -38,7 +38,7 @@ using namespace llvm;
 namespace llvm {
 
 void MC6809MCCodeEmitter::emitInstruction(uint64_t Val, unsigned Size, const MCSubtargetInfo &STI, raw_ostream &OS) const {
-  for (int64_t i = 0; i < Size; ++i) {
+  for (int64_t I = 0; I < Size; ++I) {
     OS << (char)(Val & 0xff);
     Val = Val >> 8;
   }
@@ -197,43 +197,43 @@ unsigned MC6809MCCodeEmitter::encodeBIT8RegOpValue(const MCInst &MI, unsigned Op
 }
 
 unsigned MC6809MCCodeEmitter::encodeRegListOpValue(const MCInst &MI, unsigned Op, SmallVectorImpl<MCFixup> &Fixups, const MCSubtargetInfo &STI) const {
-  unsigned res = 0;
+  unsigned Res = 0;
   for (unsigned I = Op, E = MI.getNumOperands(); I < E; ++I) {
     unsigned Reg = MI.getOperand(I).getReg();
     switch (Reg) {
     default:
       llvm_unreachable("Register not allowed for this instruction");
     case MC6809::CC:
-      res |= 0b00000001;
+      Res |= 0b00000001;
       break;
     case MC6809::AA:
-      res |= 0b00000010;
+      Res |= 0b00000010;
       break;
     case MC6809::AB:
-      res |= 0b00000100;
+      Res |= 0b00000100;
       break;
     case MC6809::AD:
-      res |= 0b00000110;  // D = A + B
+      Res |= 0b00000110;  // D = A + B
       break;
     case MC6809::DP:
-      res |= 0b00001000;
+      Res |= 0b00001000;
       break;
     case MC6809::IX:
-      res |= 0b00010000;
+      Res |= 0b00010000;
       break;
     case MC6809::IY:
-      res |= 0b00100000;
+      Res |= 0b00100000;
       break;
     case MC6809::SU:
     case MC6809::SS:
-      res |= 0b01000000;
+      Res |= 0b01000000;
       break;
     case MC6809::PC:
-      res |= 0b10000000;
+      Res |= 0b10000000;
       break;
     }
   }
-  return res;
+  return Res;
 }
 
 unsigned MC6809MCCodeEmitter::encodeCondCodeOpValue(const MCInst &MI, unsigned Op, SmallVectorImpl<MCFixup> &Fixups, const MCSubtargetInfo &STI) const { return MI.getOperand(Op).getImm(); }

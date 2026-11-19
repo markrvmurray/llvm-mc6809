@@ -1671,11 +1671,11 @@ static bool emitHD6309RegRegOp(MachineIRBuilder &Builder, MachineInstr &MI,
   // unrelated value live across this MI. Bail and let the 6809 page-1
   // fallback (which reads RHS via a stack push) handle it. The fallback
   // is bigger but correct.
-  auto effectivePhys = [](Register R) -> Register {
+  auto EffectivePhys = [](Register R) -> Register {
     return needsMaterialization(R) ? getPhysRegFor(R) : R;
   };
-  Register Src1Phys = effectivePhys(Src1);
-  Register Src2Phys = effectivePhys(Src2);
+  Register Src1Phys = EffectivePhys(Src1);
+  Register Src2Phys = EffectivePhys(Src2);
   // Same-physreg collision applies to every register the page-3
   // reg-reg ops can name: byte halves AA/AB (8-bit ops), AD (16-bit
   // ops), IX/IY/SU/SS/PC and HD6309 W/V/E/F (16- or 8-bit). The
@@ -2102,8 +2102,8 @@ const TargetRegisterClass *MC6809InstrInfo::canFoldCopy(const MachineInstr &MI, 
   return nullptr;
 }
 
-void MC6809InstrInfo::storeRegToStackSlot(MachineBasicBlock &MBB, MachineBasicBlock::iterator MI, Register SrcReg, bool isKill, int FrameIndex, const TargetRegisterClass *RC, Register VReg, MachineInstr::MIFlag Flags) const {
-  loadStoreRegStackSlot(MBB, MI, SrcReg, isKill, FrameIndex, RC, /*IsLoad=*/false);
+void MC6809InstrInfo::storeRegToStackSlot(MachineBasicBlock &MBB, MachineBasicBlock::iterator MI, Register SrcReg, bool IsKill, int FrameIndex, const TargetRegisterClass *RC, Register VReg, MachineInstr::MIFlag Flags) const {
+  loadStoreRegStackSlot(MBB, MI, SrcReg, IsKill, FrameIndex, RC, /*IsLoad=*/false);
 }
 
 void MC6809InstrInfo::loadRegFromStackSlot(MachineBasicBlock &MBB, MachineBasicBlock::iterator MI, Register DestReg, int FrameIndex, const TargetRegisterClass *RC, Register VReg, unsigned SubReg, MachineInstr::MIFlag Flags) const {
@@ -2160,25 +2160,25 @@ static void loadStoreRegisterStaticStackSlot(MachineIRBuilder &Builder, MachineO
   bool IsIdx = (Reg.isPhysical() && MC6809::INDEX16RegClass.contains(Reg)) || (Reg.isVirtual() && MRI.getRegClass(Reg)->hasSuperClassEq(&MC6809::INDEX16RegClass));
   if ((Reg.isPhysical() && (MC6809::ACC8RegClass.contains(Reg) || MC6809::ACC16RegClass.contains(Reg) || MC6809::ACC32RegClass.contains(Reg) || MC6809::INDEX16RegClass.contains(Reg))) ||
       (Reg.isVirtual() && (MRI.getRegClass(Reg)->hasSuperClassEq(&MC6809::ACC8RegClass) || MRI.getRegClass(Reg)->hasSuperClassEq(&MC6809::ACC16RegClass) || MRI.getRegClass(Reg)->hasSuperClassEq(&MC6809::ACC32RegClass) || MRI.getRegClass(Reg)->hasSuperClassEq(&MC6809::INDEX16RegClass)))) {
-    unsigned opcode;
+    unsigned Opcode;
     switch (Size) {
     default:
       llvm_unreachable("Unknown register size");
     case 1:
     case 8:
-      opcode = MO.isDef() ? MC6809::Load_i8_Mem : MC6809::Store_i8_Mem;
+      Opcode = MO.isDef() ? MC6809::Load_i8_Mem : MC6809::Store_i8_Mem;
       break;
     case 16:
       if (IsIdx)
-        opcode = MO.isDef() ? MC6809::Load_iPtr_Mem : MC6809::Store_iPtr_Mem;
+        Opcode = MO.isDef() ? MC6809::Load_iPtr_Mem : MC6809::Store_iPtr_Mem;
       else
-        opcode = MO.isDef() ? MC6809::Load_i16_Mem : MC6809::Store_i16_Mem;
+        Opcode = MO.isDef() ? MC6809::Load_i16_Mem : MC6809::Store_i16_Mem;
       break;
     case 32:
-      opcode = MO.isDef() ? MC6809::Load_i32_Mem : MC6809::Store_i32_Mem;
+      Opcode = MO.isDef() ? MC6809::Load_i32_Mem : MC6809::Store_i32_Mem;
       break;
     }
-    Builder.buildInstr(opcode).add(MO).addFrameIndex(FrameIndex, Offset).addImm(0).addMemOperand(MMO);
+    Builder.buildInstr(Opcode).add(MO).addFrameIndex(FrameIndex, Offset).addImm(0).addMemOperand(MMO);
     return;
   }
 
@@ -4777,33 +4777,33 @@ bool MC6809InstrInfo::expandPostRAPseudoImpl(MachineInstr &MI) const {
     //   SGE = ~(N^V); SLE = Z|(N^V); SGT = ~(Z|(N^V))):
     //   need additional masking + combination logic.
     Builder.buildInstr(MC6809::TFRp).addDef(MC6809::AA).addUse(MC6809::CC);
-    auto andai = [&](uint8_t m) {
+    auto AndAImm = [&](uint8_t M) {
       Builder.buildInstr(MC6809::ANDAi8)
           .addDef(MC6809::AA, RegState::Implicit)
           .addUse(MC6809::AA, RegState::Implicit)
-          .addImm(m);
+          .addImm(M);
     };
-    auto lsraN = [&](int n) {
-      for (int i = 0; i < n; ++i)
+    auto LsraN = [&](int N) {
+      for (int I = 0; I < N; ++I)
         Builder.buildInstr(MC6809::LSRAa)
             .addDef(MC6809::AA, RegState::Implicit)
             .addUse(MC6809::AA, RegState::Implicit);
     };
-    auto eorai = [&](uint8_t m) {
+    auto EorAImm = [&](uint8_t M) {
       Builder.buildInstr(MC6809::EORAi8)
           .addDef(MC6809::AA, RegState::Implicit)
           .addUse(MC6809::AA, RegState::Implicit)
-          .addImm(m);
+          .addImm(M);
     };
     switch (CC) {
     case MC6809CC::EQ:  // Z=1
-      andai(0x04); lsraN(2); break;
+      AndAImm(0x04); LsraN(2); break;
     case MC6809CC::NE:  // Z=0
-      andai(0x04); lsraN(2); eorai(0x01); break;
+      AndAImm(0x04); LsraN(2); EorAImm(0x01); break;
     case MC6809CC::CS:  // C=1 (also ULO)
-      andai(0x01); break;
+      AndAImm(0x01); break;
     case MC6809CC::CC:  // C=0 (also UHS)
-      andai(0x01); eorai(0x01); break;
+      AndAImm(0x01); EorAImm(0x01); break;
     case MC6809CC::LS: {
       // C | Z — OR bit 0 (C) with bit 2 (Z>>2).  Build via:
       //   B := A;  B>>=2;  B|=A;  B&=1
@@ -4818,7 +4818,7 @@ bool MC6809InstrInfo::expandPostRAPseudoImpl(MachineInstr &MI) const {
       Builder.buildInstr(MC6809::ORRp)
           .addDef(MC6809::AA)
           .addUse(MC6809::AB).addUse(MC6809::AA);
-      andai(0x01);
+      AndAImm(0x01);
       break;
     }
     case MC6809CC::HI: {
@@ -4833,7 +4833,7 @@ bool MC6809InstrInfo::expandPostRAPseudoImpl(MachineInstr &MI) const {
       Builder.buildInstr(MC6809::ORRp)
           .addDef(MC6809::AA)
           .addUse(MC6809::AB).addUse(MC6809::AA);
-      andai(0x01); eorai(0x01);
+      AndAImm(0x01); EorAImm(0x01);
       break;
     }
     case MC6809CC::LT: {
@@ -4845,7 +4845,7 @@ bool MC6809InstrInfo::expandPostRAPseudoImpl(MachineInstr &MI) const {
       //   A := CC; A &= 0x0A;  A>>=1;  (V now at bit 0, N at bit 2)
       //   B := A; B>>=2;  (B now has N at bit 0)
       //   A ^= B;  A &= 1;  (bit 0 = V^N)
-      andai(0x0A); lsraN(1);
+      AndAImm(0x0A); LsraN(1);
       Builder.buildInstr(MC6809::TFRp).addDef(MC6809::AB).addUse(MC6809::AA);
       Builder.buildInstr(MC6809::LSRBa)
           .addDef(MC6809::AB, RegState::Implicit)
@@ -4856,12 +4856,12 @@ bool MC6809InstrInfo::expandPostRAPseudoImpl(MachineInstr &MI) const {
       Builder.buildInstr(MC6809::EORRp)
           .addDef(MC6809::AA)
           .addUse(MC6809::AB).addUse(MC6809::AA);
-      andai(0x01);
+      AndAImm(0x01);
       break;
     }
     case MC6809CC::GE: {
       // NOT (N XOR V) — same as LT then EOR #1
-      andai(0x0A); lsraN(1);
+      AndAImm(0x0A); LsraN(1);
       Builder.buildInstr(MC6809::TFRp).addDef(MC6809::AB).addUse(MC6809::AA);
       Builder.buildInstr(MC6809::LSRBa)
           .addDef(MC6809::AB, RegState::Implicit)
@@ -4872,7 +4872,7 @@ bool MC6809InstrInfo::expandPostRAPseudoImpl(MachineInstr &MI) const {
       Builder.buildInstr(MC6809::EORRp)
           .addDef(MC6809::AA)
           .addUse(MC6809::AB).addUse(MC6809::AA);
-      andai(0x01); eorai(0x01);
+      AndAImm(0x01); EorAImm(0x01);
       break;
     }
     case MC6809CC::LE: {
@@ -4885,7 +4885,7 @@ bool MC6809InstrInfo::expandPostRAPseudoImpl(MachineInstr &MI) const {
       //   A |= B;  A &= 1;
       // Using TFRp to copy CC into both A and B at start:
       Builder.buildInstr(MC6809::TFRp).addDef(MC6809::AB).addUse(MC6809::CC);
-      andai(0x0A); lsraN(1);
+      AndAImm(0x0A); LsraN(1);
       // tmp via stack (no third byte reg accessible without clobbering).
       // Simpler: re-use B by saving it before.  Save B to AE temporarily?
       // AE only exists on HD6309 — fine.
@@ -4901,7 +4901,7 @@ bool MC6809InstrInfo::expandPostRAPseudoImpl(MachineInstr &MI) const {
       Builder.buildInstr(MC6809::EORRp)
           .addDef(MC6809::AA)
           .addUse(MC6809::AE).addUse(MC6809::AA);
-      andai(0x01);
+      AndAImm(0x01);
       // Now AA bit 0 = N^V.  AB still has CC.  Mask Z out of B and shift.
       Builder.buildInstr(MC6809::ANDBi8)
           .addDef(MC6809::AB, RegState::Implicit)
@@ -4916,13 +4916,13 @@ bool MC6809InstrInfo::expandPostRAPseudoImpl(MachineInstr &MI) const {
       Builder.buildInstr(MC6809::ORRp)
           .addDef(MC6809::AA)
           .addUse(MC6809::AB).addUse(MC6809::AA);
-      andai(0x01);
+      AndAImm(0x01);
       break;
     }
     case MC6809CC::GT: {
       // NOT (Z | (N XOR V)) — same as LE then EOR #1
       Builder.buildInstr(MC6809::TFRp).addDef(MC6809::AB).addUse(MC6809::CC);
-      andai(0x0A); lsraN(1);
+      AndAImm(0x0A); LsraN(1);
       Builder.buildInstr(MC6809::TFRp).addDef(MC6809::AE).addUse(MC6809::AA);
       Builder.buildInstr(MC6809::LSRAa)
           .addDef(MC6809::AA, RegState::Implicit)
@@ -4933,7 +4933,7 @@ bool MC6809InstrInfo::expandPostRAPseudoImpl(MachineInstr &MI) const {
       Builder.buildInstr(MC6809::EORRp)
           .addDef(MC6809::AA)
           .addUse(MC6809::AE).addUse(MC6809::AA);
-      andai(0x01);
+      AndAImm(0x01);
       Builder.buildInstr(MC6809::ANDBi8)
           .addDef(MC6809::AB, RegState::Implicit)
           .addUse(MC6809::AB, RegState::Implicit)
@@ -4947,7 +4947,7 @@ bool MC6809InstrInfo::expandPostRAPseudoImpl(MachineInstr &MI) const {
       Builder.buildInstr(MC6809::ORRp)
           .addDef(MC6809::AA)
           .addUse(MC6809::AB).addUse(MC6809::AA);
-      andai(0x01); eorai(0x01);
+      AndAImm(0x01); EorAImm(0x01);
       break;
     }
     default:
@@ -5182,7 +5182,7 @@ void MC6809InstrInfo::expandLEAPtrAdd(MachineIRBuilder &Builder, MachineInstr &M
 }
 
 void MC6809InstrInfo::expandImm(ContextImmediate Context, MachineIRBuilder &Builder, MachineInstr &MI) const {
-  auto operandCount = MI.getNumExplicitOperands();
+  auto OperandCount = MI.getNumExplicitOperands();
   auto DestReg = MI.getOperand(0).getReg();
   Register OrigDest = DestReg;
   MachineFunction &MF = *MI.getMF();
@@ -5194,11 +5194,11 @@ void MC6809InstrInfo::expandImm(ContextImmediate Context, MachineIRBuilder &Buil
     Register RealReg = materializeTiedDest(Builder, MI, DestReg, MF);
     MI.getOperand(0).setReg(RealReg);
     MI.getOperand(0).setIsDead(false); // demat below reads the staging real
-    if (operandCount >= 3 && MI.getOperand(1).isReg() && MI.getOperand(1).getReg() == DestReg)
+    if (OperandCount >= 3 && MI.getOperand(1).isReg() && MI.getOperand(1).getReg() == DestReg)
       MI.getOperand(1).setReg(RealReg);
     DestReg = RealReg;
   }
-  auto ValOp = MI.getOperand(operandCount - 1);
+  auto ValOp = MI.getOperand(OperandCount - 1);
   int Val;
 
   if (ValOp.isImm() || ValOp.isCImm())
@@ -5295,14 +5295,14 @@ void MC6809InstrInfo::expandImm(ContextImmediate Context, MachineIRBuilder &Buil
 static bool isMemIndirectPseudo(unsigned Opc);
 
 void MC6809InstrInfo::expandIdxImm(ContextIndexImmediate Context, MachineIRBuilder &Builder, MachineInstr &MI) const {
-  auto operandCount = MI.getNumExplicitOperands();
+  auto OperandCount = MI.getNumExplicitOperands();
   // Static-stack sibling (_Sym): the memory operand is a TI_STATIC_STACK
   // target index instead of the index-reg + offset pair. The opcode lookup
   // below keys on the widest indexed form ({reg, 16}) purely to name the
   // instruction family; getStaticStackOpcode then swaps it for the extended
   // (or PC-relative under PIC) variant and the emitted operand is the
   // target index.
-  const bool IsSym = isSymOperand(MI.getOperand(operandCount - 1));
+  const bool IsSym = isSymOperand(MI.getOperand(OperandCount - 1));
   // P3b: indirect-indexed consumer (`op [n,r]`) -- build the indirect-sibling
   // opcode (the memory operand is `*(mem[r+n])`), exactly as expandLoadIdx
   // swaps a load to its `[n,r]` form. Applies at every build site below,
@@ -5329,20 +5329,20 @@ void MC6809InstrInfo::expandIdxImm(ContextIndexImmediate Context, MachineIRBuild
     MI.getOperand(0).setReg(RealReg);
     MI.getOperand(0).setIsDead(false); // demat below reads the staging real
     // Also fix the tied source operand (operand 1 for most arith pseudos).
-    if (operandCount >= 3 && MI.getOperand(1).isReg() && MI.getOperand(1).getReg() == DestReg)
+    if (OperandCount >= 3 && MI.getOperand(1).isReg() && MI.getOperand(1).getReg() == DestReg)
       MI.getOperand(1).setReg(RealReg);
     DestReg = RealReg;
   }
   Register IndexReg;
   int OffsetSize;
   int64_t Offset = 0;
-  const MachineOperand SymOp = MI.getOperand(operandCount - 1);
+  const MachineOperand SymOp = MI.getOperand(OperandCount - 1);
   const bool IsPIC = MF.getTarget().isPositionIndependent();
   if (IsSym) {
     OffsetSize = 16; // key the widest indexed form; translated to extended
   } else {
-    IndexReg = MI.getOperand(operandCount - 2).getReg();
-    auto OffsetOp = MI.getOperand(operandCount - 1);
+    IndexReg = MI.getOperand(OperandCount - 2).getReg();
+    auto OffsetOp = MI.getOperand(OperandCount - 1);
     assert((OffsetOp.isImm() || OffsetOp.isCImm()) && "This offset must be an immediate");
     OffsetSize = offsetSizeInBits(OffsetOp);
     assert((OffsetSize >= 0) && "Unknown immediate offset size");
@@ -5461,8 +5461,8 @@ void MC6809InstrInfo::expandCarryImm16(bool IsAdd, MachineIRBuilder &Builder,
   unsigned StagePushed =
       (StagedDst) ? pushStagingReg(Builder, getPhysRegFor(DestReg)) : 0;
   DestReg = materializeTiedDest(Builder, MI, DestReg, MF);
-  auto operandCount = MI.getNumExplicitOperands();
-  auto ValOp = MI.getOperand(operandCount - 1);
+  auto OperandCount = MI.getNumExplicitOperands();
+  auto ValOp = MI.getOperand(OperandCount - 1);
   int Val = ValOp.isImm() ? ValOp.getImm() : ValOp.getCImm()->getSExtValue();
   int Lo = Val & 0xFF;
   int Hi = (Val >> 8) & 0xFF;
@@ -5496,13 +5496,13 @@ void MC6809InstrInfo::expandCarryMem16(bool IsAdd, MachineIRBuilder &Builder,
     compensateSSOperands(MI, StagePushed);
     DestReg = materializeTiedDest(Builder, MI, DestReg, MF);
   }
-  auto operandCount = MI.getNumExplicitOperands();
+  auto OperandCount = MI.getNumExplicitOperands();
   auto &CarryMap = IsAdd ? AddCarryIdxImmOpcode : SubBorrowIdxImmOpcode;
   // Static-stack sibling: split into two extended (or PC-relative) byte
   // accesses — low byte (base+1, big-endian) first to keep the carry chain
   // order, high byte (base+0) second.
-  if (isSymOperand(MI.getOperand(operandCount - 1))) {
-    const MachineOperand SymOp = MI.getOperand(operandCount - 1);
+  if (isSymOperand(MI.getOperand(OperandCount - 1))) {
+    const MachineOperand SymOp = MI.getOperand(OperandCount - 1);
     bool IsPIC = MF.getTarget().isPositionIndependent();
     auto OpcB = CarryMap.find({MC6809::AB, 16});
     auto OpcA = CarryMap.find({MC6809::AA, 16});
@@ -5519,8 +5519,8 @@ void MC6809InstrInfo::expandCarryMem16(bool IsAdd, MachineIRBuilder &Builder,
     MI.eraseFromParent();
     return;
   }
-  auto IndexReg = MI.getOperand(operandCount - 2).getReg();
-  auto OffsetOp = MI.getOperand(operandCount - 1);
+  auto IndexReg = MI.getOperand(OperandCount - 2).getReg();
+  auto OffsetOp = MI.getOperand(OperandCount - 1);
   auto Offset = OffsetOp.isImm() ? OffsetOp.getImm() : OffsetOp.getCImm()->getSExtValue();
   // Low byte is at offset+1 (big-endian), high byte at offset.
   int OffsetLo = Offset + 1;
@@ -6062,8 +6062,8 @@ void MC6809InstrInfo::expandBitwiseImm16(ContextImmediate Context, unsigned OpcA
     StagePushed = pushStagingReg(Builder, MC6809::AD);
     DestReg = materializeTiedDest(Builder, MI, DestReg, MF);
   }
-  auto operandCount = MI.getNumExplicitOperands();
-  auto ValOp = MI.getOperand(operandCount - 1);
+  auto OperandCount = MI.getNumExplicitOperands();
+  auto ValOp = MI.getOperand(OperandCount - 1);
   int Val = ValOp.isImm() ? ValOp.getImm() : ValOp.getCImm()->getSExtValue();
   int Lo = Val & 0xFF;
   int Hi = (Val >> 8) & 0xFF;
@@ -6114,12 +6114,12 @@ void MC6809InstrInfo::expandBitwiseMem16(ContextIndexImmediate Context,
     compensateSSOperands(MI, StagePushed);
     DestReg = materializeTiedDest(Builder, MI, DestReg, MF);
   }
-  auto operandCount = MI.getNumExplicitOperands();
+  auto OperandCount = MI.getNumExplicitOperands();
   // Static-stack sibling: split into two extended (or PC-relative) byte
   // accesses. Bitwise halves are independent — order is immaterial; keep
   // B-low (base+1), A-high (base+0) to match the indexed split below.
-  if (isSymOperand(MI.getOperand(operandCount - 1))) {
-    const MachineOperand SymOp = MI.getOperand(operandCount - 1);
+  if (isSymOperand(MI.getOperand(OperandCount - 1))) {
+    const MachineOperand SymOp = MI.getOperand(OperandCount - 1);
     bool IsPIC = MF.getTarget().isPositionIndependent();
     auto OpcB = Context.Opcode->find({MC6809::AB, 16});
     auto OpcA = Context.Opcode->find({MC6809::AA, 16});
@@ -6137,8 +6137,8 @@ void MC6809InstrInfo::expandBitwiseMem16(ContextIndexImmediate Context,
     MI.eraseFromParent();
     return;
   }
-  auto IndexReg = MI.getOperand(operandCount - 2).getReg();
-  auto OffsetOp = MI.getOperand(operandCount - 1);
+  auto IndexReg = MI.getOperand(OperandCount - 2).getReg();
+  auto OffsetOp = MI.getOperand(OperandCount - 1);
   auto Offset = OffsetOp.isImm() ? OffsetOp.getImm() : OffsetOp.getCImm()->getSExtValue();
   // P3b indirect (6809): materialize the pointer (at [IndexReg+Offset]) into IY,
   // then split off [0,IY]/[1,IY] below. The direct two-byte split addresses
@@ -6196,7 +6196,7 @@ void MC6809InstrInfo::expandIdxReg(ContextIndexRegister Context, MachineIRBuilde
 
 void MC6809InstrInfo::expandNegate(MachineIRBuilder &Builder, MachineInstr &MI) const {
   const auto &STI = MI.getMF()->getSubtarget<MC6809Subtarget>();
-  bool has6309 = STI.has6309();
+  bool Has6309 = STI.has6309();
   Register Reg = MI.getOperand(0).getReg();
 
   // Handle spill/imaginary registers: load to real register, negate, store back.
@@ -6249,7 +6249,7 @@ void MC6809InstrInfo::expandNegate(MachineIRBuilder &Builder, MachineInstr &MI) 
     // MI.addImplicitDefUseOperands(*MI.getMF());
     break;
   case MC6809::AD:
-    if (has6309) {
+    if (Has6309) {
       MI.setDesc(Builder.getTII().get(MC6809::NEGDa));
       addMissingImplicitOperands(MI);
       MI.removeOperand(3);
@@ -7508,23 +7508,23 @@ void MC6809InstrInfo::expandStoreIdx(MachineIRBuilder &Builder, MachineInstr &MI
 // this is the short-term footgun-removal.
 static void emit6809RegByteFromMem(MachineIRBuilder &Builder,
                                    Register LHS, Register RHS,
-                                   unsigned Opc_o8, unsigned Opc_o5,
-                                   unsigned Opc_o16);
+                                   unsigned OpcO8, unsigned OpcO5,
+                                   unsigned OpcO16);
 static void emit6809RegPairFromMem(MachineIRBuilder &Builder,
                                    Register LHS, Register RHS,
-                                   unsigned OpcB_o8, unsigned OpcA_o8,
-                                   unsigned OpcB_o5, unsigned OpcA_o0,
-                                   unsigned OpcB_o16,
-                                   unsigned OpcA_o16);
+                                   unsigned OpcBO8, unsigned OpcAO8,
+                                   unsigned OpcBO5, unsigned OpcAO0,
+                                   unsigned OpcBO16,
+                                   unsigned OpcAO16);
 static bool emit6809Reg16FromMem(MachineIRBuilder &Builder, Register LHS,
                                  Register RHS, unsigned OpcDP,
                                  unsigned OpcInc2);
 static void getByteOpcodes(Register LHS,
-                           unsigned OpcA_o8, unsigned OpcB_o8,
-                           unsigned OpcA_o5, unsigned OpcB_o5,
-                           unsigned OpcA_o16, unsigned OpcB_o16,
-                           unsigned &Opc_o8, unsigned &Opc_o5,
-                           unsigned &Opc_o16);
+                           unsigned OpcAO8, unsigned OpcBO8,
+                           unsigned OpcAO5, unsigned OpcBO5,
+                           unsigned OpcAO16, unsigned OpcBO16,
+                           unsigned &OpcO8, unsigned &OpcO5,
+                           unsigned &OpcO16);
 
 void MC6809InstrInfo::expandANDReg(MachineIRBuilder &Builder, MachineInstr &MI) const {
   assert(MI.getOperand(0).getReg() == MI.getOperand(1).getReg() && "Dest and Source must be same for ANDReg");
@@ -7540,15 +7540,15 @@ void MC6809InstrInfo::expandANDReg(MachineIRBuilder &Builder, MachineInstr &MI) 
                            MC6809::ANDBi_o5, MC6809::ANDAi_o0,
                            MC6809::ANDBi_o16, MC6809::ANDAi_o16);
   } else {
-    unsigned Opc_o8, Opc_o5, Opc_o16;
+    unsigned OpcO8, OpcO5, OpcO16;
     getByteOpcodes(MI.getOperand(0).getReg(),
                    MC6809::ANDAi_o8,  MC6809::ANDBi_o8,
                    MC6809::ANDAi_o5,  MC6809::ANDBi_o5,
                    MC6809::ANDAi_o16, MC6809::ANDBi_o16,
-                   Opc_o8, Opc_o5, Opc_o16);
+                   OpcO8, OpcO5, OpcO16);
     emit6809RegByteFromMem(Builder,
                            MI.getOperand(0).getReg(), MI.getOperand(2).getReg(),
-                           Opc_o8, Opc_o5, Opc_o16);
+                           OpcO8, OpcO5, OpcO16);
   }
   MI.eraseFromParent();
 }
@@ -7570,15 +7570,15 @@ void MC6809InstrInfo::expandORReg(MachineIRBuilder &Builder, MachineInstr &MI) c
                            MC6809::ORBi_o5, MC6809::ORAi_o0,
                            MC6809::ORBi_o16, MC6809::ORAi_o16);
   } else {
-    unsigned Opc_o8, Opc_o5, Opc_o16;
+    unsigned OpcO8, OpcO5, OpcO16;
     getByteOpcodes(MI.getOperand(0).getReg(),
                    MC6809::ORAi_o8,  MC6809::ORBi_o8,
                    MC6809::ORAi_o5,  MC6809::ORBi_o5,
                    MC6809::ORAi_o16, MC6809::ORBi_o16,
-                   Opc_o8, Opc_o5, Opc_o16);
+                   OpcO8, OpcO5, OpcO16);
     emit6809RegByteFromMem(Builder,
                            MI.getOperand(0).getReg(), MI.getOperand(2).getReg(),
-                           Opc_o8, Opc_o5, Opc_o16);
+                           OpcO8, OpcO5, OpcO16);
   }
   MI.eraseFromParent();
 }
@@ -7597,15 +7597,15 @@ void MC6809InstrInfo::expandXORReg(MachineIRBuilder &Builder, MachineInstr &MI) 
                            MC6809::EORBi_o5, MC6809::EORAi_o0,
                            MC6809::EORBi_o16, MC6809::EORAi_o16);
   } else {
-    unsigned Opc_o8, Opc_o5, Opc_o16;
+    unsigned OpcO8, OpcO5, OpcO16;
     getByteOpcodes(MI.getOperand(0).getReg(),
                    MC6809::EORAi_o8,  MC6809::EORBi_o8,
                    MC6809::EORAi_o5,  MC6809::EORBi_o5,
                    MC6809::EORAi_o16, MC6809::EORBi_o16,
-                   Opc_o8, Opc_o5, Opc_o16);
+                   OpcO8, OpcO5, OpcO16);
     emit6809RegByteFromMem(Builder,
                            MI.getOperand(0).getReg(), MI.getOperand(2).getReg(),
-                           Opc_o8, Opc_o5, Opc_o16);
+                           OpcO8, OpcO5, OpcO16);
   }
   MI.eraseFromParent();
 }
@@ -7617,15 +7617,15 @@ void MC6809InstrInfo::expandAddReg(MachineIRBuilder &Builder, MachineInstr &MI) 
   if (STI.has6309() && emitHD6309RegRegOp(Builder, MI, MC6809::ADDRp)) {
     // page-3 reg-reg path emitted
   } else if (MI.getOpcode() == MC6809::Add_i8_Reg) {
-    unsigned Opc_o8, Opc_o5, Opc_o16;
+    unsigned OpcO8, OpcO5, OpcO16;
     getByteOpcodes(MI.getOperand(0).getReg(),
                    MC6809::ADDAi_o8,  MC6809::ADDBi_o8,
                    MC6809::ADDAi_o5,  MC6809::ADDBi_o5,
                    MC6809::ADDAi_o16, MC6809::ADDBi_o16,
-                   Opc_o8, Opc_o5, Opc_o16);
+                   OpcO8, OpcO5, OpcO16);
     emit6809RegByteFromMem(Builder,
                            MI.getOperand(0).getReg(), MI.getOperand(2).getReg(),
-                           Opc_o8, Opc_o5, Opc_o16);
+                           OpcO8, OpcO5, OpcO16);
   } else if (!emit6809Reg16FromMem(Builder, MI.getOperand(0).getReg(),
                                    MI.getOperand(2).getReg(), MC6809::ADDDd,
                                    MC6809::ADDDi_Inc2)) {
@@ -7711,17 +7711,17 @@ void MC6809InstrInfo::expandAddSetCarryReg(MachineIRBuilder &Builder, MachineIns
 /// MUST route the opcode pick through this helper — hardcoding `B`
 /// variants is silently wrong when the LHS maps to AA.
 static void getByteOpcodes(Register LHS,
-                           unsigned OpcA_o8, unsigned OpcB_o8,
-                           unsigned OpcA_o5, unsigned OpcB_o5,
-                           unsigned OpcA_o16, unsigned OpcB_o16,
-                           unsigned &Opc_o8, unsigned &Opc_o5,
-                           unsigned &Opc_o16) {
+                           unsigned OpcAO8, unsigned OpcBO8,
+                           unsigned OpcAO5, unsigned OpcBO5,
+                           unsigned OpcAO16, unsigned OpcBO16,
+                           unsigned &OpcO8, unsigned &OpcO5,
+                           unsigned &OpcO16) {
   Register RealLHS = needsMaterialization(LHS) ? getPhysRegFor(LHS) : LHS;
   // AALSB retired.
   bool UseA = (RealLHS == MC6809::AA);
-  Opc_o8 = UseA ? OpcA_o8 : OpcB_o8;
-  Opc_o5 = UseA ? OpcA_o5 : OpcB_o5;
-  Opc_o16 = UseA ? OpcA_o16 : OpcB_o16;
+  OpcO8 = UseA ? OpcAO8 : OpcBO8;
+  OpcO5 = UseA ? OpcAO5 : OpcBO5;
+  OpcO16 = UseA ? OpcAO16 : OpcBO16;
 }
 
 // all SetCarry/SetCarryUse expansions migrate to the new
@@ -7736,14 +7736,14 @@ void MC6809InstrInfo::expandAddSetCarryByteReg(MachineIRBuilder &Builder, Machin
   if (STI.has6309() && emitHD6309RegRegOp(Builder, MI, MC6809::ADDRp)) {
     // page-3 reg-reg path emitted
   } else {
-    unsigned Opc_o8, Opc_o5, Opc_o16;
+    unsigned OpcO8, OpcO5, OpcO16;
     getByteOpcodes(MI.getOperand(0).getReg(),
                    MC6809::ADDAi_o8, MC6809::ADDBi_o8,
                    MC6809::ADDAi_o5, MC6809::ADDBi_o5,
                    MC6809::ADDAi_o16, MC6809::ADDBi_o16,
-                   Opc_o8, Opc_o5, Opc_o16);
+                   OpcO8, OpcO5, OpcO16);
     emit6809RegByteFromMem(Builder, MI.getOperand(0).getReg(),
-                           MI.getOperand(2).getReg(), Opc_o8, Opc_o5, Opc_o16);
+                           MI.getOperand(2).getReg(), OpcO8, OpcO5, OpcO16);
   }
   MI.eraseFromParent();
 }
@@ -7754,14 +7754,14 @@ void MC6809InstrInfo::expandAddSetCarryUseByteReg(MachineIRBuilder &Builder, Mac
   if (STI.has6309() && emitHD6309RegRegOp(Builder, MI, MC6809::ADCRp)) {
     // page-3 reg-reg path emitted
   } else {
-    unsigned Opc_o8, Opc_o5, Opc_o16;
+    unsigned OpcO8, OpcO5, OpcO16;
     getByteOpcodes(MI.getOperand(0).getReg(),
                    MC6809::ADCAi_o8, MC6809::ADCBi_o8,
                    MC6809::ADCAi_o5, MC6809::ADCBi_o5,
                    MC6809::ADCAi_o16, MC6809::ADCBi_o16,
-                   Opc_o8, Opc_o5, Opc_o16);
+                   OpcO8, OpcO5, OpcO16);
     emit6809RegByteFromMem(Builder, MI.getOperand(0).getReg(),
-                           MI.getOperand(2).getReg(), Opc_o8, Opc_o5, Opc_o16);
+                           MI.getOperand(2).getReg(), OpcO8, OpcO5, OpcO16);
   }
   MI.eraseFromParent();
 }
@@ -7772,14 +7772,14 @@ void MC6809InstrInfo::expandSubSetCarryByteReg(MachineIRBuilder &Builder, Machin
   if (STI.has6309() && emitHD6309RegRegOp(Builder, MI, MC6809::SUBRp)) {
     // page-3 reg-reg path emitted
   } else {
-    unsigned Opc_o8, Opc_o5, Opc_o16;
+    unsigned OpcO8, OpcO5, OpcO16;
     getByteOpcodes(MI.getOperand(0).getReg(),
                    MC6809::SUBAi_o8, MC6809::SUBBi_o8,
                    MC6809::SUBAi_o5, MC6809::SUBBi_o5,
                    MC6809::SUBAi_o16, MC6809::SUBBi_o16,
-                   Opc_o8, Opc_o5, Opc_o16);
+                   OpcO8, OpcO5, OpcO16);
     emit6809RegByteFromMem(Builder, MI.getOperand(0).getReg(),
-                           MI.getOperand(2).getReg(), Opc_o8, Opc_o5, Opc_o16);
+                           MI.getOperand(2).getReg(), OpcO8, OpcO5, OpcO16);
   }
   MI.eraseFromParent();
 }
@@ -7790,14 +7790,14 @@ void MC6809InstrInfo::expandSubSetCarryUseByteReg(MachineIRBuilder &Builder, Mac
   if (STI.has6309() && emitHD6309RegRegOp(Builder, MI, MC6809::SBCRp)) {
     // page-3 reg-reg path emitted
   } else {
-    unsigned Opc_o8, Opc_o5, Opc_o16;
+    unsigned OpcO8, OpcO5, OpcO16;
     getByteOpcodes(MI.getOperand(0).getReg(),
                    MC6809::SBCAi_o8, MC6809::SBCBi_o8,
                    MC6809::SBCAi_o5, MC6809::SBCBi_o5,
                    MC6809::SBCAi_o16, MC6809::SBCBi_o16,
-                   Opc_o8, Opc_o5, Opc_o16);
+                   OpcO8, OpcO5, OpcO16);
     emit6809RegByteFromMem(Builder, MI.getOperand(0).getReg(),
-                           MI.getOperand(2).getReg(), Opc_o8, Opc_o5, Opc_o16);
+                           MI.getOperand(2).getReg(), OpcO8, OpcO5, OpcO16);
   }
   MI.eraseFromParent();
 }
@@ -8047,9 +8047,9 @@ static unsigned staticSymOpcodeOf(unsigned MemOpc) {
 ///       to deallocate. Imaginary regs are materialized first.
 static void emit6809RegByteFromMem(MachineIRBuilder &Builder,
                                    Register LHS, Register RHS,
-                                   unsigned Opc_o8, unsigned Opc_o5,
-                                   unsigned Opc_o16) {
-  assert(Opc_o16 != 0 &&
+                                   unsigned OpcO8, unsigned OpcO5,
+                                   unsigned OpcO16) {
+  assert(OpcO16 != 0 &&
          "emit6809RegByteFromMem: _o16 opcode is required. "
          "A 0 here silently falls back to _o8 and wraps offsets >127 to "
          "negative. Pass the correct *i_o16 variant explicitly.");
@@ -8091,13 +8091,13 @@ static void emit6809RegByteFromMem(MachineIRBuilder &Builder,
     // location. This avoids the push/pop overhead (and any staging
     // that would clobber the LHS accumulator) and is correct because
     // the imaginaries live in the direct page at fixed addresses.
-    unsigned DPOpc = getDirectPageOpcode(Opc_o8);
+    unsigned DPOpc = getDirectPageOpcode(OpcO8);
     Builder.buildInstr(DPOpc).addReg(RHS);
   } else if (PushedEarly) {
     // RHS was pushed to S before LHS materialization (collision case
     // above). The real register no longer holds the value, so we must
     // consume it from the stack via 0,S rather than re-pushing.
-    Builder.buildInstr(Opc_o5)
+    Builder.buildInstr(OpcO5)
         .addDef(AccReg, RegState::Implicit)
         .addImm(0).addReg(MC6809::SS);
     Builder.buildInstr(MC6809::LEASi_o5)
@@ -8116,14 +8116,14 @@ static void emit6809RegByteFromMem(MachineIRBuilder &Builder,
     if (RealRHS == MC6809::AE || RealRHS == MC6809::AF) {
       Builder.buildInstr(MC6809::PSHSWx);
       int ByteOff = (RealRHS == MC6809::AE) ? 0 : 1;
-      Builder.buildInstr(Opc_o5)
+      Builder.buildInstr(OpcO5)
           .addDef(AccReg, RegState::Implicit)
           .addImm(ByteOff).addReg(MC6809::SS);
       Builder.buildInstr(MC6809::LEASi_o5)
           .addImm(2).addReg(MC6809::SS);
     } else {
       Builder.buildInstr(MC6809::PSHSs, {}, {RealRHS});
-      Builder.buildInstr(Opc_o5)
+      Builder.buildInstr(OpcO5)
           .addDef(AccReg, RegState::Implicit)
           .addImm(0).addReg(MC6809::SS);
       Builder.buildInstr(MC6809::LEASi_o5)
@@ -8206,11 +8206,11 @@ static bool emit6809Reg16FromMem(MachineIRBuilder &Builder, Register LHS,
 
 static void emit6809RegPairFromMem(MachineIRBuilder &Builder,
                                    Register LHS, Register RHS,
-                                   unsigned OpcB_o8, unsigned OpcA_o8,
-                                   unsigned OpcB_o5, unsigned OpcA_o0,
-                                   unsigned OpcB_o16,
-                                   unsigned OpcA_o16) {
-  assert(OpcB_o16 != 0 && OpcA_o16 != 0 &&
+                                   unsigned OpcBO8, unsigned OpcAO8,
+                                   unsigned OpcBO5, unsigned OpcAO0,
+                                   unsigned OpcBO16,
+                                   unsigned OpcAO16) {
+  assert(OpcBO16 != 0 && OpcAO16 != 0 &&
          "emit6809RegPairFromMem: _o16 opcodes are required. "
          "A 0 here silently falls back to _o8 and wraps offsets >127 to "
          "negative. Pass the correct *i_o16 variants explicitly.");
@@ -8236,10 +8236,10 @@ static void emit6809RegPairFromMem(MachineIRBuilder &Builder,
     // destroy a real LHS already living there.
     if (needsMaterialization(LHS))
       materializeReg(Builder, LHS, MF);
-    Builder.buildInstr(getDirectPageOpcode(OpcB_o8))
+    Builder.buildInstr(getDirectPageOpcode(OpcBO8))
         .addDef(MC6809::AB, RegState::Implicit)
         .addReg(imag16LoByte(RHS));
-    Builder.buildInstr(getDirectPageOpcode(OpcA_o8))
+    Builder.buildInstr(getDirectPageOpcode(OpcAO8))
         .addDef(MC6809::AA, RegState::Implicit)
         .addReg(imag16HiByte(RHS));
   } else {
@@ -8277,10 +8277,10 @@ static void emit6809RegPairFromMem(MachineIRBuilder &Builder,
 
     // PSHS pushed 2 bytes; SS is now 2 lower than at the LHS load.
     // Low byte at S+1, high byte at S+0 (big-endian on the stack).
-    Builder.buildInstr(OpcB_o5)
+    Builder.buildInstr(OpcBO5)
         .addDef(MC6809::AB, RegState::Implicit)
         .addImm(1).addReg(MC6809::SS);
-    Builder.buildInstr(OpcA_o0)
+    Builder.buildInstr(OpcAO0)
         .addDef(MC6809::AA, RegState::Implicit)
         .addReg(MC6809::SS);
     // Pop the i16 we pushed.
@@ -8340,14 +8340,14 @@ void MC6809InstrInfo::expandSubByteReg(MachineIRBuilder &Builder, MachineInstr &
   if (STI.has6309() && emitHD6309RegRegOp(Builder, MI, MC6809::SUBRp)) {
     // page-3 reg-reg path emitted
   } else {
-    unsigned Opc_o8, Opc_o5, Opc_o16;
+    unsigned OpcO8, OpcO5, OpcO16;
     getByteOpcodes(MI.getOperand(0).getReg(),
                    MC6809::SUBAi_o8, MC6809::SUBBi_o8,
                    MC6809::SUBAi_o5, MC6809::SUBBi_o5,
                    MC6809::SUBAi_o16, MC6809::SUBBi_o16,
-                   Opc_o8, Opc_o5, Opc_o16);
+                   OpcO8, OpcO5, OpcO16);
     emit6809RegByteFromMem(Builder, MI.getOperand(0).getReg(),
-                           MI.getOperand(2).getReg(), Opc_o8, Opc_o5, Opc_o16);
+                           MI.getOperand(2).getReg(), OpcO8, OpcO5, OpcO16);
   }
   MI.eraseFromParent();
 }
@@ -8719,11 +8719,11 @@ void MC6809InstrInfo::expandCompareReg(MachineIRBuilder &Builder, MachineInstr &
   const MC6809Subtarget &STI = MF.getSubtarget<MC6809Subtarget>();
   Register Src1 = MI.getOperand(3).getReg();
   Register Src2 = MI.getOperand(2).getReg();
-  auto effectivePhys = [](Register R) -> Register {
+  auto EffectivePhys = [](Register R) -> Register {
     return needsMaterialization(R) ? getPhysRegFor(R) : R;
   };
-  Register Src1Phys = effectivePhys(Src1);
-  Register Src2Phys = effectivePhys(Src2);
+  Register Src1Phys = EffectivePhys(Src1);
+  Register Src2Phys = EffectivePhys(Src2);
   bool SameHalf = Src1Phys == Src2Phys &&
       (Src1Phys == MC6809::AA || Src1Phys == MC6809::AB ||
        Src1Phys == MC6809::AD || Src1Phys == MC6809::AW ||
@@ -8737,7 +8737,7 @@ void MC6809InstrInfo::expandCompareReg(MachineIRBuilder &Builder, MachineInstr &
   // costs one stack round-trip.  pickCmpO8O16 (defined further down)
   // picks the right CMPx variant for Src2's physreg.
   unsigned MIOpc = MI.getOpcode();
-  auto pickCmpO8O16 = [&](Register PhysReg, unsigned ByteOffset,
+  auto PickCmpO8O16 = [&](Register PhysReg, unsigned ByteOffset,
                           unsigned &OpcOut) {
     bool Fits8 = (int(ByteOffset) >= -128 && int(ByteOffset) <= 127);
     if (MIOpc == MC6809::Compare_i8_Reg) {
@@ -8758,7 +8758,7 @@ void MC6809InstrInfo::expandCompareReg(MachineIRBuilder &Builder, MachineInstr &
   };
 
   // Compare PhysReg against the word (byte) on top of the stack, popping it.
-  auto pickCmpInc = [&](Register PhysReg) -> unsigned {
+  auto PickCmpInc = [&](Register PhysReg) -> unsigned {
     if (MIOpc == MC6809::Compare_i8_Reg)
       return byteAccOpcode(PhysReg, MC6809::CMPAi_Inc1, MC6809::CMPBi_Inc1,
                            MC6809::CMPEi_Inc1, MC6809::CMPFi_Inc1);
@@ -8814,7 +8814,7 @@ void MC6809InstrInfo::expandCompareReg(MachineIRBuilder &Builder, MachineInstr &
         Builder.buildInstr(MC6809::PSHSs, {}, {Src1});
         materializeReg(Builder, Src2, MF);
         unsigned CmpOpc;
-        pickCmpO8O16(Src2Phys, 0, CmpOpc);
+        PickCmpO8O16(Src2Phys, 0, CmpOpc);
         Builder.buildInstr(CmpOpc).addImm(0).addReg(MC6809::SS);
         Builder.buildInstr(MC6809::PULSs, {Register(Src1)}, {});
         MI.eraseFromParent();
@@ -8836,7 +8836,7 @@ void MC6809InstrInfo::expandCompareReg(MachineIRBuilder &Builder, MachineInstr &
         // writes it), so the pushed copy is consumed by the compare's
         // post-increment.
         Builder.buildInstr(MC6809::PSHSs, {}, {Register(Src1)});
-        Builder.buildInstr(pickCmpInc(Src2Phys)).addReg(MC6809::SS);
+        Builder.buildInstr(PickCmpInc(Src2Phys)).addReg(MC6809::SS);
       }
       pullStagingReg(Builder, Src2Phys, StagePushed);
       MI.eraseFromParent();
@@ -8873,7 +8873,7 @@ void MC6809InstrInfo::expandCompareReg(MachineIRBuilder &Builder, MachineInstr &
     return;
   }
   Builder.buildInstr(MC6809::PSHSs, {}, {Src1Phys});
-  Builder.buildInstr(pickCmpInc(Src2Phys)).addReg(MC6809::SS);
+  Builder.buildInstr(PickCmpInc(Src2Phys)).addReg(MC6809::SS);
   MI.eraseFromParent();
 }
 

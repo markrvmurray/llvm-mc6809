@@ -186,7 +186,7 @@ bool MC6809FoldAddSub16::runOnMachineFunction(MachineFunction &MF) {
   const auto &TRI = *MF.getSubtarget().getRegisterInfo();
   bool Changed = splitChainedChains(MF);
 
-  auto defOf = [&](Register R) -> MachineInstr * {
+  auto DefOf = [&](Register R) -> MachineInstr * {
     return R.isVirtual() ? MRI.getVRegDef(R) : nullptr;
   };
 
@@ -200,8 +200,8 @@ bool MC6809FoldAddSub16::runOnMachineFunction(MachineFunction &MF) {
       Register LoR = MI.getOperand(1).getReg();
       Register HiR = MI.getOperand(2).getReg();
 
-      MachineInstr *LoDef = defOf(LoR);
-      MachineInstr *HiDef = defOf(HiR);
+      MachineInstr *LoDef = DefOf(LoR);
+      MachineInstr *HiDef = DefOf(HiR);
       if (!LoDef || !HiDef)
         continue;
 
@@ -284,8 +284,8 @@ bool MC6809FoldAddSub16::runOnMachineFunction(MachineFunction &MF) {
       // let the native op subtract memory from it: `ldd #imm; subd mem`.
       Register LoSrc = LoDef->getOperand(1).getReg();
       Register HiSrc = HiDef->getOperand(1).getReg();
-      MachineInstr *LoSrcDef = defOf(LoSrc);
-      MachineInstr *HiSrcDef = defOf(HiSrc);
+      MachineInstr *LoSrcDef = DefOf(LoSrc);
+      MachineInstr *HiSrcDef = DefOf(HiSrc);
       if (!LoSrcDef || !HiSrcDef)
         continue;
       if (!MRI.hasOneNonDBGUse(LoR) || !MRI.hasOneNonDBGUse(HiR) ||
@@ -386,8 +386,8 @@ bool MC6809FoldAddSub16::runOnMachineFunction(MachineFunction &MF) {
         // op2 of each byte op is a byte EXTRACTed from one i16 src2.
         Register LoS2 = LoDef->getOperand(2).getReg();
         Register HiS2 = HiDef->getOperand(2).getReg();
-        MachineInstr *LoS2Def = defOf(LoS2);
-        MachineInstr *HiS2Def = defOf(HiS2);
+        MachineInstr *LoS2Def = DefOf(LoS2);
+        MachineInstr *HiS2Def = DefOf(HiS2);
         if (!LoS2Def || LoS2Def->getOpcode() != MC6809::EXTRACT_LO_i16 ||
             !HiS2Def || HiS2Def->getOpcode() != MC6809::EXTRACT_HI_i16 ||
             LoS2Def->getOperand(1).getReg() != HiS2Def->getOperand(1).getReg() ||

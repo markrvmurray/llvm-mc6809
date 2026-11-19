@@ -143,7 +143,7 @@ public:
 
   void copyPhysReg(MachineBasicBlock &MBB, MachineBasicBlock::iterator MI, const DebugLoc &DL, Register DestReg, Register SrcReg, bool KillSrc, bool RenamableDest = false, bool RenamableSrc = false) const override;
 
-  void storeRegToStackSlot(MachineBasicBlock &MBB, MachineBasicBlock::iterator MI, Register SrcReg, bool isKill, int FrameIndex, const TargetRegisterClass *RC, Register VReg, MachineInstr::MIFlag Flags = MachineInstr::NoFlags) const override;
+  void storeRegToStackSlot(MachineBasicBlock &MBB, MachineBasicBlock::iterator MI, Register SrcReg, bool IsKill, int FrameIndex, const TargetRegisterClass *RC, Register VReg, MachineInstr::MIFlag Flags = MachineInstr::NoFlags) const override;
 
   const TargetRegisterClass *canFoldCopy(const MachineInstr &MI, const TargetInstrInfo &TII, unsigned FoldIdx) const override;
 
@@ -572,7 +572,7 @@ enum TargetIndex {
   TI_STATIC_STACK,
 };
 
-MC6809CC::CondCode GetBranchConditionForPredicate(CmpInst::Predicate Pred, bool &IsSigned);
+MC6809CC::CondCode getBranchConditionForPredicate(CmpInst::Predicate Pred, bool &IsSigned);
 
 enum TOF {
   MO_NO_FLAGS = 0,

@@ -194,24 +194,24 @@ struct MC6809OutgoingArgsHandler : MC6809OutgoingValueHandler {
       MachineFunction &MF = MIRBuilder.getMF();
       uint64_t Size = Arg.Flags[ValRegIndex].getByValSize();
       Register SrcPtr = Arg.Regs[ValRegIndex];
-      LLT i8Ty = LLT::scalar(8);
+      LLT I8Ty = LLT::scalar(8);
       LLT PtrTy = LLT::pointer(0, 16);
       LLT OffTy = LLT::scalar(16);
 
-      for (uint64_t i = 0; i < Size; ++i) {
+      for (uint64_t I = 0; I < Size; ++I) {
         Register OffsetReg =
-            MIRBuilder.buildConstant(OffTy, i).getReg(0);
+            MIRBuilder.buildConstant(OffTy, I).getReg(0);
         Register CurSrc =
             MIRBuilder.buildPtrAdd(PtrTy, SrcPtr, OffsetReg).getReg(0);
         Register CurDst =
             MIRBuilder.buildPtrAdd(PtrTy, Addr, OffsetReg).getReg(0);
         auto *SrcMMO = MF.getMachineMemOperand(MachinePointerInfo(),
                                                MachineMemOperand::MOLoad,
-                                               i8Ty, Align(1));
+                                               I8Ty, Align(1));
         auto *DstMMO = MF.getMachineMemOperand(MPO,
                                                MachineMemOperand::MOStore,
-                                               i8Ty, Align(1));
-        Register Byte = MIRBuilder.buildLoad(i8Ty, CurSrc, *SrcMMO).getReg(0);
+                                               I8Ty, Align(1));
+        Register Byte = MIRBuilder.buildLoad(I8Ty, CurSrc, *SrcMMO).getReg(0);
         MIRBuilder.buildStore(Byte, CurDst, *DstMMO);
       }
       return;
