@@ -68,7 +68,7 @@ static void initImag8SymbolNames(const MC6809RegisterInfo &TRI,
     std::string &Str = Names[Reg];
     Str = "__";
     Str += TRI.getName(Reg);
-    std::transform(Str.begin(), Str.end(), Str.begin(), ::tolower);
+    llvm::transform(Str, Str.begin(), ::tolower);
   }
 }
 
@@ -199,7 +199,7 @@ MC6809RegisterInfo::getSubClassWithSubReg(const TargetRegisterClass *RC,
 const TargetRegisterClass *MC6809RegisterInfo::getCrossCopyRegClass(const TargetRegisterClass *RC) const {
   if (RC == &MC6809::INDEX16RegClass)
     return &MC6809::ACC16RegClass;
-  else if (RC == &MC6809::CCFlagRegClass)
+  if (RC == &MC6809::CCFlagRegClass)
     return &MC6809::ACC8RegClass;
   return RC;
 }
@@ -213,7 +213,7 @@ bool MC6809RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II, int
   const MC6809FrameLowering *TFI = getFrameLowering(MF);
   DebugLoc DL = MI.getDebugLoc();
   int FrameIndex = MI.getOperand(FIOperandNum).getIndex();
-  unsigned BasePtr = getFrameRegister(MF);
+  Register BasePtr = getFrameRegister(MF);
   const MachineFrameInfo &MFI = MF.getFrameInfo();
   const bool Realign = TFI->realignsStack(MF);
   const MC6809InstrInfo &TII =

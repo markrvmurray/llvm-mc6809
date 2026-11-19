@@ -23,7 +23,7 @@ class MC6809TargetLowering;
 
 class MC6809InlineAsmLowering : public InlineAsmLowering {
 public:
-  MC6809InlineAsmLowering(MC6809TargetLowering *TLI);
+  explicit MC6809InlineAsmLowering(MC6809TargetLowering *TLI);
 
   bool lowerAsmOperandForConstraint(Value *Val, StringRef Constraint, std::vector<MachineOperand> &Ops, MachineIRBuilder &MIRBuilder) const override;
 };

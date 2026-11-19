@@ -73,7 +73,7 @@ class MC6809InstrInfo final : public MC6809GenInstrInfo {
   const MC6809RegisterInfo RI;
 
 public:
-  MC6809InstrInfo(const MC6809Subtarget &STI);
+  explicit MC6809InstrInfo(const MC6809Subtarget &STI);
 
   /// getRegisterInfo - TargetInstrInfo is a superset of MRegister info.  As
   /// such, whenever a client has an instance of instruction info, it should

@@ -15,6 +15,7 @@
 #include "MCTargetDesc/MC6809MCTargetDesc.h"
 #include "MCTargetDesc/MC6809TargetStreamer.h"
 #include "llvm/ADT/APInt.h"
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringSwitch.h"
 #include "llvm/MC/MCAsmInfo.h"
@@ -451,7 +452,7 @@ public:
     if (Text.size() > 8) {
       return true;
     }
-    std::transform(Text.begin(), Text.end(), Text.begin(), [](unsigned char C) { return std::tolower(C); });
+    llvm::transform(Text, Text.begin(), [](unsigned char C) { return std::tolower(C); });
     for (char Letter : Text) {
       signed char Converted = hexToChar(Letter);
       if (Converted == -1) {
@@ -629,7 +630,7 @@ public:
 
   ParseStatus tryParseRegister(MCRegister &Reg, SMLoc &StartLoc, SMLoc &EndLoc) override {
     std::string AnyCase(StartLoc.getPointer(), EndLoc.getPointer() - StartLoc.getPointer());
-    std::transform(AnyCase.begin(), AnyCase.end(), AnyCase.begin(), [](unsigned char C) { return std::tolower(C); });
+    llvm::transform(AnyCase, AnyCase.begin(), [](unsigned char C) { return std::tolower(C); });
     StringRef RegisterName(AnyCase.c_str(), AnyCase.size());
     Reg = MatchRegisterName(RegisterName);
     if (Reg == 0) {

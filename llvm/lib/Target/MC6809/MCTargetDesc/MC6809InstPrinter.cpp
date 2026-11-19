@@ -137,15 +137,15 @@ format_object<int64_t> MC6809InstPrinter::formatHex(int64_t Value) const {
   case HexStyle::C:
     if (Value < 0) {
       return format("-$%" PRIx64, -Value);
-    } else {
+    } 
       return format("$%" PRIx64, Value);
-    }
+    
   case HexStyle::Asm:
     if (Value < 0) {
       return format("-$%" PRIx64, -Value);
-    } else {
+    } 
       return format("$%" PRIx64, Value);
-    }
+    
   }
   llvm_unreachable("unsupported print style");
 }

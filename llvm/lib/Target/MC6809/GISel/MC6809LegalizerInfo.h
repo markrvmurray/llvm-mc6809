@@ -30,7 +30,7 @@ private:
   const MC6809Subtarget &Subtarget;
 
 public:
-  MC6809LegalizerInfo(const MC6809Subtarget &STI);
+  explicit MC6809LegalizerInfo(const MC6809Subtarget &STI);
 
   bool legalizeCustom(LegalizerHelper &Helper, MachineInstr &MI, LostDebugLocObserver &LocObserver) const override;
 

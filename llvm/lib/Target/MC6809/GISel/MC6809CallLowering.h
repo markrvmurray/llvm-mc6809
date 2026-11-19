@@ -20,7 +20,7 @@ namespace llvm {
 
 class MC6809CallLowering : public CallLowering {
 public:
-  MC6809CallLowering(const llvm::TargetLowering *TL) : CallLowering(TL) {}
+  explicit MC6809CallLowering(const llvm::TargetLowering *TL) : CallLowering(TL) {}
 
   bool lowerReturn(MachineIRBuilder &MIRBuiler, const Value *Val, ArrayRef<Register> VRegs, FunctionLoweringInfo &FLI) const override;
 

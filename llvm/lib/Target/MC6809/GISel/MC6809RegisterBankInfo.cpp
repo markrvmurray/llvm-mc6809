@@ -68,7 +68,7 @@ const RegisterBank &MC6809RegisterBankInfo::getRegBankFromRegClass(const TargetR
       MC6809::ADcRegClass.hasSubClassEq(&RC) ||
       MC6809::ACC8_ABRegClass.hasSubClassEq(&RC)) {
     return getRegBank(MC6809::ACCUMRegBankID);
-  } else if (MC6809::INDEX16RegClass.hasSubClassEq(&RC)) {
+  } if (MC6809::INDEX16RegClass.hasSubClassEq(&RC)) {
     return getRegBank(MC6809::INDEXRegBankID);
   } else if (MC6809::CCondRegClass.hasSubClassEq(&RC) ||
              MC6809::AllArithFlagRegClass.hasSubClassEq(&RC) ||
@@ -150,7 +150,7 @@ bool MC6809RegisterBankInfo::getInstrValueMapping(const MachineInstr &MI, const 
     if (OpRegBankIdx[Idx] == PMI_None)
       continue;
 
-    auto Mapping = getValueMapping(OpRegBankIdx[Idx], 1);
+    const auto *Mapping = getValueMapping(OpRegBankIdx[Idx], 1);
     if (!Mapping->isValid()) {
       return false;
     }
@@ -170,7 +170,7 @@ const RegisterBankInfo::InstructionMapping &MC6809RegisterBankInfo::getSameOpera
   if (NumOperands != 3 || (Ty != MRI.getType(MI.getOperand(1).getReg())) || (Ty != MRI.getType(MI.getOperand(2).getReg())))
     llvm_unreachable("Unsupported operand mapping.");
 
-  auto Mapping = getValueMapping(getPartialMappingIdx(Ty), 3);
+  const auto *Mapping = getValueMapping(getPartialMappingIdx(Ty), 3);
   return getInstructionMapping(DefaultMappingID, 1, Mapping, NumOperands);
 }
 
@@ -205,7 +205,7 @@ const RegisterBankInfo::InstructionMapping &MC6809RegisterBankInfo::getInstrMapp
     // 5's legalizer flip allows G_ADD/G_SUB s32 to reach RegBank
     // selection unwidened.
     if (Ty.getSizeInBits() == 32 && !Ty.isPointer()) {
-      auto Mapping = getValueMapping(PMI_ACC32, 3);
+      const auto *Mapping = getValueMapping(PMI_ACC32, 3);
       return getInstructionMapping(DefaultMappingID, 1, Mapping, NumOperands);
     }
 
@@ -215,7 +215,7 @@ const RegisterBankInfo::InstructionMapping &MC6809RegisterBankInfo::getInstrMapp
       Register Src1 = MI.getOperand(1).getReg();
       const RegisterBank *RB1 = MRI.getRegBankOrNull(Src1);
       if (RB1 && RB1->getID() == MC6809::INDEXRegBankID) {
-        auto Mapping = getValueMapping(PMI_INDEX, 3);
+        const auto *Mapping = getValueMapping(PMI_INDEX, 3);
         return getInstructionMapping(DefaultMappingID, 1, Mapping, NumOperands);
       }
     }
@@ -243,7 +243,7 @@ const RegisterBankInfo::InstructionMapping &MC6809RegisterBankInfo::getInstrMapp
         }
       }
       if (OnlyCompares) {
-        auto Mapping = getValueMapping(PMI_INDEX, NumOperands);
+        const auto *Mapping = getValueMapping(PMI_INDEX, NumOperands);
         return getInstructionMapping(DefaultMappingID, 1, Mapping, NumOperands);
       }
     }
@@ -289,7 +289,7 @@ const RegisterBankInfo::InstructionMapping &MC6809RegisterBankInfo::getInstrMapp
   case TargetOpcode::G_LSHR:
   case TargetOpcode::G_ASHR: {
     LLT Ty = MRI.getType(MI.getOperand(0).getReg());
-    auto Mapping = getValueMapping(getPartialMappingIdx(Ty), NumOperands);
+    const auto *Mapping = getValueMapping(getPartialMappingIdx(Ty), NumOperands);
     return getInstructionMapping(DefaultMappingID, 1, Mapping, NumOperands);
   }
   default:

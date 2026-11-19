@@ -20,7 +20,7 @@ namespace llvm {
 
 class MC6809SchedStrategy : public GenericScheduler {
 public:
-  MC6809SchedStrategy(const MachineSchedContext *C);
+  explicit MC6809SchedStrategy(const MachineSchedContext *C);
 
   bool tryCandidate(SchedCandidate &Cand, SchedCandidate &TryCand, SchedBoundary *Zone) const override;
 

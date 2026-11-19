@@ -599,7 +599,7 @@ static bool isUndef(const Constant *C) {
     return true;
   if (!isa<ConstantAggregate>(C))
     return false;
-  for (auto Operand : C->operand_values()) {
+  for (const auto *Operand : C->operand_values()) {
     if (!isUndef(cast<Constant>(Operand)))
       return false;
   }

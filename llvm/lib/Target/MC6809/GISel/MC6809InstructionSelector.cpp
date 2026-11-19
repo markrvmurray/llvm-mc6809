@@ -952,10 +952,10 @@ InstructionSelector::ComplexRendererFns MC6809InstructionSelector::selectLSIndex
   if (!Root.isReg())
     return std::nullopt;
 
-  auto RootDef = MRI.getVRegDef(Root.getReg());
+  auto *RootDef = MRI.getVRegDef(Root.getReg());
 
   if (RootDef->getOpcode() == TargetOpcode::G_PTR_ADD) {
-    auto OffsetDef = MRI.getVRegDef(RootDef->getOperand(2).getReg());
+    auto *OffsetDef = MRI.getVRegDef(RootDef->getOperand(2).getReg());
     if (OffsetDef->getOpcode() == TargetOpcode::G_CONSTANT) {
       return {{
           [=](MachineInstrBuilder &MIB) { MIB.add(RootDef->getOperand(1)); },
@@ -1024,7 +1024,7 @@ InstructionSelector::ComplexRendererFns MC6809InstructionSelector::selectLSFrame
   if (!Root.isReg())
     return std::nullopt;
 
-  auto RootDef = MRI.getVRegDef(Root.getReg());
+  auto *RootDef = MRI.getVRegDef(Root.getReg());
 
   if (RootDef->getOpcode() == TargetOpcode::G_FRAME_INDEX) {
     return {{
@@ -1208,7 +1208,7 @@ inline FoldedLdIdx_match m_FoldedLdIdx(const MachineInstr &Tgt, MachineOperand &
 static const TargetRegisterClass &getRegClassForType(LLT Ty) {
   if (Ty == LLT::pointer(0, 16)) {
     return MC6809::INDEX16RegClass;
-  } else {
+  } 
     switch (Ty.getSizeInBits()) {
     default:
       llvm_unreachable("Invalid type size.");
@@ -1223,7 +1223,7 @@ static const TargetRegisterClass &getRegClassForType(LLT Ty) {
     case 32:
       return MC6809::ACC32RegClass;
     }
-  }
+  
 }
 
 // Version that checks register bank for s16 values — returns INDEX16

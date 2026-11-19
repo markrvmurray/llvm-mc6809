@@ -9,6 +9,7 @@
 #include "MC6809MCExpr.h"
 #include "MC6809FixupKinds.h"
 
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/MC/MCAsmInfo.h"
 #include "llvm/MC/MCAssembler.h"
 #include "llvm/MC/MCContext.h"
@@ -130,8 +131,8 @@ void MC6809MCExpr::visitUsedExpr(MCStreamer &Streamer) const {
 }
 
 const char *MC6809MCExpr::getName() const {
-  const auto &Modifier = std::find_if(
-      std::begin(ModifierNames), std::end(ModifierNames),
+  const auto &Modifier = llvm::find_if(
+      ModifierNames,
       [this](ModifierEntry const &Mod) { return Mod.VariantKind == Kind; });
 
   if (Modifier != std::end(ModifierNames)) {
@@ -143,7 +144,7 @@ const char *MC6809MCExpr::getName() const {
 MC6809MCExpr::VariantKind MC6809MCExpr::getKindByName(StringRef Name,
                                                 bool IsImmediate) {
   const auto &Modifier =
-      std::find_if(std::begin(ModifierNames), std::end(ModifierNames),
+      llvm::find_if(ModifierNames,
                    [&Name, IsImmediate](ModifierEntry const &Mod) {
                      if (Mod.ImmediateOnly && !IsImmediate)
                        return false;

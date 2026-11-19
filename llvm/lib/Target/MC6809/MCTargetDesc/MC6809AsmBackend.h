@@ -54,7 +54,7 @@ public:
 /// Utilities for manipulating generated MC6809 machine code.
 class MC6809AsmBackend : public MCAsmBackend {
 public:
-  MC6809AsmBackend(Triple::OSType OSType)
+  explicit MC6809AsmBackend(Triple::OSType OSType)
       : llvm::MCAsmBackend(endianness::big), OSType(OSType) {}
 
   std::unique_ptr<MCObjectTargetWriter>

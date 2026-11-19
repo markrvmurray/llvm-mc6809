@@ -19,6 +19,7 @@
 #include "MC6809RegisterInfo.h"
 #include "MC6809Subtarget.h"
 #include "MCTargetDesc/MC6809MCTargetDesc.h"
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/CodeGen/RegisterScavenging.h"
 
 #include "llvm/ADT/SmallSet.h"
@@ -519,7 +520,7 @@ void MC6809FrameLowering::emitPrologue(MachineFunction &MF, MachineBasicBlock &M
     // first and the frame is allocated below them: [call area][locals]
     // [saved registers][return address], with the locals at plain
     // StackSize-relative offsets from S (eliminateFrameIndex).
-    auto AfterPushes = std::find_if_not(MBB.begin(), MBB.end(), [](const MachineInstr &MI) { return MI.getFlag(MachineInstr::FrameSetup); });
+    auto AfterPushes = llvm::find_if_not(MBB, [](const MachineInstr &MI) { return MI.getFlag(MachineInstr::FrameSetup); });
     Builder.setInsertPt(MBB, AfterPushes);
     // The CFA stays S-relative; say how far S has moved from it once the
     // registers are pushed and again once the frame is allocated. (A push in

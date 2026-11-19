@@ -138,7 +138,7 @@ static bool foldPair(MachineFunction &MF, MachineBasicBlock &MBB,
   // Worth it? Always for size; else when the far target is the likely one.
   if (!OptSize) {
     MachineBasicBlock *Far = Mid ? Mid : L;
-    auto SI = llvm::find(MBB.successors(), Far);
+    auto *SI = llvm::find(MBB.successors(), Far);
     if (SI == MBB.succ_end())
       return false;
     if (MBB.getSuccProbability(SI) < BranchProbability(1, 2))

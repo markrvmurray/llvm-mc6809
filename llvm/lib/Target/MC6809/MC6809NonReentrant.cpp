@@ -42,7 +42,7 @@ struct MC6809NonReentrantImpl {
   SmallPtrSet<const CallGraphNode *, 8> ReachableFromOtherNorecurseInterrupt;
   bool HasInterrupts = false;
 
-  MC6809NonReentrantImpl(CallGraph &CG) : CG(CG) { initializeMC6809NonReentrantPass(*PassRegistry::getPassRegistry()); }
+  explicit MC6809NonReentrantImpl(CallGraph &CG) : CG(CG) { initializeMC6809NonReentrantPass(*PassRegistry::getPassRegistry()); }
 
   bool run(Module &M);
 

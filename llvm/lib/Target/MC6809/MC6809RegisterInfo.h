@@ -32,7 +32,7 @@ class MC6809RegisterInfo : public MC6809GenRegisterInfo {
 
 public:
   MC6809RegisterInfo();
-  MC6809RegisterInfo(const Triple &TT);
+  explicit MC6809RegisterInfo(const Triple &TT);
 
   const char *getImag8SymbolName(Register Reg) const {
     return Imag8SymbolNames[Reg].c_str();
