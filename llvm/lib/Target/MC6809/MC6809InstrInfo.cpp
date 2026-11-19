@@ -6818,6 +6818,61 @@ static bool buildClearForZero(MachineIRBuilder &Builder, MachineInstr &MI,
   return true;
 }
 
+/// `ldb #0 ; stb mem` -> `clr mem`: when the instruction after MI is a
+/// byte store of R (already expanded: expansion is bottom-up), and R and C
+/// are both dead after it, rewrite that store as a clear of the same memory
+/// and emit nothing for MI. The clear sets N, Z and V as the store did, and
+/// clears C. Not for a volatile store: the 6809's memory clear reads the
+/// location before writing it, which an I/O register may notice.
+static bool clearStoreOfZero(MachineInstr &MI, Register R,
+                             const MachineOperand &ValOp) {
+  if ((R != MC6809::AA && R != MC6809::AB) ||
+      !(ValOp.isImm() || ValOp.isCImm()) ||
+      (ValOp.isImm() ? ValOp.getImm() : ValOp.getCImm()->getSExtValue()) != 0)
+    return false;
+  MachineBasicBlock &MBB = *MI.getParent();
+  MachineFunction &MF = *MBB.getParent();
+  const TargetRegisterInfo &TRI = *MF.getSubtarget().getRegisterInfo();
+  const TargetInstrInfo &TII = *MF.getSubtarget().getInstrInfo();
+  auto NIt = std::next(MI.getIterator());
+  while (NIt != MBB.end() && NIt->isDebugInstr())
+    ++NIt;
+  if (NIt == MBB.end())
+    return false;
+  MachineInstr &St = *NIt;
+  unsigned ClrOpc = 0;
+  if (auto LS = MC6809InstrInfo::getIdxLoadStore(St.getOpcode());
+      LS && LS->IsStore && LS->Value == R)
+    ClrOpc = MC6809InstrInfo::getIdxSibling(
+        MC6809::CLRi_o0, *MC6809InstrInfo::getIdxForm(St.getOpcode()));
+  else if (auto DS = MC6809InstrInfo::getDirLoadStore(St.getOpcode());
+           DS && DS->IsStore && DS->Value == R)
+    ClrOpc = MC6809::CLRd;
+  else if (St.getOpcode() == (R == MC6809::AA ? MC6809::STAe : MC6809::STBe))
+    ClrOpc = MC6809::CLRe;
+  if (!ClrOpc || MC6809InstrInfo::hasOrderedMemOperand(St))
+    return false;
+  auto After = std::next(St.getIterator());
+  if (stagingRegReadLater(MBB, After, R, TRI) ||
+      stagingRegReadLater(MBB, After, MC6809::C, TRI))
+    return false;
+  // The store's address operands carry over; its read of R does not, nor
+  // its flag defs (the clear's descriptor has its own).
+  MachineInstrBuilder Clr = BuildMI(MBB, St, St.getDebugLoc(), TII.get(ClrOpc));
+  for (const MachineOperand &MO : St.operands()) {
+    if (!MO.isReg() || !MO.isImplicit()) {
+      Clr.add(MO);
+      continue;
+    }
+    if (MO.isReg() && MO.isDef() &&
+        !TRI.regsOverlap(MO.getReg(), MC6809::CC))
+      Clr.add(MO); // e.g. the imaginary register a direct-page store writes
+  }
+  Clr.setMemRefs(St.memoperands());
+  St.eraseFromParent();
+  return true;
+}
+
 void MC6809InstrInfo::expandLoadImm(MachineIRBuilder &Builder, MachineInstr &MI) const {
 
   auto DestRegOp = MI.getOperand(0);
@@ -6877,7 +6932,8 @@ void MC6809InstrInfo::expandLoadImm(MachineIRBuilder &Builder, MachineInstr &MI)
   }
 
   auto ValOp = MI.getOperand(1);
-  if (buildClearForZero(Builder, MI, DestRegOp.getReg(), ValOp)) {
+  if (clearStoreOfZero(MI, DestRegOp.getReg(), ValOp) ||
+      buildClearForZero(Builder, MI, DestRegOp.getReg(), ValOp)) {
     MI.removeFromParent();
     return;
   }

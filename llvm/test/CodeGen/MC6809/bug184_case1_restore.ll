@@ -59,8 +59,7 @@ define void @sext_i16_to_i32_then_store(ptr %out, i16 %x) {
 ; CHECK-NEXT:    anda #1
 ; CHECK-NEXT:    nega
 ; CHECK-NEXT:    sta ,s ; 1-byte Folded Spill
-; CHECK-NEXT:    clrb
-; CHECK-NEXT:    stb 3,s ; 1-byte Folded Spill
+; CHECK-NEXT:    clr 3,s ; 1-byte Folded Spill
 ; CHECK-NEXT:    clrb
 ; CHECK-NEXT:    subb 9,s
 ; CHECK-NEXT:    stb 2,s ; 1-byte Folded Spill

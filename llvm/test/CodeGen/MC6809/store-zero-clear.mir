@@ -1,0 +1,46 @@
+# RUN: llc -mtriple=mc6809 -run-pass=mc6809-expand-pseudos -verify-machineinstrs -o - %s | FileCheck %s
+
+# A store of a byte 0 becomes a clear of the memory when the accumulator
+# and C are dead after the store -- and the store is not volatile: the
+# 6809's memory clear reads the location first.
+
+# CHECK-LABEL: name: store_zero
+# CHECK:       CLRi_o5 4, $ss
+# CHECK-NOT:   STBi_o5
+---
+name: store_zero
+tracksRegLiveness: true
+body: |
+  bb.0:
+    renamable $ab = Load_i8_Imm 0, implicit-def dead $nz, implicit-def dead $v
+    STBi_o5 4, $ss, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit killed $ab :: (store (s8))
+    RTSr
+...
+
+# B read after the store: ldb #0 (as clrb) and the store stay.
+# CHECK-LABEL: name: store_zero_b_live
+# CHECK:       CLRBa
+# CHECK-NEXT:  STBi_o5 4, $ss
+---
+name: store_zero_b_live
+tracksRegLiveness: true
+body: |
+  bb.0:
+    renamable $ab = Load_i8_Imm 0, implicit-def dead $nz, implicit-def dead $v
+    STBi_o5 4, $ss, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit $ab :: (store (s8))
+    RTSr implicit $ab
+...
+
+# A volatile store (an I/O register, say) is left alone.
+# CHECK-LABEL: name: store_zero_volatile
+# CHECK:       STBi_o5 4, $ss
+# CHECK-NOT:   CLRi_o5
+---
+name: store_zero_volatile
+tracksRegLiveness: true
+body: |
+  bb.0:
+    renamable $ab = Load_i8_Imm 0, implicit-def dead $nz, implicit-def dead $v
+    STBi_o5 4, $ss, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit killed $ab :: (volatile store (s8))
+    RTSr
+...

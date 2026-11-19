@@ -91,8 +91,7 @@ define i64 @neg_i64(i64 %x) {
 ; O2-LABEL: neg_i64:
 ; O2:       ; %bb.0:
 ; O2-NEXT:    leas -7,s
-; O2-NEXT:    clrb
-; O2-NEXT:    stb 6,s ; 1-byte Folded Spill
+; O2-NEXT:    clr 6,s ; 1-byte Folded Spill
 ; O2-NEXT:    clrb
 ; O2-NEXT:    subb 16,s
 ; O2-NEXT:    stb 5,s ; 1-byte Folded Spill
@@ -199,8 +198,7 @@ define i64 @mul_neg1(i64 %x) {
 ; O2-LABEL: mul_neg1:
 ; O2:       ; %bb.0:
 ; O2-NEXT:    leas -7,s
-; O2-NEXT:    clrb
-; O2-NEXT:    stb 6,s ; 1-byte Folded Spill
+; O2-NEXT:    clr 6,s ; 1-byte Folded Spill
 ; O2-NEXT:    clrb
 ; O2-NEXT:    subb 16,s
 ; O2-NEXT:    stb 5,s ; 1-byte Folded Spill
