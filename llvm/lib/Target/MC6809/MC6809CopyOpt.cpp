@@ -82,15 +82,15 @@ template <typename AcceptDefT> static bool findReachingDefs(MachineInstr &MI, Sm
       Seen.insert(&E.MBB);
 
     bool Found = false;
-    for (MachineInstr &MI : make_range(E.I, E.MBB.rend())) {
-      if (!MI.modifiesRegister(Src, &TRI))
+    for (MachineInstr &DefMI : make_range(E.I, E.MBB.rend())) {
+      if (!DefMI.modifiesRegister(Src, &TRI))
         continue;
 
-      if (!AcceptDef(MI))
+      if (!AcceptDef(DefMI))
         return false;
 
       Found = true;
-      DefMIs.push_back(&MI);
+      DefMIs.push_back(&DefMI);
       break;
     }
     if (!Found) {

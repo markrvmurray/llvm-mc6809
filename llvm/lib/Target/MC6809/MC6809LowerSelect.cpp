@@ -221,10 +221,10 @@ MachineFunction::reverse_iterator MC6809LowerSelect::lowerSelect(GSelect &MI) {
       }
     }
   };
-  for (Register TrueValue : TrueValues)
-    SinkValue(TrueMBB, TrueValue);
-  for (Register FalseValue : FalseValues)
-    SinkValue(FalseMBB, FalseValue);
+  for (Register Value : TrueValues)
+    SinkValue(TrueMBB, Value);
+  for (Register Value : FalseValues)
+    SinkValue(FalseMBB, Value);
 
   bool FoldedUse = false;
   // A select is commonly used to branch on a complex condition. If the next
@@ -294,8 +294,8 @@ MachineFunction::reverse_iterator MC6809LowerSelect::lowerSelect(GSelect &MI) {
     //   %Result = phi [ %TrueValue, TrueMBB ], [ %FalseValue, FalseMBB ]
     //  ...
     Builder.setInsertPt(*SinkMBB, SinkMBB->begin());
-    for (const auto &[Dst, TrueValue, FalseValue] : zip(Dsts, TrueValues, FalseValues)) {
-      Builder.buildInstr(MC6809::G_PHI).addDef(Dst).addUse(TrueValue).addMBB(TrueMBB).addUse(FalseValue).addMBB(FalseMBB);
+    for (const auto &[PhiDst, PhiTrue, PhiFalse] : zip(Dsts, TrueValues, FalseValues)) {
+      Builder.buildInstr(MC6809::G_PHI).addDef(PhiDst).addUse(PhiTrue).addMBB(TrueMBB).addUse(PhiFalse).addMBB(FalseMBB);
     }
   }
   for (const auto Select : SelectsToRemove)
@@ -351,8 +351,8 @@ void MC6809LowerSelect::moveAwayFromCalls(MachineFunction &MF) {
 // G_SELECTs should never appear in the return value part of calls, since
 // they're used for extensions, not truncations.
 #ifndef NDEBUG
-      for (auto J = std::next(I); J->getOpcode() != MC6809::ADJCALLSTACKUP; ++J)
-        assert(J->getOpcode() != MC6809::G_SELECT);
+      for (auto K = std::next(I); K->getOpcode() != MC6809::ADJCALLSTACKUP; ++K)
+        assert(K->getOpcode() != MC6809::G_SELECT);
 #endif
     }
   }

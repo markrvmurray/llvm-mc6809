@@ -126,11 +126,11 @@ bool MC6809ShiftRotateChain::runOnMachineFunction(MachineFunction &MF) {
     if (Chains[R].empty())
       continue;
 
-    for (unsigned I = 0, E = Chains[R].size(); I != E; ++I) {
-      ChainEntry &C = Chains[R][I];
-      if (!I || C.Opcode != Chains[R][I - 1].Opcode)
+    for (unsigned J = 0, N = Chains[R].size(); J != N; ++J) {
+      ChainEntry &C = Chains[R][J];
+      if (!J || C.Opcode != Chains[R][J - 1].Opcode)
         continue;
-      ChainEntry &Prev = Chains[R][I - 1];
+      ChainEntry &Prev = Chains[R][J - 1];
 
       MachineInstr &MI = *MRI.getUniqueVRegDef(C.R);
       MachineInstr &PrevMI = *MRI.getUniqueVRegDef(Prev.R);

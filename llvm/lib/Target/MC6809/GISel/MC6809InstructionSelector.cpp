@@ -124,9 +124,9 @@ private:
   const MC6809RegisterInfo &TRI;
   const MC6809RegisterBankInfo &RBI;
 
-  MachineBasicBlock *MBB;
-  MachineFunction *MF;
-  MachineRegisterInfo *MRI;
+  MachineBasicBlock *MBB = nullptr;
+  MachineFunction *MF = nullptr;
+  MachineRegisterInfo *MRI = nullptr;
   MachineIRBuilder MIB;
 
   // Post-tablegen selection functions. If these return false, it is an error.
@@ -234,6 +234,8 @@ void MC6809InstructionSelector::setupMF(MachineFunction &MF, GISelValueTracking 
   for (MachineBasicBlock &MBB : MF) {
     for (MachineInstr &MI : MBB) {
       switch (MI.getOpcode()) {
+      default:
+        break;
       case MC6809::G_PTRTOINT:
       case MC6809::G_INTTOPTR:
         MI.setDesc(TII.get(MC6809::COPY));
@@ -716,7 +718,6 @@ static bool ensureCarryChainIntegrity(MachineInstr &Consumer, Register CarryIn, 
 
 #define GET_GLOBALISEL_IMPL
 #include "MC6809GenGlobalISel.inc"
-#include "llvm/Support/FormatVariadic.h"
 #undef GET_GLOBALISEL_IMPL
 
 MC6809InstructionSelector::MC6809InstructionSelector(const MC6809TargetMachine &TM, MC6809Subtarget &STI, MC6809RegisterBankInfo &RBI)
@@ -1153,15 +1154,9 @@ struct FoldedLdIdx_match {
   AAResults *AA;
 
   bool match(const MachineRegisterInfo &MRI, Register Reg) {
-    const MachineInstr *Unmerge;
-    const MachineInstr *Load;
-    const MachineInstr *FrameIndex;
-    Unmerge = getOpcodeDef(MC6809::G_UNMERGE_VALUES, Reg, MRI);
-    if (Unmerge) {
-      Load = getOpcodeDef(MC6809::G_LOAD, Unmerge->getOperand(2).getReg(), MRI);
-      if (Load) {
-        FrameIndex = getOpcodeDef(MC6809::G_FRAME_INDEX, Load->getOperand(1).getReg(), MRI);
-        if (FrameIndex) {
+    if (const MachineInstr *Unmerge = getOpcodeDef(MC6809::G_UNMERGE_VALUES, Reg, MRI)) {
+      if (const MachineInstr *Load = getOpcodeDef(MC6809::G_LOAD, Unmerge->getOperand(2).getReg(), MRI)) {
+        if (const MachineInstr *FrameIndex = getOpcodeDef(MC6809::G_FRAME_INDEX, Load->getOperand(1).getReg(), MRI)) {
           if (!canFoldFrameLoad(Tgt, *Load, /*WholeValue=*/false, AA))
             return false;
           Ptr = FrameIndex->getOperand(1);
@@ -1180,10 +1175,8 @@ struct FoldedLdIdx_match {
         }
       }
     }
-    Load = getOpcodeDef(MC6809::G_LOAD, Reg, MRI);
-    if (Load) {
-      FrameIndex = getOpcodeDef(MC6809::G_FRAME_INDEX, Load->getOperand(1).getReg(), MRI);
-      if (FrameIndex) {
+    if (const MachineInstr *Load = getOpcodeDef(MC6809::G_LOAD, Reg, MRI)) {
+      if (const MachineInstr *FrameIndex = getOpcodeDef(MC6809::G_FRAME_INDEX, Load->getOperand(1).getReg(), MRI)) {
         if (!canFoldFrameLoad(Tgt, *Load, /*WholeValue=*/true, AA))
           return false;
         Ptr = FrameIndex->getOperand(1);
@@ -1340,7 +1333,7 @@ bool MC6809InstructionSelector::tryFusePostModify(MachineInstr &MI) const {
     return false;
   int64_t Off = COff->Value.getSExtValue();
   bool IsInc = Off > 0;
-  unsigned Size = std::abs((int)Off);
+  unsigned Size = std::abs(static_cast<int>(Off));
   if (Size != 1 && Size != 2)
     return false;
 
@@ -1497,7 +1490,7 @@ bool MC6809InstructionSelector::tryFusePostIncAtAccess(MachineInstr &MI) const {
   for (MachineInstr &U : MRI->use_nodbg_instructions(Base)) {
     if (&U == &MI)
       continue;
-    if (!Adv && U.getOpcode() == MC6809::LEAPtrAdd_Imm && U.getParent() == MI.getParent() && U.getOperand(1).getReg() == Base && U.getOperand(2).isImm() && U.getOperand(2).getImm() == int64_t(Size)) {
+    if (!Adv && U.getOpcode() == MC6809::LEAPtrAdd_Imm && U.getParent() == MI.getParent() && U.getOperand(1).getReg() == Base && U.getOperand(2).isImm() && U.getOperand(2).getImm() == static_cast<int64_t>(Size)) {
       Adv = &U;
       continue;
     }
@@ -1873,9 +1866,8 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
           return std::nullopt;
         }
       };
-      auto Pred = (CmpInst::Predicate)MI.getOperand(1).getPredicate();
-      auto CCOpt = PredToCC(Pred);
-      if (CCOpt) {
+      auto Pred = static_cast<CmpInst::Predicate>(MI.getOperand(1).getPredicate());
+      if (auto CCOpt = PredToCC(Pred)) {
         Register LhsReg = MI.getOperand(2).getReg();
         Register RhsReg = MI.getOperand(3).getReg();
         LLT OpTy = MRI->getType(LhsReg);
@@ -1919,7 +1911,7 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
             }
             if (AD && (AD->getOpcode() == TargetOpcode::G_FRAME_INDEX || AD->getOpcode() == TargetOpcode::G_GLOBAL_VALUE || AD->getOpcode() == TargetOpcode::G_LOAD))
               return std::nullopt;
-            return std::make_pair(Addr, (int64_t)0);
+            return std::make_pair(Addr, int64_t{0});
           };
           auto TryFoldIndirect = [&](Register V) -> std::optional<std::pair<Register, int64_t>> {
             MachineInstr *Outer = MRI->getVRegDef(V);
@@ -1942,7 +1934,7 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
             }
             if (AD && (AD->getOpcode() == TargetOpcode::G_FRAME_INDEX || AD->getOpcode() == TargetOpcode::G_GLOBAL_VALUE))
               return std::nullopt;
-            return std::make_pair(Inner->getOperand(1).getReg(), (int64_t)0);
+            return std::make_pair(Inner->getOperand(1).getReg(), int64_t{0});
           };
           Register SrcReg;
           CmpInst::Predicate UsePred = Pred;
@@ -2824,7 +2816,7 @@ skip_globalvalue_fold:
     // compare: the G_ICMP ends up one MBB back and has two consumers
     // (select for flags masking, and our BRCOND).
     if (CondDef && CondDef->getOpcode() == TargetOpcode::G_ICMP) {
-      auto Pred = (CmpInst::Predicate)CondDef->getOperand(1).getPredicate();
+      auto Pred = static_cast<CmpInst::Predicate>(CondDef->getOperand(1).getPredicate());
       Register Lhs = CondDef->getOperand(2).getReg();
       Register Rhs = CondDef->getOperand(3).getReg();
       LLT Ty = MRI->getType(Lhs);
@@ -2869,7 +2861,7 @@ skip_globalvalue_fold:
     // foldable-load address is base[+const]; G_PTR_ADD-const or a plain pointer,
     // never a frame index or global -- same shouldFoldMemAccess safety regime.)
     if (CondDef && CondDef->getOpcode() == TargetOpcode::G_ICMP && CondDef->getParent() == MBB && ChainAllSingleUse()) {
-      auto Pred = (CmpInst::Predicate)CondDef->getOperand(1).getPredicate();
+      auto Pred = static_cast<CmpInst::Predicate>(CondDef->getOperand(1).getPredicate());
       Register Lhs = CondDef->getOperand(2).getReg();
       Register Rhs = CondDef->getOperand(3).getReg();
       LLT Ty = MRI->getType(Lhs);
@@ -2890,7 +2882,7 @@ skip_globalvalue_fold:
         }
         if (AD && (AD->getOpcode() == TargetOpcode::G_FRAME_INDEX || AD->getOpcode() == TargetOpcode::G_GLOBAL_VALUE))
           return std::nullopt;
-        return std::make_pair(Addr, (int64_t)0);
+        return std::make_pair(Addr, int64_t{0});
       };
 
       // P3b: returns (base, offset) if V is a foldable INDIRECT load -- `*p`
@@ -2917,7 +2909,7 @@ skip_globalvalue_fold:
         }
         if (AD && (AD->getOpcode() == TargetOpcode::G_FRAME_INDEX || AD->getOpcode() == TargetOpcode::G_GLOBAL_VALUE))
           return std::nullopt;
-        return std::make_pair(Inner->getOperand(1).getReg(), (int64_t)0);
+        return std::make_pair(Inner->getOperand(1).getReg(), int64_t{0});
       };
 
       unsigned MemOpc = 0, MemIndOpc = 0;
@@ -2971,7 +2963,7 @@ skip_globalvalue_fold:
     }
 
     if (CondDef && CondDef->getOpcode() == TargetOpcode::G_ICMP && CondDef->getParent() == MBB && ChainAllSingleUse()) {
-      auto Pred = (CmpInst::Predicate)CondDef->getOperand(1).getPredicate();
+      auto Pred = static_cast<CmpInst::Predicate>(CondDef->getOperand(1).getPredicate());
       Register Lhs = CondDef->getOperand(2).getReg();
       Register Rhs = CondDef->getOperand(3).getReg();
       LLT Ty = MRI->getType(Lhs);
@@ -3285,13 +3277,13 @@ skip_globalvalue_fold:
           MRI->setRegClass(AccNegB, &MC6809::ACC16RegClass);
 
           // Find the memory source of Src2 by looking through COPYs.
-          Register Src2Origin = Src2;
-          MachineInstr *Src2Load = MRI->getVRegDef(Src2Origin);
+          Register Src2MemOrigin = Src2;
+          MachineInstr *Src2Load = MRI->getVRegDef(Src2MemOrigin);
           while (Src2Load && Src2Load->getOpcode() == TargetOpcode::COPY) {
-            Src2Origin = Src2Load->getOperand(1).getReg();
-            if (!Src2Origin.isVirtual())
+            Src2MemOrigin = Src2Load->getOperand(1).getReg();
+            if (!Src2MemOrigin.isVirtual())
               break;
-            Src2Load = MRI->getVRegDef(Src2Origin);
+            Src2Load = MRI->getVRegDef(Src2MemOrigin);
           }
 
           if (Src2Load && Src2Load->getOpcode() == MC6809::Load_i16_Mem) {
@@ -3657,10 +3649,9 @@ bool MC6809InstructionSelector::selectAddO(MachineInstr &MI) {
   };
 
   std::optional<ValueAndVReg> ValReg;
-  int64_t Value;
   Success = mi_match(Dst, *MRI, m_GSAddO(m_Reg(Reg), m_GCst(ValReg))) || mi_match(Dst, *MRI, m_GUAddO(m_Reg(Reg), m_GCst(ValReg)));
   if (Success) {
-    Value = ValReg->Value.getSExtValue();
+    int64_t Value = ValReg->Value.getSExtValue();
     Opcode = PickByWidth(PickOpc(MC6809::AddSetCarry_i8_Imm, MC6809::AddSetOverflow_i8_Imm), PickOpc(MC6809::AddSetCarry_i16_Imm, MC6809::AddSetOverflow_i16_Imm), PickOpc(MC6809::AddSetCarry_i32_Imm, MC6809::AddSetOverflow_i32_Imm));
     Instr = Builder.buildInstr(Opcode).addDef(Dst).addUse(Reg).addImm(Value).addDef(CarryOut, RegState::ImplicitDefine);
     constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI);
@@ -3838,12 +3829,11 @@ bool MC6809InstructionSelector::selectSubO(MachineInstr &MI) {
   };
 
   std::optional<ValueAndVReg> ValReg;
-  int64_t Value;
   // Match `(reg − const)` only — never `(const − reg)`. See the
   // function-level comment for why.
   Success = mi_match(Dst, *MRI, m_GSSubO(m_Reg(Reg), m_GCst(ValReg))) || mi_match(Dst, *MRI, m_GUSubO(m_Reg(Reg), m_GCst(ValReg)));
   if (Success) {
-    Value = ValReg->Value.getSExtValue();
+    int64_t Value = ValReg->Value.getSExtValue();
     Opcode = PickByWidth(PickOpc(MC6809::SubSetCarry_i8_Imm, MC6809::SubSetOverflow_i8_Imm), PickOpc(MC6809::SubSetCarry_i16_Imm, MC6809::SubSetOverflow_i16_Imm), PickOpc(MC6809::SubSetCarry_i32_Imm, MC6809::SubSetOverflow_i32_Imm));
     Instr = Builder.buildInstr(Opcode).addDef(Dst).addUse(Reg).addImm(Value).addDef(CarryOut, RegState::ImplicitDefine);
     constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI);
@@ -3984,10 +3974,9 @@ bool MC6809InstructionSelector::selectAddE(MachineInstr &MI) {
   };
 
   std::optional<ValueAndVReg> ValReg;
-  int64_t Value;
   Success = mi_match(Dst, *MRI, m_GSAddE(m_Reg(Reg), m_GCst(ValReg), m_Reg(Carry))) || mi_match(Dst, *MRI, m_GUAddE(m_Reg(Reg), m_GCst(ValReg), m_Reg(Carry)));
   if (Success) {
-    Value = ValReg->Value.getSExtValue();
+    int64_t Value = ValReg->Value.getSExtValue();
     // Constant-carry fold: if the carry-IN is a known constant
     // (still-G_CONSTANT or already-selected Load_i1_Imm), the
     // SetCarryUse pseudo's `Uses = [C]` is a runtime hole — no
@@ -4187,12 +4176,11 @@ bool MC6809InstructionSelector::selectSubE(MachineInstr &MI) {
   };
 
   std::optional<ValueAndVReg> ValReg;
-  int64_t Value;
   // Match `(reg − const, carry_in)` only — never `(const − reg, ...)`.
   // See selectSubO for the full bug #61 history.
   Success = mi_match(Dst, *MRI, m_GSSubE(m_Reg(Reg), m_GCst(ValReg), m_Reg(Carry))) || mi_match(Dst, *MRI, m_GUSubE(m_Reg(Reg), m_GCst(ValReg), m_Reg(Carry)));
   if (Success) {
-    Value = ValReg->Value.getSExtValue();
+    int64_t Value = ValReg->Value.getSExtValue();
     Opcode = PickByWidth(PickOpc(MC6809::SubSetCarryUse_i8_Imm, MC6809::SubSetOverflowUse_i8_Imm), PickOpc(MC6809::SubSetCarryUse_i16_Imm, MC6809::SubSetOverflowUse_i16_Imm), PickOpc(MC6809::SubSetCarryUse_i32_Imm, MC6809::SubSetOverflowUse_i32_Imm));
     // Keep the carry-IN vreg as an implicit-use
     // (see selectAddE for the full rationale).
@@ -4467,7 +4455,7 @@ bool MC6809InstructionSelector::selectShiftExtend(MachineInstr &MI) {
     }
   }
 
-  unsigned ShiftOpc;
+  unsigned ShiftOpc = 0;
   switch (Kind) {
   case None:
     ShiftOpc = IsLeft ? MC6809::LSL_i8_Reg : MC6809::LSR_i8_Reg;
