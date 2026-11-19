@@ -133,9 +133,9 @@ private:
   bool tryFusePostIncAtAccess(MachineInstr &MI) const;
   bool loadedValueWillFold(Register Val) const;
   bool isKnownZeroOrOne(Register R) const;
-  bool selectFrameIndex(MachineInstr &MI);
+  bool selectFrameIndex(MachineInstr &MI) const;
   bool selectAddrSpaceCast(MachineInstr &MI);
-  Register buildDirectPageAddress(MachineBasicBlock &BB, MachineInstr &Before, const DebugLoc &DL, Register InPageOff);
+  Register buildDirectPageAddress(MachineBasicBlock &BB, MachineInstr &Before, const DebugLoc &DL, Register InPageOff) const;
   /// Capture the CC flag standing behind phantom-carry vreg \p SrcReg into
   /// the byte \p DstReg. The MaterializeCC pseudo is inserted immediately
   /// after the flag's producer, not at the use, because any arithmetic or
@@ -147,22 +147,22 @@ private:
   /// make every chain consumer of that root that has already been selected
   /// restore CC from the byte, since the capture clobbers CC. Returns the
   /// root, which callers read as a plain byte from then on.
-  Register bindFlagToByte(Register SrcReg, unsigned Flag);
-  bool selectMergeValues(MachineInstr &MI);
-  bool selectUnMergeValues(MachineInstr &MI);
+  Register bindFlagToByte(Register SrcReg, unsigned Flag) const;
+  bool selectMergeValues(MachineInstr &MI) const;
+  bool selectUnMergeValues(MachineInstr &MI) const;
   bool selectAddO(MachineInstr &MI);
   bool selectAddE(MachineInstr &MI);
   bool selectSubO(MachineInstr &MI);
   bool selectSubE(MachineInstr &MI);
   bool selectShiftExtend(MachineInstr &MI);
-  bool selectShift16(MachineInstr &MI);
+  bool selectShift16(MachineInstr &MI) const;
 
   // Select instructions that correspond 1:1 to a target instruction.
   bool selectGeneric(MachineInstr &MI);
 
   void constrainGenericOp(MachineInstr &MI);
 
-  void constrainOperandRegClass(MachineOperand &RegMO, const TargetRegisterClass &RegClass);
+  void constrainOperandRegClass(MachineOperand &RegMO, const TargetRegisterClass &RegClass) const;
 
   /// tblgenerated 'select' implementation, used as the initial selector for
   /// the patterns that don't require complex C++.
@@ -1144,7 +1144,7 @@ struct FoldedLdIdx_match {
   MachineOperand &Offset;
   AAResults *AA;
 
-  bool match(const MachineRegisterInfo &MRI, Register Reg) {
+  bool match(const MachineRegisterInfo &MRI, Register Reg) const {
     if (const MachineInstr *Unmerge = getOpcodeDef(MC6809::G_UNMERGE_VALUES, Reg, MRI)) {
       if (const MachineInstr *Load = getOpcodeDef(MC6809::G_LOAD, Unmerge->getOperand(2).getReg(), MRI)) {
         if (const MachineInstr *FrameIndex = getOpcodeDef(MC6809::G_FRAME_INDEX, Load->getOperand(1).getReg(), MRI)) {
@@ -1572,7 +1572,7 @@ static bool matchSSPlusConstant(Register Addr, const MachineRegisterInfo &MRI, i
 // generic pointer): the page base plus the zero-extended 8-bit in-page
 // offset, in an index register. Returns a null register if the p1 value
 // cannot be traced to an 8-bit quantity.
-Register MC6809InstructionSelector::buildDirectPageAddress(MachineBasicBlock &BB, MachineInstr &Before, const DebugLoc &DL, Register InPageOff) {
+Register MC6809InstructionSelector::buildDirectPageAddress(MachineBasicBlock &BB, MachineInstr &Before, const DebugLoc &DL, Register InPageOff) const {
   // Trace the p1 address back to its underlying 8-bit value: the in-page
   // offset integer, or the direct-page global itself (which selects to an
   // 8-bit immediate load). Sourcing from that leaves the p1
@@ -3347,7 +3347,7 @@ skip_globalvalue_fold:
   return false;
 }
 
-bool MC6809InstructionSelector::selectFrameIndex(MachineInstr &MI) {
+bool MC6809InstructionSelector::selectFrameIndex(MachineInstr &MI) const {
   MachineIRBuilder Builder(MI);
   auto Instr = Builder.buildInstr(MC6809::LEA_Ptr_Imm).add(MI.getOperand(0)).add(MI.getOperand(1)).addImm(0);
   constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI);
@@ -3355,7 +3355,7 @@ bool MC6809InstructionSelector::selectFrameIndex(MachineInstr &MI) {
   return true;
 }
 
-Register MC6809InstructionSelector::bindFlagToByte(Register SrcReg, unsigned Flag) {
+Register MC6809InstructionSelector::bindFlagToByte(Register SrcReg, unsigned Flag) const {
   // Walk the COPY / G_FREEZE chain to the root: the first vreg that already
   // has a real byte class (a bound root, or the split copy of the capture
   // byte), or else the phantom the producer defines.
@@ -3381,7 +3381,7 @@ Register MC6809InstructionSelector::bindFlagToByte(Register SrcReg, unsigned Fla
   return Root;
 }
 
-bool MC6809InstructionSelector::selectMergeValues(MachineInstr &MI) {
+bool MC6809InstructionSelector::selectMergeValues(MachineInstr &MI) const {
   MachineIRBuilder Builder(MI);
 
   Register Dst = MI.getOperand(0).getReg();
@@ -4254,7 +4254,7 @@ bool MC6809InstructionSelector::selectSubE(MachineInstr &MI) {
   return false;
 }
 
-bool MC6809InstructionSelector::selectUnMergeValues(MachineInstr &MI) {
+bool MC6809InstructionSelector::selectUnMergeValues(MachineInstr &MI) const {
   // Operand layout: [def0, def1, ..., defN-1, src]. The original code
   // unconditionally took the first 3 regs as (Lo, Hi, Src), which is
   // wrong for the 4-way s32 → 4×s8 case (5 operands, src at index 4).
@@ -4495,7 +4495,7 @@ bool MC6809InstructionSelector::selectShiftExtend(MachineInstr &MI) {
   return true;
 }
 
-bool MC6809InstructionSelector::selectShift16(MachineInstr &MI) {
+bool MC6809InstructionSelector::selectShift16(MachineInstr &MI) const {
   // Hand-select i16 shifts on 6809 into byte-pair operations.
   // SHL: ASLB + ROLA (carry from lo propagates to hi)
   // LSHR: LSRA + RORB (carry from hi propagates to lo)
@@ -4590,7 +4590,7 @@ void MC6809InstructionSelector::constrainGenericOp(MachineInstr &MI) {
   }
 }
 
-void MC6809InstructionSelector::constrainOperandRegClass(MachineOperand &RegMO, const TargetRegisterClass &RegClass) {
+void MC6809InstructionSelector::constrainOperandRegClass(MachineOperand &RegMO, const TargetRegisterClass &RegClass) const {
   MachineInstr &MI = *RegMO.getParent();
   RegMO.setReg(llvm::constrainOperandRegClass(*MF, TRI, *MRI, TII, RBI, MI, RegClass, RegMO));
 }
