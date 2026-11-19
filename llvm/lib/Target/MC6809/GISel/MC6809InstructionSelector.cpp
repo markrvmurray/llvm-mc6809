@@ -116,7 +116,7 @@ public:
   bool select(MachineInstr &MI) override;
   static const char *getName() { return DEBUG_TYPE; }
 
-  void setupMF(MachineFunction &MF, GISelValueTracking *VT, CodeGenCoverage *CovInfo, ProfileSummaryInfo *PSI, BlockFrequencyInfo *BFI, AAResults *AA) override;
+  void setupMF(MachineFunction &CurMF, GISelValueTracking *VT, CodeGenCoverage *CovInfo, ProfileSummaryInfo *PSI, BlockFrequencyInfo *BFI, AAResults *AA) override;
 
 private:
   const MC6809Subtarget &STI;
@@ -166,7 +166,7 @@ private:
 
   /// tblgenerated 'select' implementation, used as the initial selector for
   /// the patterns that don't require complex C++.
-  bool selectImpl(MachineInstr &MI, CodeGenCoverage &CoverageInfo) const;
+  bool selectImpl(MachineInstr &I, CodeGenCoverage &CoverageInfo) const;
 
   LLT S1 = LLT::scalar(1);
   LLT S2 = LLT::scalar(2);
