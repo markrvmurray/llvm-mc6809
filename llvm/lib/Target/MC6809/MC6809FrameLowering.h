@@ -41,6 +41,12 @@ public:
   void emitPrologue(MachineFunction &MF, MachineBasicBlock &MBB) const override;
   void emitEpilogue(MachineFunction &MF, MachineBasicBlock &MBB) const override;
   bool hasFP(const MachineFunction &MF) const;
+  // Whether the frame is realigned: a local is aligned more strictly than
+  // the stack (alignas). The prologue then rounds S down after allocating
+  // the locals, which are addressed from S, and keeps U as the frame
+  // pointer to reach the incoming arguments. Never on OS-9, where U is
+  // the data-area base.
+  bool realignsStack(const MachineFunction &MF) const;
   // Whether an access based on Reg is to this function's own frame -- or,
   // on OS-9, to the process's data area -- rather than through a pointer
   // that could be anywhere: S always; U only when it is the frame pointer or

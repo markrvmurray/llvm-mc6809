@@ -34,6 +34,7 @@
 #include "llvm/CodeGen/TargetFrameLowering.h"
 #include "llvm/CodeGen/TargetInstrInfo.h"
 #include "llvm/CodeGen/TargetRegisterInfo.h"
+#include "llvm/IR/DiagnosticInfo.h"
 #include "llvm/MC/MCContext.h"
 #include "llvm/MC/MCDwarf.h"
 #include "llvm/MC/MCRegisterInfo.h"
@@ -489,6 +490,19 @@ void MC6809FrameLowering::emitPrologue(MachineFunction &MF, MachineBasicBlock &M
 
   int64_t StackSize = MFI.getStackSize();
 
+  // A local aligned beyond what this frame can provide would silently be
+  // misaligned: say so instead. OS-9 has no register to spare for the frame
+  // pointer a realigned frame needs, and a realigned frame with
+  // variable-sized objects would need a base pointer as well.
+  if (TRI.shouldRealignStack(MF) &&
+      (!realignsStack(MF) || MFI.hasVarSizedObjects()))
+    MF.getFunction().getContext().diagnose(DiagnosticInfoUnsupported(
+        MF.getFunction(),
+        MF.getTarget().getTargetTriple().isOSOS9()
+            ? "a local aligned beyond 1 byte: OS-9 cannot realign the stack"
+            : "a local aligned beyond 1 byte in a function with "
+              "variable-sized objects"));
+
   // Bug #164 Tier 2: initial CFI.  At function entry (just after the caller's
   // JSR/BSR has pushed the 2-byte return address) the canonical frame address
   // (CFA) is S + 2.  The return PC lives at CFA - 2.
@@ -527,7 +541,10 @@ void MC6809FrameLowering::emitPrologue(MachineFunction &MF, MachineBasicBlock &M
     return;
   }
 
-  if (StackSize)
+  // A realigned frame allocates its locals after the frame pointer is set
+  // (below), so that S can be rounded down beneath them.
+  const bool Realign = realignsStack(MF);
+  if (StackSize && !Realign)
     offsetSP(Builder, -StackSize);
 
   // Skip the callee-saved push instructions.
@@ -548,7 +565,8 @@ void MC6809FrameLowering::emitPrologue(MachineFunction &MF, MachineBasicBlock &M
   // We compute CSR bytes from CalleeSavedInfo rather than relying on
   // MFI.getStackSize() which only covers locals.
   int64_t CSRBytes = getHardStackCalleeSavedSize(MF);
-  int64_t TotalOffset = StackSize + CSRBytes + 2;
+  // A realigned frame's locals are below U (see below), not above it.
+  int64_t TotalOffset = (Realign ? 0 : StackSize) + CSRBytes + 2;
 
   unsigned FPDwarf = MRI->getDwarfRegNum(FPReg, /*isEH=*/true);
   // Insert CFI immediately before the first instruction that follows the TFR
@@ -561,6 +579,50 @@ void MC6809FrameLowering::emitPrologue(MachineFunction &MF, MachineBasicBlock &M
   auto AfterTFR = Builder.getInsertPt();
   BuildCFI(MBB, AfterTFR, {},
            MCCFIInstruction::cfiDefCfa(nullptr, FPDwarf, TotalOffset));
+
+  if (Realign) {
+    // [arguments][return address][saved registers] U-> [saved D][locals] S->
+    // The locals are allocated below the frame pointer and S is rounded
+    // down to the frame's alignment, so S-relative offsets keep it. The
+    // rounding goes through D, which may hold an incoming argument: it is
+    // saved just below U first and reloaded from there. The epilogue's
+    // `tfr u,s` releases all of it.
+    Builder.setInsertPt(MBB, AfterTFR);
+    bool SaveD = any_of(MBB.liveins(), [&](const auto &LI) {
+      return TRI.regsOverlap(LI.PhysReg, MC6809::AD);
+    });
+    if (SaveD)
+      Builder.buildInstr(MC6809::PSHSs, {}, {Register(MC6809::AD)})
+          .setMIFlag(MachineInstr::FrameSetup);
+    if (StackSize)
+      offsetSP(Builder, -StackSize);
+    uint16_t Mask = -uint16_t(MFI.getMaxAlign().value());
+    Builder.buildInstr(MC6809::TFRp)
+        .addDef(MC6809::AD)
+        .addUse(MC6809::SS)
+        .setMIFlag(MachineInstr::FrameSetup);
+    Builder.buildInstr(MC6809::ANDBi8)
+        .addDef(MC6809::AB, RegState::Implicit)
+        .addImm(Mask & 0xff)
+        .setMIFlag(MachineInstr::FrameSetup);
+    if (Mask >> 8 != 0xff)
+      Builder.buildInstr(MC6809::ANDAi8)
+          .addDef(MC6809::AA, RegState::Implicit)
+          .addImm(Mask >> 8)
+          .setMIFlag(MachineInstr::FrameSetup);
+    Builder.buildInstr(MC6809::TFRp)
+        .addDef(MC6809::SS)
+        .addUse(MC6809::AD)
+        .setMIFlag(MachineInstr::FrameSetup);
+    if (SaveD)
+      BuildMI(MBB, Builder.getInsertPt(), DebugLoc(),
+              MF.getSubtarget().getInstrInfo()->get(
+                  MC6809InstrInfo::getIdxLoadStoreOpcode(MC6809::AD,
+                                                         /*IsStore=*/false, -2)))
+          .addImm(-2)
+          .addReg(FPReg)
+          .setMIFlag(MachineInstr::FrameSetup);
+  }
 
   // Add frame pointer to liveins of all blocks so the machine verifier
   // doesn't flag it as used-without-definition (bug #16).
@@ -647,8 +709,9 @@ void MC6809FrameLowering::emitEpilogue(MachineFunction &MF, MachineBasicBlock &M
     Builder.setInsertPt(MBB, MachineBasicBlock::iterator(MBBI));
   }
 
-  // If soft stack is used, increase the soft stack pointer SP.
-  if (StackSize) {
+  // If soft stack is used, increase the soft stack pointer SP. A realigned
+  // frame's locals lie below the frame pointer, so `tfr u,s` released them.
+  if (StackSize && !realignsStack(MF)) {
     offsetSP(Builder, StackSize);
     // Without a frame pointer the saved registers are still to be pulled:
     // say where the CFA is until they are.
@@ -689,7 +752,8 @@ bool MC6809FrameLowering::hasFP(const MachineFunction &MF) const {
   // gone again when the callee returns, and the code that pushes a register
   // in the middle of a function adjusts its own stack offsets for the push.
   const MachineFrameInfo &MFI = MF.getFrameInfo();
-  bool Needed = MFI.isFrameAddressTaken() || MFI.hasVarSizedObjects();
+  bool Needed = MFI.isFrameAddressTaken() || MFI.hasVarSizedObjects() ||
+                realignsStack(MF);
   if (MF.getTarget().getTargetTriple().isOSOS9()) {
     if (Needed)
       report_fatal_error(
@@ -700,6 +764,10 @@ bool MC6809FrameLowering::hasFP(const MachineFunction &MF) const {
   // Also when asked for one (-fno-omit-frame-pointer). Not on OS-9, whose U
   // is never free.
   return Needed || MF.disableFramePointerElim();
+}
+
+bool MC6809FrameLowering::realignsStack(const MachineFunction &MF) const {
+  return MF.getSubtarget().getRegisterInfo()->hasStackRealignment(MF);
 }
 
 uint64_t MC6809FrameLowering::staticSize(const MachineFrameInfo &MFI) const {
@@ -744,7 +812,8 @@ bool MC6809FrameLowering::usesStaticStack(const MachineFunction &MF) const {
   return MF.getSubtarget<MC6809Subtarget>().staticStack() &&
          !MF.getFunction().hasOptNone() &&
          MF.getFunction().hasFnAttribute("nonreentrant") && !MFI.hasCalls() &&
-         !MFI.isFrameAddressTaken() && !MFI.hasVarSizedObjects();
+         !MFI.isFrameAddressTaken() && !MFI.hasVarSizedObjects() &&
+         !realignsStack(MF);
 }
 
 bool MC6809FrameLowering::isSupportedStackID(TargetStackID::Value ID) const {

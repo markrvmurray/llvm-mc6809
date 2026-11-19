@@ -1930,7 +1930,9 @@ bool MC6809LegalizerInfo::legalizeMultiplyWithOverflow(LegalizerHelper &Helper, 
     // s16 then truncate to s1 (= OverflowReg's expected type).
     LLT TempLLT = LLT::scalar(16);
     int MemSize = TempLLT.getSizeInBytes();
-    Align Alignment = Helper.getStackTemporaryAlignment(TempLLT);
+    // Byte-aligned like everything else here: the generic helper's
+    // size-based alignment would make the function realign its frame.
+    Align Alignment(1);
     MachinePointerInfo PtrInfo;
     Register StackPtrOf =
         Helper.createStackTemporary(TypeSize::getFixed(MemSize), Alignment,

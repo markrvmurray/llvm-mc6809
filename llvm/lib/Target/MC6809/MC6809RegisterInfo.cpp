@@ -212,6 +212,7 @@ bool MC6809RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II, int
   int FrameIndex = MI.getOperand(FIOperandNum).getIndex();
   unsigned BasePtr = (TFI->hasFP(MF) ? MC6809::SU : MC6809::SS);
   const MachineFrameInfo &MFI = MF.getFrameInfo();
+  const bool Realign = TFI->realignsStack(MF);
   const MC6809InstrInfo &TII =
       *static_cast<const MC6809InstrInfo *>(MF.getSubtarget().getInstrInfo());
 
@@ -305,9 +306,24 @@ bool MC6809RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II, int
   // offset from U includes both.  Without one, the frame is allocated BELOW
   // the pushes (emitPrologue): the locals are StackSize-relative to S and
   // only the incoming arguments lie beyond the saved registers.
-  Offset += MFI.getStackSize();
-  if (TFI->hasFP(MF) || IsIncomingArg)
-    Offset += CalleeSavedSize;
+  //
+  // A realigned frame (see emitPrologue) puts U just below the saved
+  // registers and the locals below that, under an S rounded down by an
+  // amount known only at run time: the locals are StackSize-relative to S,
+  // and the incoming arguments, beyond the saved registers, are reached
+  // from U.
+  if (Realign) {
+    if (IsIncomingArg) {
+      Offset += CalleeSavedSize;
+    } else {
+      Offset += MFI.getStackSize();
+      BasePtr = MC6809::SS;
+    }
+  } else {
+    Offset += MFI.getStackSize();
+    if (TFI->hasFP(MF) || IsIncomingArg)
+      Offset += CalleeSavedSize;
+  }
 
   // Fold imm into offset
   Offset += MI.getOperand(FIOperandNum + 1).getImm();
@@ -341,6 +357,11 @@ bool MC6809RegisterInfo::shouldCoalesce(
       !IsByteSingleton(DstRC))
     return false;
   return true;
+}
+
+bool MC6809RegisterInfo::canRealignStack(const MachineFunction &MF) const {
+  return !MF.getTarget().getTargetTriple().isOSOS9() &&
+         TargetRegisterInfo::canRealignStack(MF);
 }
 
 Register MC6809RegisterInfo::getFrameRegister(const MachineFunction &MF) const {

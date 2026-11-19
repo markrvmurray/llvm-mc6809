@@ -81,6 +81,9 @@ public:
                       LiveIntervals &LIS) const override;
 
   BitVector getReservedRegs(const MachineFunction &MF) const override;
+  /// Realigning needs U as the frame pointer, which OS-9 reserves as the
+  /// data-area base.
+  bool canRealignStack(const MachineFunction &MF) const override;
 
   MC6809InstrCost copyCost(Register DestReg, Register SrcReg, const MC6809Subtarget &STI) const;
 };
