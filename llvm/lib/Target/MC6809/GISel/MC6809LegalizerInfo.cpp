@@ -640,6 +640,13 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
   // with that gone the rule has to be stated.
   getActionDefinitionsBuilder(G_BR).alwaysLegal();
 
+  // Traps: the 6809 has no trap instruction to spare (SWI is OS-9's system
+  // call), so __builtin_trap, __builtin_debugtrap and the traps of
+  // -ftrapv and -fsanitize-trap become a call of abort(), as SelectionDAG
+  // lowers a trap a target cannot do natively. The sanitizer check code
+  // of G_UBSANTRAP is dropped.
+  getActionDefinitionsBuilder({G_TRAP, G_DEBUGTRAP, G_UBSANTRAP}).custom();
+
   getActionDefinitionsBuilder(G_BRCOND)
       .legalFor({s1});
 
@@ -721,6 +728,16 @@ bool MC6809LegalizerInfo::legalizeCustom(LegalizerHelper &Helper, MachineInstr &
   default:
     // No idea what to do.
     return false;
+  case G_TRAP:
+  case G_DEBUGTRAP:
+  case G_UBSANTRAP: {
+    auto &Ctx = MI.getMF()->getFunction().getContext();
+    if (!Helper.createLibcall("abort", {{}, Type::getVoidTy(Ctx), 0}, {},
+                              CallingConv::C, LocObserver))
+      return false;
+    MI.eraseFromParent();
+    return true;
+  }
   case G_SEXTLOAD:
   case G_ZEXTLOAD:
     return legalizeLoad(Helper, MRI, cast<GAnyLoad>(MI), LocObserver);
@@ -2426,16 +2443,6 @@ bool MC6809LegalizerInfo::legalizeIntrinsic(LegalizerHelper &Helper, MachineInst
   LLT P = LLT::pointer(0, 16);
   MachineIRBuilder &Builder = Helper.MIRBuilder;
   switch (cast<GIntrinsic>(MI).getIntrinsicID()) {
-  case Intrinsic::trap: {
-    auto &Ctx = MI.getMF()->getFunction().getContext();
-    auto *RetTy = Type::getVoidTy(Ctx);
-    LostDebugLocObserver LocObserver("");
-    if (!Helper.createLibcall("abort", {{}, RetTy, 0}, {}, CallingConv::C, LocObserver)) {
-      return false;
-    }
-    MI.eraseFromParent();
-    return true;
-  }
   case Intrinsic::vacopy: {
     MachinePointerInfo MPO;
     auto Tmp = Builder.buildLoad(P, MI.getOperand(2), *MI.getMF()->getMachineMemOperand(MPO, MachineMemOperand::MOLoad, 2, Align()));
