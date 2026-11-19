@@ -1151,6 +1151,7 @@ list(APPEND mc6809_SOURCES
   mc6809/fp_data.S
   mc6809/fp_arith.S
   mc6809/fp_conv.S
+  mc6809/fp_narrow.c
   mc6809/fp_cmp.S
   # Bug #289 (2026-05-24): fenv.c provides C99 <fenv.h> via direct FPCB
   # byte access; fp_trampoline.S provides __fpreg / __fpstak as

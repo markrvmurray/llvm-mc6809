@@ -36,9 +36,14 @@ __extendsfdf2:
         puls    u,y
         rts
 
-        .global __truncdfsf2
-__truncdfsf2:
-        ; f64 → f32.  Precision word: src=double(1), dst=single(0).
+        ; f64 → f32 through the ROM's FMOV.  Correct only when the result is
+        ; a normal float, zero, an infinity or a NaN: the ROM's FMOVE runs
+        ; its invalid-result check after an underflow too, so a result
+        ; below FLT_MIN comes back as a NaN.  __truncdfsf2 (fp_narrow.c)
+        ; sends only the other cases here.
+        .global __mc6839_truncdfsf2
+__mc6839_truncdfsf2:
+        ; Precision word: src=double(1), dst=single(0).
         pshs    u,y
         FP_ENTRY __mc6839_fpcb_f32
         ldu     #FMOV_D_TO_S
