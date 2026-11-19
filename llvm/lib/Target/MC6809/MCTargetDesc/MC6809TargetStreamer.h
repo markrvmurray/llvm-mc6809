@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_MC6809_TARGET_STREAMER_H
-#define LLVM_MC6809_TARGET_STREAMER_H
+#ifndef LLVM_LIB_TARGET_MC6809_MCTARGETDESC_MC6809TARGETSTREAMER_H
+#define LLVM_LIB_TARGET_MC6809_MCTARGETDESC_MC6809TARGETSTREAMER_H
 
 #include "llvm/MC/MCELFStreamer.h"
 #include "llvm/MC/MCSymbol.h"
@@ -109,4 +109,4 @@ private:
 
 } // end namespace llvm
 
-#endif // LLVM_MC6809_TARGET_STREAMER_H
+#endif // LLVM_LIB_TARGET_MC6809_MCTARGETDESC_MC6809TARGETSTREAMER_H

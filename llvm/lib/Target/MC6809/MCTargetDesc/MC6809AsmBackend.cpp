@@ -11,11 +11,11 @@
 //===----------------------------------------------------------------------===//
 
 #include "MCTargetDesc/MC6809AsmBackend.h"
+#include "MC6809Subtarget.h"
 #include "MCTargetDesc/MC6809ELFObjectWriter.h"
 #include "MCTargetDesc/MC6809FixupKinds.h"
 #include "MCTargetDesc/MC6809MCExpr.h"
 #include "MCTargetDesc/MC6809MCTargetDesc.h"
-#include "MC6809Subtarget.h"
 
 #include "llvm/ADT/StringRef.h"
 #include "llvm/BinaryFormat/ELF.h"

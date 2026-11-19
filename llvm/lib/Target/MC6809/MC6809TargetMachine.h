@@ -10,8 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_MC6809_TARGET_MACHINE_H
-#define LLVM_MC6809_TARGET_MACHINE_H
+#ifndef LLVM_LIB_TARGET_MC6809_MC6809TARGETMACHINE_H
+#define LLVM_LIB_TARGET_MC6809_MC6809TARGETMACHINE_H
 
 #include "llvm/CodeGen/CodeGenTargetMachineImpl.h"
 #include "llvm/IR/DataLayout.h"
@@ -68,4 +68,4 @@ private:
 
 } // end namespace llvm
 
-#endif // LLVM_MC6809_TARGET_MACHINE_H
+#endif // LLVM_LIB_TARGET_MC6809_MC6809TARGETMACHINE_H

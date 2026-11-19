@@ -11,8 +11,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_MC6809_ASM_INFO_H
-#define LLVM_MC6809_ASM_INFO_H
+#ifndef LLVM_LIB_TARGET_MC6809_MCTARGETDESC_MC6809MCASMINFO_H
+#define LLVM_LIB_TARGET_MC6809_MCTARGETDESC_MC6809MCASMINFO_H
 
 #include "llvm/MC/MCAsmInfoELF.h"
 
@@ -28,4 +28,4 @@ public:
 
 } // end namespace llvm
 
-#endif // LLVM_MC6809_ASM_INFO_H
+#endif // LLVM_LIB_TARGET_MC6809_MCTARGETDESC_MC6809MCASMINFO_H

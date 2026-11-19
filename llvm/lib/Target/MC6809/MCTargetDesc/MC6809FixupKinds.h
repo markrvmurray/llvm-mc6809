@@ -8,8 +8,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_MC6809_FIXUP_KINDS_H
-#define LLVM_MC6809_FIXUP_KINDS_H
+#ifndef LLVM_LIB_TARGET_MC6809_MCTARGETDESC_MC6809FIXUPKINDS_H
+#define LLVM_LIB_TARGET_MC6809_MCTARGETDESC_MC6809FIXUPKINDS_H
 
 #include "llvm/MC/MCAsmBackend.h"
 #include "llvm/MC/MCFixup.h"
@@ -53,4 +53,4 @@ public:
 };
 } // namespace llvm
 
-#endif // LLVM_MC6809_FIXUP_KINDS_H
+#endif // LLVM_LIB_TARGET_MC6809_MCTARGETDESC_MC6809FIXUPKINDS_H

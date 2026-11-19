@@ -10,8 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_MC6809_MCTARGET_DESC_H
-#define LLVM_MC6809_MCTARGET_DESC_H
+#ifndef LLVM_LIB_TARGET_MC6809_MCTARGETDESC_MC6809MCTARGETDESC_H
+#define LLVM_LIB_TARGET_MC6809_MCTARGETDESC_MC6809MCTARGETDESC_H
 
 #include "llvm/ADT/Sequence.h"
 #include "llvm/MC/MCInstrDesc.h"
@@ -116,4 +116,4 @@ bool isDirectPageSectionName(StringRef Name);
 } // namespace MC6809
 } // namespace llvm
 
-#endif // LLVM_MC6809_MCTARGET_DESC_H
+#endif // LLVM_LIB_TARGET_MC6809_MCTARGETDESC_MC6809MCTARGETDESC_H

@@ -10,8 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_LIB_TARGET_MC6809_MC6809CALLLOWERING_H
-#define LLVM_LIB_TARGET_MC6809_MC6809CALLLOWERING_H
+#ifndef LLVM_LIB_TARGET_MC6809_GISEL_MC6809CALLLOWERING_H
+#define LLVM_LIB_TARGET_MC6809_GISEL_MC6809CALLLOWERING_H
 
 #include "llvm/CodeGen/FunctionLoweringInfo.h"
 #include "llvm/CodeGen/GlobalISel/CallLowering.h"
@@ -37,4 +37,4 @@ private:
 
 } // namespace llvm
 
-#endif // not LLVM_LIB_TARGET_MC6809_MC6809CALLLOWERING_H
+#endif // LLVM_LIB_TARGET_MC6809_GISEL_MC6809CALLLOWERING_H

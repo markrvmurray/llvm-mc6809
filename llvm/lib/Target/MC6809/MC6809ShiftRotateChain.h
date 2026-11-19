@@ -21,4 +21,4 @@ MachineFunctionPass *createMC6809ShiftRotateChainPass();
 
 } // namespace llvm
 
-#endif // not LLVM_LIB_TARGET_MC6809_MC6809SHIFTROTATECHAIN_H
+#endif // LLVM_LIB_TARGET_MC6809_MC6809SHIFTROTATECHAIN_H

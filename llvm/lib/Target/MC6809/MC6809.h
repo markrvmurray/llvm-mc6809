@@ -261,4 +261,4 @@ template <typename ContainerTy> inline auto mbb_reverse(ContainerTy &&C) { retur
 
 } // namespace llvm
 
-#endif // not LLVM_LIB_TARGET_MC6809_MC6809_H
+#endif // LLVM_LIB_TARGET_MC6809_MC6809_H

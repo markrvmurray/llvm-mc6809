@@ -11,8 +11,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_MC6809_INST_PRINTER_H
-#define LLVM_MC6809_INST_PRINTER_H
+#ifndef LLVM_LIB_TARGET_MC6809_MCTARGETDESC_MC6809INSTPRINTER_H
+#define LLVM_LIB_TARGET_MC6809_MCTARGETDESC_MC6809INSTPRINTER_H
 
 #include "MCTargetDesc/MC6809MCTargetDesc.h"
 #include "llvm/MC/MCInstPrinter.h"
@@ -52,4 +52,4 @@ public:
 
 } // end namespace llvm
 
-#endif // LLVM_MC6809_INST_PRINTER_H
+#endif // LLVM_LIB_TARGET_MC6809_MCTARGETDESC_MC6809INSTPRINTER_H

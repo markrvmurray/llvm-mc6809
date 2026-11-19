@@ -12,8 +12,8 @@
 //===----------------------------------------------------------------------===//
 //
 
-#ifndef LLVM_MC6809_CODE_EMITTER_H
-#define LLVM_MC6809_CODE_EMITTER_H
+#ifndef LLVM_LIB_TARGET_MC6809_MCTARGETDESC_MC6809MCCODEEMITTER_H
+#define LLVM_LIB_TARGET_MC6809_MCTARGETDESC_MC6809MCCODEEMITTER_H
 
 #include "MC6809FixupKinds.h"
 
@@ -80,4 +80,4 @@ private:
 
 } // namespace llvm
 
-#endif // LLVM_MC6809_CODE_EMITTER_H
+#endif // LLVM_LIB_TARGET_MC6809_MCTARGETDESC_MC6809MCCODEEMITTER_H

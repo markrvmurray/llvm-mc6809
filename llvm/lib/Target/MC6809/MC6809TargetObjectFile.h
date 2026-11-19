@@ -7,8 +7,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_MC6809_TARGET_OBJECT_FILE_H
-#define LLVM_MC6809_TARGET_OBJECT_FILE_H
+#ifndef LLVM_LIB_TARGET_MC6809_MC6809TARGETOBJECTFILE_H
+#define LLVM_LIB_TARGET_MC6809_MC6809TARGETOBJECTFILE_H
 
 #include "llvm/CodeGen/TargetLoweringObjectFileImpl.h"
 
@@ -33,4 +33,4 @@ public:
 
 } // end namespace llvm
 
-#endif // LLVM_MC6809_TARGET_OBJECT_FILE_H
+#endif // LLVM_LIB_TARGET_MC6809_MC6809TARGETOBJECTFILE_H

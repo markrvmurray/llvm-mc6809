@@ -10,8 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_MC6809_SUBTARGET_H
-#define LLVM_MC6809_SUBTARGET_H
+#ifndef LLVM_LIB_TARGET_MC6809_MC6809SUBTARGET_H
+#define LLVM_LIB_TARGET_MC6809_MC6809SUBTARGET_H
 
 #include "llvm/CodeGen/GlobalISel/InlineAsmLowering.h"
 #include "llvm/CodeGen/GlobalISel/InstructionSelector.h"
@@ -133,4 +133,4 @@ private:
 
 } // end namespace llvm
 
-#endif // LLVM_MC6809_SUBTARGET_H
+#endif // LLVM_LIB_TARGET_MC6809_MC6809SUBTARGET_H

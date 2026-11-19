@@ -25,4 +25,4 @@ struct MC6809IndexIV : public OptionalPassInfoMixin<MC6809IndexIV> {
 
 } // end namespace llvm
 
-#endif // not LLVM_LIB_TARGET_MC6809_MC6809INDEXIV_H
+#endif // LLVM_LIB_TARGET_MC6809_MC6809INDEXIV_H

@@ -11,8 +11,8 @@
 //===----------------------------------------------------------------------===//
 //
 
-#ifndef LLVM_MC6809_ASM_BACKEND_H
-#define LLVM_MC6809_ASM_BACKEND_H
+#ifndef LLVM_LIB_TARGET_MC6809_MCTARGETDESC_MC6809ASMBACKEND_H
+#define LLVM_LIB_TARGET_MC6809_MCTARGETDESC_MC6809ASMBACKEND_H
 
 #include "MCTargetDesc/MC6809FixupKinds.h"
 
@@ -124,4 +124,4 @@ private:
 
 } // end namespace llvm
 
-#endif // LLVM_MC6809_ASM_BACKEND_H
+#endif // LLVM_LIB_TARGET_MC6809_MCTARGETDESC_MC6809ASMBACKEND_H

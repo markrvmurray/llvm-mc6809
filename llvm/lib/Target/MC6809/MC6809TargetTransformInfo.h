@@ -14,8 +14,8 @@
 ///
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_LIB_TARGET_POWERPC_MC6809TARGETTRANSFORMINFO_H
-#define LLVM_LIB_TARGET_POWERPC_MC6809TARGETTRANSFORMINFO_H
+#ifndef LLVM_LIB_TARGET_MC6809_MC6809TARGETTRANSFORMINFO_H
+#define LLVM_LIB_TARGET_MC6809_MC6809TARGETTRANSFORMINFO_H
 
 #include "MC6809TargetMachine.h"
 #include "llvm/Analysis/TargetTransformInfo.h"

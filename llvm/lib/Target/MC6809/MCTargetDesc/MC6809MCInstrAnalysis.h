@@ -10,8 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_MC6809_MC_INSTR_ANALYSIS_H
-#define LLVM_MC6809_MC_INSTR_ANALYSIS_H
+#ifndef LLVM_LIB_TARGET_MC6809_MCTARGETDESC_MC6809MCINSTRANALYSIS_H
+#define LLVM_LIB_TARGET_MC6809_MCTARGETDESC_MC6809MCINSTRANALYSIS_H
 
 #include "llvm/MC/MCInstrAnalysis.h"
 
@@ -30,4 +30,4 @@ public:
 
 } // end namespace llvm
 
-#endif // LLVM_MC6809_MC_INSTR_ANALYSIS_H
+#endif // LLVM_LIB_TARGET_MC6809_MCTARGETDESC_MC6809MCINSTRANALYSIS_H

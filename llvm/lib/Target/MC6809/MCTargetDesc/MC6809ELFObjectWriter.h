@@ -1,3 +1,6 @@
+#ifndef LLVM_LIB_TARGET_MC6809_MCTARGETDESC_MC6809ELFOBJECTWRITER_H
+#define LLVM_LIB_TARGET_MC6809_MCTARGETDESC_MC6809ELFOBJECTWRITER_H
+
 //===-- MC6809ELFObjectWriter.cpp - MC6809 ELF Writer
 //---------------------------===//
 //
@@ -30,3 +33,5 @@ public:
 };
 
 } // end of namespace llvm
+
+#endif

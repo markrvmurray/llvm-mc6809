@@ -11,8 +11,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_LIB_TARGET_MC6809_MC6809_MACHINESCHEDULER_H
-#define LLVM_LIB_TARGET_MC6809_MC6809_MACHINESCHEDULER_H
+#ifndef LLVM_LIB_TARGET_MC6809_MC6809MACHINESCHEDULER_H
+#define LLVM_LIB_TARGET_MC6809_MC6809MACHINESCHEDULER_H
 
 #include "llvm/CodeGen/MachineScheduler.h"
 
@@ -29,4 +29,4 @@ public:
 
 } // namespace llvm
 
-#endif // not LLVM_LIB_TARGET_MC6809_MC6809_MACHINESCHEDULER_H
+#endif // LLVM_LIB_TARGET_MC6809_MC6809MACHINESCHEDULER_H

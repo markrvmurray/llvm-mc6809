@@ -10,8 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_LIB_TARGET_MC6809_MC6809INSTRUCTIONSELECTOR_H
-#define LLVM_LIB_TARGET_MC6809_MC6809INSTRUCTIONSELECTOR_H
+#ifndef LLVM_LIB_TARGET_MC6809_GISEL_MC6809INSTRUCTIONSELECTOR_H
+#define LLVM_LIB_TARGET_MC6809_GISEL_MC6809INSTRUCTIONSELECTOR_H
 
 #include "MC6809RegisterBankInfo.h"
 #include "MC6809Subtarget.h"
@@ -24,4 +24,4 @@ InstructionSelector *createMC6809InstructionSelector(const MC6809TargetMachine &
 
 } // namespace llvm
 
-#endif // not LLVM_LIB_TARGET_MC6809_MC6809INSTRUCTIONSELECTOR_H
+#endif // LLVM_LIB_TARGET_MC6809_GISEL_MC6809INSTRUCTIONSELECTOR_H

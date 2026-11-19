@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_MC6809_MCEXPR_H
-#define LLVM_MC6809_MCEXPR_H
+#ifndef LLVM_LIB_TARGET_MC6809_MCTARGETDESC_MC6809MCEXPR_H
+#define LLVM_LIB_TARGET_MC6809_MCTARGETDESC_MC6809MCEXPR_H
 
 #include "MCTargetDesc/MC6809FixupKinds.h"
 #include "llvm/MC/MCExpr.h"
@@ -78,4 +78,4 @@ private:
 
 } // end namespace llvm
 
-#endif // LLVM_MC6809_MCEXPR_H
+#endif // LLVM_LIB_TARGET_MC6809_MCTARGETDESC_MC6809MCEXPR_H

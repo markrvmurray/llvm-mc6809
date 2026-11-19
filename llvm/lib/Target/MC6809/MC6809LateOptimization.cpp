@@ -23,8 +23,8 @@
 #include "MC6809ValueTracker.h"
 #include "MCTargetDesc/MC6809MCTargetDesc.h"
 
-#include "llvm/ADT/Statistic.h"
 #include "llvm/ADT/SmallSet.h"
+#include "llvm/ADT/Statistic.h"
 #include "llvm/CodeGen/GlobalISel/MachineIRBuilder.h"
 #include "llvm/CodeGen/LivePhysRegs.h"
 #include "llvm/CodeGen/MachineBasicBlock.h"

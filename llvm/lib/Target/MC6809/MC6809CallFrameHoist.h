@@ -22,4 +22,4 @@ MachineFunctionPass *createMC6809CallFrameHoistPass();
 
 } // namespace llvm
 
-#endif // not LLVM_LIB_TARGET_MC6809_MC6809CALLFRAMEHOIST_H
+#endif // LLVM_LIB_TARGET_MC6809_MC6809CALLFRAMEHOIST_H

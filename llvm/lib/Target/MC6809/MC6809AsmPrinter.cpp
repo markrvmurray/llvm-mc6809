@@ -12,14 +12,14 @@
 //===----------------------------------------------------------------------===//
 
 #include "MCTargetDesc/MC6809AsmBackend.h"
-#include "MCTargetDesc/MC6809MCExpr.h"
-#include "MCTargetDesc/MC6809MCTargetDesc.h"
-#include "MCTargetDesc/MC6809TargetStreamer.h"
 #include "MC6809MCInstLower.h"
 #include "MC6809MachineFunctionInfo.h"
 #include "MC6809RegisterInfo.h"
-#include "MCTargetDesc/MC6809InstPrinter.h"
 #include "MC6809Subtarget.h"
+#include "MCTargetDesc/MC6809InstPrinter.h"
+#include "MCTargetDesc/MC6809MCExpr.h"
+#include "MCTargetDesc/MC6809MCTargetDesc.h"
+#include "MCTargetDesc/MC6809TargetStreamer.h"
 #include "TargetInfo/MC6809TargetInfo.h"
 
 #include "llvm/ADT/StringSet.h"

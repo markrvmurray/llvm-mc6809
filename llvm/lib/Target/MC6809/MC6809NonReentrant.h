@@ -10,8 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_LIB_TARGET_MC6809_MC6809NORECURSE_H
-#define LLVM_LIB_TARGET_MC6809_MC6809NORECURSE_H
+#ifndef LLVM_LIB_TARGET_MC6809_MC6809NONREENTRANT_H
+#define LLVM_LIB_TARGET_MC6809_MC6809NONREENTRANT_H
 
 #include "llvm/IR/Module.h"
 #include "llvm/IR/PassManager.h"
@@ -27,4 +27,4 @@ struct MC6809NonReentrantPass : OptionalPassInfoMixin<MC6809NonReentrantPass> {
 
 } // end namespace llvm
 
-#endif // not LLVM_LIB_TARGET_MC6809_MC6809NORECURSE_H
+#endif // LLVM_LIB_TARGET_MC6809_MC6809NONREENTRANT_H
