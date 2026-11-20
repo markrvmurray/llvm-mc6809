@@ -140,6 +140,10 @@ public:
 
   void copyPhysReg(MachineBasicBlock &MBB, MachineBasicBlock::iterator MI, const DebugLoc &DL, Register DestReg, Register SrcReg, bool KillSrc, bool RenamableDest = false, bool RenamableSrc = false) const override;
 
+  // An inline-asm memory operand prints as `0,r` (see PrintAsmMemoryOperand),
+  // so its address lives in an index register.
+  const TargetRegisterClass *getInlineAsmMemoryOperandRegClass(InlineAsm::ConstraintCode C) const override { return &MC6809::INDEX16RegClass; }
+
   void storeRegToStackSlot(MachineBasicBlock &MBB, MachineBasicBlock::iterator MI, Register SrcReg, bool IsKill, int FrameIndex, const TargetRegisterClass *RC, Register VReg, MachineInstr::MIFlag Flags = MachineInstr::NoFlags) const override;
 
   const TargetRegisterClass *canFoldCopy(const MachineInstr &MI, const TargetInstrInfo &TII, unsigned FoldIdx) const override;
