@@ -16,7 +16,9 @@
 ; for >2-byte returns).  The Y-as-scratch pattern is placed BEFORE the
 ; final `leay N,s` so Y ends up holding the arg pointer at the ROM call.
 
-        .text
+; Each entry sits in its own section, so a program linked with
+; --gc-sections carries only the entries it calls.
+
 
 ; Bug #287: opcodes + FMOV/IEEE constants from shared headers.
 .include "mc6839_fpops.inc"
@@ -25,6 +27,7 @@
 
 ; ---- precision conversion (FMOV; U = precision word) ----------------------
 
+        .section .text.__extendsfdf2,"ax",@progbits
         .global __extendsfdf2
 __extendsfdf2:
         ; f32 → f64.  Precision word: src=single(0), dst=double(1).
@@ -41,6 +44,7 @@ __extendsfdf2:
         ; its invalid-result check after an underflow too, so a result
         ; below FLT_MIN comes back as a NaN.  __truncdfsf2 (fp_narrow.c)
         ; sends only the other cases here.
+        .section .text.__mc6839_truncdfsf2,"ax",@progbits
         .global __mc6839_truncdfsf2
 __mc6839_truncdfsf2:
         ; Precision word: src=double(1), dst=single(0).
@@ -54,6 +58,7 @@ __mc6839_truncdfsf2:
 
 ; ---- signed integer → float (FFLTD) ---------------------------------------
 
+        .section .text.__floatsisf,"ax",@progbits
         .global __floatsisf
 __floatsisf:
         ; signed i32 → f32.  Y → i32 arg.
@@ -64,6 +69,7 @@ __floatsisf:
         puls    u,y
         rts
 
+        .section .text.__floatsidf,"ax",@progbits
         .global __floatsidf
 __floatsidf:
         ; signed i32 → f64.
@@ -81,6 +87,7 @@ __floatsidf:
 ; FFLTD treats input as signed.  For u32 with bit31 set we clear bit31,
 ; convert, then add 2^31.  Allocates a scratch buffer on the stack.
 
+        .section .text.__floatunsisf,"ax",@progbits
         .global __floatunsisf
 __floatunsisf:
         ; u32 → f32.  Entry: X=f32 result(4B), [S+2..5]=u32.
@@ -118,6 +125,7 @@ __floatunsisf:
         puls    u,y
         rts
 
+        .section .text.__floatunsidf,"ax",@progbits
         .global __floatunsidf
 __floatunsidf:
         ; u32 → f64.  Entry: X=f64 result(8B), [S+2..5]=u32.
@@ -163,6 +171,7 @@ __floatunsidf:
 
 ; ---- float → signed integer (FFIXD; truncation toward zero) ---------------
 
+        .section .text.__fixsfsi,"ax",@progbits
         .global __fixsfsi
 __fixsfsi:
         ; f32 → signed i32.
@@ -173,6 +182,7 @@ __fixsfsi:
         puls    u,y
         rts
 
+        .section .text.__fixdfsi,"ax",@progbits
         .global __fixdfsi
 __fixdfsi:
         ; f64 → signed i32.

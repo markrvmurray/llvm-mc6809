@@ -34,7 +34,9 @@
 ; uses X as the parameter word.  After PULS lands at FPOP+1, we capture
 ; CC, reload X from the saved slot, write the i32 result, then unwind.
 
-        .text
+; Each entry group sits in its own section, so a program linked with
+; --gc-sections carries only the groups it calls plus the shared result
+; code.  Entries reach that code with LBRA (BRA cannot cross sections).
 
 ; Bug #287: opcodes + parameter-word constants from shared headers.
 .include "mc6839_fpops.inc"
@@ -43,11 +45,10 @@
 
 ; ---- f32 comparison --------------------------------------------------------
 
+        .section .text.__cmpsf2,"ax",@progbits
         .global __cmpsf2
         .global __ltsf2
         .global __lesf2
-        .global __gtsf2
-        .global __gesf2
         .global __eqsf2
         .global __nesf2
 __cmpsf2:
@@ -61,8 +62,11 @@ __nesf2:
         leay    12+FP_SLOT,s                ; Y = &arg2
         ldx     #FCMP_S_S           ; parameter word: single, single
         FP_CALL FPOP_FCMP
-        bra     .Lcmp_cleanup       ; (BRA preserves CC)
+        lbra    __mc6839_cmp_result ; (LBRA preserves CC)
 
+        .section .text.__gtsf2,"ax",@progbits
+        .global __gtsf2
+        .global __gesf2
 __gtsf2:
 __gesf2:
         pshs    u,y,x
@@ -71,27 +75,16 @@ __gesf2:
         leay    12+FP_SLOT,s
         ldx     #FCMP_S_S
         FP_CALL FPOP_FCMP
-        bra     .Lcmp_cleanup_gt    ; (BRA preserves CC)
+        lbra    __mc6839_cmp_result_gt ; (LBRA preserves CC)
 
 ; ---- f64 comparison --------------------------------------------------------
 
+        .section .text.__cmpdf2,"ax",@progbits
         .global __cmpdf2
         .global __ltdf2
         .global __ledf2
-        .global __gtdf2
-        .global __gedf2
         .global __eqdf2
         .global __nedf2
-__gtdf2:
-__gedf2:
-        pshs    u,y,x
-        FP_ENTRY __mc6839_fpcb_f64
-        leau    8+FP_SLOT,s
-        leay    16+FP_SLOT,s
-        ldx     #FCMP_D_D
-        FP_CALL FPOP_FCMP
-        bra     .Lcmp_cleanup_gt    ; (BRA preserves CC)
-
 __cmpdf2:
 __ltdf2:
 __ledf2:
@@ -103,48 +96,59 @@ __nedf2:
         leay    16+FP_SLOT,s                ; Y = &arg2 (f64 arg2 starts 8 bytes higher)
         ldx     #FCMP_D_D           ; parameter word: double, double
         FP_CALL FPOP_FCMP
-        ; fall through
+        lbra    __mc6839_cmp_result ; (LBRA preserves CC)
 
-; ---- shared cleanup --------------------------------------------------------
+        .section .text.__gtdf2,"ax",@progbits
+        .global __gtdf2
+        .global __gedf2
+__gtdf2:
+__gedf2:
+        pshs    u,y,x
+        FP_ENTRY __mc6839_fpcb_f64
+        leau    8+FP_SLOT,s
+        leay    16+FP_SLOT,s
+        ldx     #FCMP_D_D
+        FP_CALL FPOP_FCMP
+        lbra    __mc6839_cmp_result_gt ; (LBRA preserves CC)
+
+; ---- shared result ---------------------------------------------------------
 ; On entry: CC = comparison result; X = parameter word (= 0 or 0x0011).
 ; Saved X (result buffer) at [S+0..1]; saved Y at [S+2..3]; saved U at [S+4..5].
 ; Capture CC into A first, then reload X from the saved slot.
 
-.Lcmp_cleanup:
+        .section .text.__mc6839_cmp_result,"ax",@progbits
+        .global __mc6839_cmp_result
+        .global __mc6839_cmp_result_gt
+        .hidden __mc6839_cmp_result
+        .hidden __mc6839_cmp_result_gt
+
+; __gtXf2/__geXf2: unordered (C=1) gives -1, so a > b and a >= b are
+; false on a NaN; anything else as below.
+__mc6839_cmp_result_gt:
+        bcs     .Lcmp_uo_gt         ; unordered: -1
+__mc6839_cmp_result:
         tfr     cc,a                ; A = CC byte (TFR doesn't modify CC)
         ldx     ,s                  ; X = saved result buffer (LDX modifies CC; OK)
         bita    #0x04               ; Z?
         bne     .Lcmp_eq
         bita    #0x01               ; C?
-        bne     .Lcmp_uo
+        bne     .Lcmp_gt            ; unordered: +1, as a > b
         bita    #0x08               ; N?
         bne     .Lcmp_lt
-        ; fall through: a > b → +1
+.Lcmp_gt:
         clra
         clrb
         std     ,x
-        ldd     #1
-        std     2,x
+        incb
+        std     2,x                 ; i32 = +1
         bra     .Lcmp_ret
+.Lcmp_uo_gt:
+        ldx     ,s                  ; X = saved result buffer
 .Lcmp_lt:
         ldd     #0xFFFF
         std     ,x
         std     2,x                 ; i32 = -1
         bra     .Lcmp_ret
-.Lcmp_uo:
-        clra
-        clrb
-        std     ,x
-        ldd     #1
-        std     2,x                 ; i32 = +1 (unordered, all but __gt/__ge)
-        bra     .Lcmp_ret
-
-; __gtXf2/__geXf2: unordered (C=1) gives -1, so a > b and a >= b are
-; false on a NaN; anything else as above.
-.Lcmp_cleanup_gt:
-        bcc     .Lcmp_cleanup       ; ordered: the common cleanup
-        ldx     ,s                  ; X = saved result buffer
-        bra     .Lcmp_lt            ; i32 = -1
 .Lcmp_eq:
         clra
         clrb
@@ -152,8 +156,7 @@ __nedf2:
         std     2,x                 ; i32 = 0
 .Lcmp_ret:
         leas    2,s                 ; pop the saved-X slot
-        puls    y,u                 ; restore caller's U and Y
-        rts
+        puls    y,u,pc              ; restore caller's U and Y, return
 
 ; ---- unordered predicate (Bug #337) ----------------------------------------
 ; int __unordsf2(float, float) / int __unorddf2(double, double): return
@@ -162,6 +165,7 @@ __nedf2:
 ; FCMP setup as __cmpXf2 but a cleanup that yields 1 for unordered, else 0.
 ; Same i32-via-X-sret return convention as the compare wrappers.
 
+        .section .text.__unordsf2,"ax",@progbits
         .global __unordsf2
 __unordsf2:
         pshs    u,y,x               ; save callee-saved U,Y + result buffer X
@@ -170,8 +174,9 @@ __unordsf2:
         leay    12+FP_SLOT,s                ; Y = &arg2
         ldx     #FCMP_S_S           ; parameter word: single, single
         FP_CALL FPOP_FCMP
-        bra     .Lunord_cleanup     ; (BRA preserves CC)
+        lbra    __mc6839_unord_result ; (LBRA preserves CC)
 
+        .section .text.__unorddf2,"ax",@progbits
         .global __unorddf2
 __unorddf2:
         pshs    u,y,x
@@ -180,27 +185,20 @@ __unorddf2:
         leay    16+FP_SLOT,s                ; Y = &arg2 (f64 arg2 starts 8 bytes higher)
         ldx     #FCMP_D_D           ; parameter word: double, double
         FP_CALL FPOP_FCMP
-        ; fall through
+        lbra    __mc6839_unord_result ; (LBRA preserves CC)
 
 ; On entry: CC = comparison result; X = parameter word. Saved result
 ; buffer X at [S+0..1]; saved Y at [S+2..3]; saved U at [S+4..5].
-.Lunord_cleanup:
-        tfr     cc,a                ; A = CC byte (TFR doesn't modify CC)
-        ldx     ,s                  ; X = saved result buffer (LDX modifies CC; OK)
-        bita    #0x01               ; C = unordered (NaN)?  (A still holds CC)
-        bne     .Lunord_yes
-        clra                        ; ordered → i32 = 0
-        clrb
-        std     ,x
-        std     2,x
-        bra     .Lunord_ret
-.Lunord_yes:
+        .section .text.__mc6839_unord_result,"ax",@progbits
+        .global __mc6839_unord_result
+        .hidden __mc6839_unord_result
+__mc6839_unord_result:
+        tfr     cc,b                ; B = CC byte (TFR doesn't modify CC)
+        andb    #0x01               ; C = unordered (NaN): B = 1, else 0
         clra
+        ldx     ,s                  ; X = saved result buffer
+        std     2,x                 ; low 16 bits = 1 or 0
         clrb
         std     ,x                  ; high 16 bits = 0
-        ldd     #1
-        std     2,x                 ; unordered → i32 = 1
-.Lunord_ret:
         leas    2,s                 ; pop the saved-X slot
-        puls    y,u                 ; restore caller's U and Y
-        rts
+        puls    y,u,pc              ; restore caller's U and Y, return

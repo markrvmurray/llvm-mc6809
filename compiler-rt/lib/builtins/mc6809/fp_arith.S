@@ -23,7 +23,9 @@
 ; BEFORE the final `leay N,s` so Y ends up holding arg2 at the ROM
 ; call.
 
-        .text
+; Each entry sits in its own section, so a program linked with
+; --gc-sections carries only the entries it calls.
+
 
 ; Bug #287: opcodes from shared header (single source of truth).
 .include "mc6839_fpops.inc"
@@ -31,6 +33,7 @@
 
 ; ---- f32 dyadic -------------------------------------------------------------
 
+        .section .text.__addsf3,"ax",@progbits
         .global __addsf3
 __addsf3:
         pshs    u,y
@@ -41,6 +44,7 @@ __addsf3:
         puls    u,y
         rts
 
+        .section .text.__subsf3,"ax",@progbits
         .global __subsf3
 __subsf3:
         pshs    u,y
@@ -51,6 +55,7 @@ __subsf3:
         puls    u,y
         rts
 
+        .section .text.__mulsf3,"ax",@progbits
         .global __mulsf3
 __mulsf3:
         pshs    u,y
@@ -61,6 +66,7 @@ __mulsf3:
         puls    u,y
         rts
 
+        .section .text.__divsf3,"ax",@progbits
         .global __divsf3
 __divsf3:
         pshs    u,y
@@ -73,6 +79,7 @@ __divsf3:
 
 ; ---- f64 dyadic -------------------------------------------------------------
 
+        .section .text.__adddf3,"ax",@progbits
         .global __adddf3
 __adddf3:
         pshs    u,y
@@ -83,6 +90,7 @@ __adddf3:
         puls    u,y
         rts
 
+        .section .text.__subdf3,"ax",@progbits
         .global __subdf3
 __subdf3:
         pshs    u,y
@@ -93,6 +101,7 @@ __subdf3:
         puls    u,y
         rts
 
+        .section .text.__muldf3,"ax",@progbits
         .global __muldf3
 __muldf3:
         pshs    u,y
@@ -103,6 +112,7 @@ __muldf3:
         puls    u,y
         rts
 
+        .section .text.__divdf3,"ax",@progbits
         .global __divdf3
 __divdf3:
         pshs    u,y
@@ -115,6 +125,7 @@ __divdf3:
 
 ; ---- square root (monadic; Y → arg) ----------------------------------------
 
+        .section .text.__sqrtsf2,"ax",@progbits
         .global __sqrtsf2
 __sqrtsf2:
         pshs    u,y
@@ -124,6 +135,7 @@ __sqrtsf2:
         puls    u,y
         rts
 
+        .section .text.__sqrtdf2,"ax",@progbits
         .global __sqrtdf2
 __sqrtdf2:
         pshs    u,y
@@ -140,6 +152,7 @@ __sqrtdf2:
 ; __andsi3/__anddi3 libcall — ~30 bytes per call site. The MC6839 FABS path
 ; is ~8 bytes per call, single ROM dispatch.
 
+        .section .text.__abssf2,"ax",@progbits
         .global __abssf2
 __abssf2:
         pshs    u,y
@@ -149,6 +162,7 @@ __abssf2:
         puls    u,y
         rts
 
+        .section .text.__absdf2,"ax",@progbits
         .global __absdf2
 __absdf2:
         pshs    u,y
@@ -164,6 +178,7 @@ __absdf2:
 ; llvm.fneg.f32 / .f64 (bit-XOR with 0x80000000 / 0x8000000000000000) which
 ; on MC6809 narrows to an i32/i64 __xorsi3/__xordi3 libcall.
 
+        .section .text.__negsf2,"ax",@progbits
         .global __negsf2
 __negsf2:
         pshs    u,y
@@ -173,6 +188,7 @@ __negsf2:
         puls    u,y
         rts
 
+        .section .text.__negdf2,"ax",@progbits
         .global __negdf2
 __negdf2:
         pshs    u,y

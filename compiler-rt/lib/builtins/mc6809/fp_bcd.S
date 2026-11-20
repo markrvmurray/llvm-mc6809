@@ -32,7 +32,9 @@
 ; The standard pshs/lbsr/FCB/puls idiom from fp_arith.S is preserved.
 ; See fp_arith.S for the dispatch-mechanism narrative.
 
-        .text
+; Each entry sits in its own section, so a program linked with
+; --gc-sections carries only the entries it calls.
+
 
 ; Bug #287: opcodes from shared header (single source of truth).
 .include "mc6839_fpops.inc"
@@ -63,6 +65,7 @@
 ;   S+6..7 = k
 ;   S+8..  = val
 
+        .section .text.__mc6839_bindec_f64,"ax",@progbits
         .global __mc6839_bindec_f64
 __mc6839_bindec_f64:
         pshs    u,y                 ; save callee-saved U, Y
@@ -73,6 +76,7 @@ __mc6839_bindec_f64:
         puls    u,y                 ; runs at FPOP+1, restore caller's U,Y
         rts
 
+        .section .text.__mc6839_bindec_f32,"ax",@progbits
         .global __mc6839_bindec_f32
 __mc6839_bindec_f32:
         pshs    u,y
@@ -83,6 +87,7 @@ __mc6839_bindec_f32:
         puls    u,y
         rts
 
+        .section .text.__mc6839_bindec_f64_rz,"ax",@progbits
         .global __mc6839_bindec_f64_rz
 __mc6839_bindec_f64_rz:
         pshs    u,y
@@ -93,6 +98,7 @@ __mc6839_bindec_f64_rz:
         puls    u,y
         rts
 
+        .section .text.__mc6839_bindec_f32_rz,"ax",@progbits
         .global __mc6839_bindec_f32_rz
 __mc6839_bindec_f32_rz:
         pshs    u,y
@@ -118,6 +124,7 @@ __mc6839_bindec_f32_rz:
 ;   S+4..5 = return PC
 ;   S+6..7 = bcd pointer
 
+        .section .text.__mc6839_decbin_f64,"ax",@progbits
         .global __mc6839_decbin_f64
 __mc6839_decbin_f64:
         pshs    u,y
@@ -127,6 +134,7 @@ __mc6839_decbin_f64:
         puls    u,y
         rts
 
+        .section .text.__mc6839_decbin_f32,"ax",@progbits
         .global __mc6839_decbin_f32
 __mc6839_decbin_f32:
         pshs    u,y
