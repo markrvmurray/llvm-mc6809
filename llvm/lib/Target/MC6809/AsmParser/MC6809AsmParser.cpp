@@ -50,15 +50,16 @@ class MC6809Operand : public MCParsedAsmOperand {
 public:
   MC6809Operand() = delete;
   /// Create an immediate MC6809Operand.
-  MC6809Operand(const MC6809Subtarget &STI, const MCExpr *Val, SMLoc S, SMLoc E) : Kind(k_Immediate), Imm(Val), Start(S), End(E) {};
+  MC6809Operand(const MC6809Subtarget &STI, const MCExpr *Val, SMLoc S, SMLoc E) : STI(&STI), Kind(k_Immediate), Imm(Val), Start(S), End(E) {};
   /// Create a register MC6809Operand.
-  MC6809Operand(const MC6809Subtarget &STI, unsigned RegNum, SMLoc S, SMLoc E) : Kind(k_Register), Reg(RegNum), Start(S), End(E) {};
+  MC6809Operand(const MC6809Subtarget &STI, unsigned RegNum, SMLoc S, SMLoc E) : STI(&STI), Kind(k_Register), Reg(RegNum), Start(S), End(E) {};
   /// Create a token MC6809Operand.
-  MC6809Operand(const MC6809Subtarget &STI, StringRef Str, SMLoc S) : Kind(k_Token), Tok(Str), Start(S) {};
+  MC6809Operand(const MC6809Subtarget &STI, StringRef Str, SMLoc S) : STI(&STI), Kind(k_Token), Tok(Str), Start(S) {};
   /// Create a register list MC6809Operand.
-  MC6809Operand(const MC6809Subtarget &STI, SmallVector<unsigned, 8> Regs, SMLoc S, SMLoc E) : Kind(k_RegList), RegListRegs(std::move(Regs)), Start(S), End(E) {};
+  MC6809Operand(const MC6809Subtarget &STI, SmallVector<unsigned, 8> Regs, SMLoc S, SMLoc E) : STI(&STI), Kind(k_RegList), RegListRegs(std::move(Regs)), Start(S), End(E) {};
 
 private:
+  const MC6809Subtarget *STI;
   enum KindTy {
     k_None,
     k_Immediate,
@@ -197,7 +198,39 @@ public:
   }
   bool isAddr16() const { return isImm16(); }
 
-  bool isRegAny() const { return isReg(); }
+  /// A register a register-pair postbyte can name (TFR, EXG, TFM and the
+  /// HD6309 register-register arithmetic): D X Y U S PC A B CC DP, and on
+  /// the HD6309 W V E F and the zero register, written `0`.  Not a
+  /// condition-code flag, Q or MD: they have no postbyte code.
+  bool isRegAny() const {
+    if (isImm()) {
+      const auto *CE = dyn_cast<MCConstantExpr>(getImm());
+      return CE && CE->getValue() == 0 && STI->hasFeature(MC6809::Feature6309);
+    }
+    if (!isReg())
+      return false;
+    switch (getReg()) {
+    case MC6809::AD:
+    case MC6809::IX:
+    case MC6809::IY:
+    case MC6809::SU:
+    case MC6809::SS:
+    case MC6809::PC:
+    case MC6809::AA:
+    case MC6809::AB:
+    case MC6809::CC:
+    case MC6809::DP:
+      return true;
+    case MC6809::AW:
+    case MC6809::AV:
+    case MC6809::AE:
+    case MC6809::AF:
+    case MC6809::A0:
+      return STI->hasFeature(MC6809::Feature6309);
+    default:
+      return false;
+    }
+  }
 
   bool isRegList() const { return is(k_RegList); }
 
@@ -229,7 +262,7 @@ public:
 
   void addRegOperands(MCInst &Inst, unsigned /*N*/) const { Inst.addOperand(MCOperand::createReg(getReg())); }
 
-  void addRegAnyOperands(MCInst &Inst, unsigned /*N*/) const { Inst.addOperand(MCOperand::createReg(getReg())); }
+  void addRegAnyOperands(MCInst &Inst, unsigned /*N*/) const { Inst.addOperand(MCOperand::createReg(isImm() ? MCRegister(MC6809::A0) : getReg())); }
 
   void addRegListOperands(MCInst &Inst, unsigned /*N*/) const {
     assert(Kind == k_RegList && "Unexpected operand kind");
@@ -390,8 +423,23 @@ public:
       return Error(Loc, "operand must be an immediate value");
     case Match_NearMisses:
       return Error(Loc, "found some near misses");
+    case Match_InvalidAnyRegister:
+      return Error(Loc, getSTI().hasFeature(MC6809::Feature6309) ? "operand must be one of d x y u s pc w v a b cc dp e f 0" : "operand must be one of d x y u s pc a b cc dp");
+    case Match_InvalidCondCode:
+      return Error(Loc, "operand must be a condition code from 0 to 15");
+    case Match_InvalidRegList:
+      return Error(Loc, "operand must be a register list");
+    case Match_InvalidPCRel16:
+    case Match_InvalidRel16:
+      return Error(Loc, "operand must be a 16-bit relative address");
+    case Match_InvalidRel8:
+      return Error(Loc, "operand must be an 8-bit relative address");
+    case Match_InvalidRel5:
+      return Error(Loc, "operand must be a 5-bit relative offset");
     default:
-      return true;
+      // Every failure needs a diagnostic: without one the instruction is
+      // dropped and the assembly still succeeds.
+      return Error(Loc, "invalid operand for instruction");
     }
   }
 
