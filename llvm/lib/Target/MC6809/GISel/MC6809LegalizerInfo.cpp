@@ -390,26 +390,8 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
 
   getActionDefinitionsBuilder({G_UMULFIX, G_SMULFIX, G_SMULFIXSAT, G_UMULFIXSAT, G_UDIVFIX, G_SDIVFIX, G_SDIVFIXSAT, G_UDIVFIXSAT, G_FCANONICALIZE}).libcall();
 
-  // G_UMULO uses our custom legalizeMultiplyWithOverflow handler, which
-  // implements unsigned-multiply-with-overflow as
-  //   result   = LHS * RHS
-  //   overflow = LHS > UINT_MAX / max(RHS, 1)
-  // All four sub-operations (G_MUL, G_UDIV, G_UMAX, G_ICMP) bottom out
-  // in libcalls or legal byte-level ops on the supported widths, so the
-  // resulting code is small and avoids the regalloc-pressure problems
-  // of inline expansions like upstream G_UMULO → G_MUL + G_UMULH + G_ICMP
-  // (G_UMULH has no libcall in upstream RTLIB).
-  //
-  // The previous rule used .libcall() for G_UMULO, but LegalizerHelper::
-  // libcall() has no G_UMULO case — so the action was Libcall but the
-  // dispatch returned UnableToLegalize. The custom handler was unreachable
-  // dead code. Closes bug #83 for s8/s16/s32.
-  //
-  // s64 is intentionally NOT in the list. The custom handler would produce
-  // s64 G_MUL/G_UDIV/G_UMAX/G_ICMP intermediates that bottom out in s64
-  // vregs, which MC6809RegisterBankInfo can't classify (it only knows up to
-  // 32 bits). The s64 path needs the broader i64 plumbing — see the
-  // long-long roadmap memory.
+  // Unsigned multiply with overflow (__builtin_mul_overflow, calloc): see
+  // legalizeMultiplyWithOverflow.
   getActionDefinitionsBuilder(G_UMULO).customForCartesianProduct({S8, S16, S32, S64}, {S1}).clampScalar(0, S8, S64);
 
   getActionDefinitionsBuilder({G_MEMCPY, G_MEMCPY_INLINE, G_MEMMOVE, G_MEMSET}).custom();
@@ -1821,6 +1803,16 @@ bool MC6809LegalizerInfo::legalizeFixedDivide(LegalizerHelper &Helper, MachineRe
   return LegalizerHelper::Legalized;
 }
 
+// Unsigned multiply with overflow, for __builtin_mul_overflow (calloc's size
+// check, fread, fwrite). Never with a division: testing a > UINT_MAX / b
+// called __udivhi3 or __udivsi3, which cost more than the multiply checked.
+//
+//   s8   one MUL; the high byte of its product is the overflow.
+//   s16  __umulohi4, three MULs in the runtime library. Inline, the same
+//        three made about 90 instructions of byte shuffling at every site.
+//   s32  the 32-bit multiply it always was, plus a 16-bit check of the cross
+//        product (below).
+//   s64  __umulodi4.
 bool MC6809LegalizerInfo::legalizeMultiplyWithOverflow(LegalizerHelper &Helper, MachineRegisterInfo &MRI, MachineInstr &MI, LostDebugLocObserver &LocObserver) const {
   MachineIRBuilder &MIRBuilder = Helper.MIRBuilder;
 
@@ -1829,63 +1821,61 @@ bool MC6809LegalizerInfo::legalizeMultiplyWithOverflow(LegalizerHelper &Helper, 
   Register MulReg = MI.getOperand(0).getReg();
   Register OverflowReg = MI.getOperand(1).getReg();
   LLT Ty = MRI.getType(MulReg);
+  LLT S1 = LLT::scalar(1), S8 = LLT::scalar(8), S16 = LLT::scalar(16);
 
   Register LHSReg = MI.getOperand(2).getReg();
   Register RHSReg = MI.getOperand(3).getReg();
 
-  if (Ty == LLT::scalar(64)) {
-    // Bug #239: i64 G_UMULO inline-decomposed into G_MUL + G_UDIV +
-    // G_UMAX + G_ICMP exhausts the 5-slot ACC32 register class on
-    // HD6309 -O2/-Og — strtoull / strtoumax / mktime_utc all fail
-    // regalloc. Route to compiler-rt's __umulodi4 (fused 64x64 -> 128
-    // schoolbook with overflow detection on the high half), so the
-    // intermediate i64 vregs live inside the library frame and never
-    // reach the caller's regalloc.
-    //
-    // C signature of __umulodi4:
-    //   uint64_t __umulodi4(uint64_t a, uint64_t b, int *overflow);
-    // returning the low 64 bits via sret-IX and writing the overflow
-    // flag (0 or 1) through the int* arg.
+  if (Ty == S16 || Ty == LLT::scalar(64)) {
+    // T f(T a, T b, int *overflow): the low half of the product returned
+    // (through the sret pointer at 64 bits), the flag stored through the
+    // pointer into a stack temporary and loaded back. Keeping the wide
+    // intermediates inside the library also spares the caller's allocator,
+    // which ran out of 32-bit accumulators on the 6309 at s64.
     MachineFunction &MF = *MI.getMF();
     auto &Ctx = MF.getFunction().getContext();
-    const DataLayout &DL = MIRBuilder.getDataLayout();
-    unsigned AddrSpace = DL.getAllocaAddrSpace();
-
-    // Allocate a stack temporary for the overflow flag. MC6809 'int'
-    // is 16 bits; the runtime writes both bytes via STD. Load back as
-    // s16 then truncate to s1 (= OverflowReg's expected type).
-    LLT TempLLT = LLT::scalar(16);
-    int MemSize = TempLLT.getSizeInBytes();
-    // Byte-aligned like everything else here: the generic helper's
-    // size-based alignment would make the function realign its frame.
+    unsigned AddrSpace = MIRBuilder.getDataLayout().getAllocaAddrSpace();
+    // An int: the runtime stores both bytes. Byte-aligned like everything
+    // else here; the generic size-based alignment would realign the frame.
     Align Alignment(1);
     MachinePointerInfo PtrInfo;
-    Register StackPtrOf = Helper.createStackTemporary(TypeSize::getFixed(MemSize), Alignment, PtrInfo).getReg(0);
-
-    Type *I64Ty = Type::getInt64Ty(Ctx);
-    auto LibcallResult = Helper.createLibcall("__umulodi4", {MulReg, I64Ty, 0}, {{LHSReg, I64Ty, 0}, {RHSReg, I64Ty, 1}, {StackPtrOf, PointerType::get(Ctx, AddrSpace), 2}}, CallingConv::C, LocObserver, &MI);
-
-    if (LibcallResult != LegalizerHelper::Legalized)
+    Register Flag = Helper.createStackTemporary(TypeSize::getFixed(2), Alignment, PtrInfo).getReg(0);
+    Type *IntTy = Type::getIntNTy(Ctx, Ty.getSizeInBits());
+    const char *Name = Ty == S16 ? "__umulohi4" : "__umulodi4";
+    if (Helper.createLibcall(Name, {MulReg, IntTy, 0}, {{LHSReg, IntTy, 0}, {RHSReg, IntTy, 1}, {Flag, PointerType::get(Ctx, AddrSpace), 2}}, CallingConv::C, LocObserver, &MI) != LegalizerHelper::Legalized)
       return false;
-
-    // Load the overflow flag back as i16, truncate to s1.
-    MachineMemOperand *LoadMMO = MF.getMachineMemOperand(PtrInfo, MachineMemOperand::MOLoad, MemSize, Alignment);
-    auto LoadedOf16 = MIRBuilder.buildLoad(TempLLT, StackPtrOf, *LoadMMO);
-    MIRBuilder.buildTrunc(OverflowReg, LoadedOf16);
-
+    MachineMemOperand *LoadMMO = MF.getMachineMemOperand(PtrInfo, MachineMemOperand::MOLoad, 2, Alignment);
+    MIRBuilder.buildTrunc(OverflowReg, MIRBuilder.buildLoad(S16, Flag, *LoadMMO));
     MI.eraseFromParent();
     return LegalizerHelper::Legalized;
   }
 
-  // s8 / s16 / s32 — keep the existing inline 4-op decomposition.
-  // Those widths fit comfortably in ACC8 / ACC16; the regalloc
-  // pressure problem is i64-specific.
+  if (Ty == S8) {
+    auto Product = MIRBuilder.buildUnmerge(S8, MIRBuilder.buildInstr(MC6809::G_EXPAND_MUL, {S16}, {LHSReg, RHSReg}));
+    MIRBuilder.buildCopy(MulReg, Product.getReg(0));
+    MIRBuilder.buildICmp(CmpInst::ICMP_NE, OverflowReg, Product.getReg(1), MIRBuilder.buildConstant(S8, 0));
+    MI.eraseFromParent();
+    return LegalizerHelper::Legalized;
+  }
+
+  // s32, as a = ah:al and b = bh:bl in 16-bit halves. The product overflows
+  // when both high halves are nonzero; otherwise the cross product is the
+  // nonzero high half times the other operand's low half, and it overflows
+  // when that needs more than 16 bits or when adding it into the high half
+  // of al*bl carries -- exactly when the product's high half comes out
+  // below the cross product.
+  assert(Ty == LLT::scalar(32) && "G_UMULO is clamped to s8..s64");
+  auto NonZero = [&](Register R) { return MIRBuilder.buildICmp(CmpInst::ICMP_NE, S1, R, MIRBuilder.buildConstant(S16, 0)).getReg(0); };
+  auto A = MIRBuilder.buildUnmerge(S16, LHSReg);
+  auto C = MIRBuilder.buildUnmerge(S16, RHSReg);
+  Register AL = A.getReg(0), AH = A.getReg(1), BL = C.getReg(0), BH = C.getReg(1);
+  Register AHNonZero = NonZero(AH);
+  Register BothHigh = MIRBuilder.buildAnd(S1, AHNonZero, NonZero(BH)).getReg(0);
   MIRBuilder.buildMul(MulReg, LHSReg, RHSReg);
-
-  auto One = MIRBuilder.buildConstant(Ty, 1);
-  auto Max = MIRBuilder.buildConstant(Ty, APInt::getMaxValue(Ty.getSizeInBits()));
-  MIRBuilder.buildICmp(CmpInst::ICMP_UGT, OverflowReg, LHSReg, MIRBuilder.buildInstr(G_UDIV, {Ty}, {Max, MIRBuilder.buildUMax(Ty, RHSReg, One)}));
-
+  Register Other = MIRBuilder.buildSelect(S16, AHNonZero, BL, AL).getReg(0);
+  auto Cross = MIRBuilder.buildInstr(G_UMULO, {S16, S1}, {MIRBuilder.buildOr(S16, AH, BH), Other});
+  Register Carry = MIRBuilder.buildICmp(CmpInst::ICMP_ULT, S1, MIRBuilder.buildUnmerge(S16, MulReg).getReg(1), Cross.getReg(0)).getReg(0);
+  MIRBuilder.buildOr(OverflowReg, MIRBuilder.buildOr(S1, BothHigh, Cross.getReg(1)), Carry);
   MI.eraseFromParent();
   return LegalizerHelper::Legalized;
 }

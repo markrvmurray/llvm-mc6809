@@ -34,6 +34,10 @@ unchanged since 1.0, code takes 12-20% fewer cycles in all on the 6809 and
   `memcpy` and `memmove` are no longer made to keep a copy of the
   destination they hand back.
 * `memset` stores a word at a time on the 6809 and uses `TFM` on the 6309.
+* `__builtin_mul_overflow`, and with it `calloc`, `fread` and `fwrite`,
+  checks for overflow with multiplies instead of a division: on the 6809
+  about 800 cycles less a check at 16 bits and 3,600 at 32 (440 and 2,700
+  on the 6309), in less code.
 * A program that uses floating point carries only the parts of the
   floating-point support it calls, 240-664 bytes less than before.
 * On OS-9 and in Disk BASIC programs, `-mcpu=hd6309` now links the 6309

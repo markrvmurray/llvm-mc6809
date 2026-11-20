@@ -1143,6 +1143,8 @@ list(APPEND mc6809_SOURCES
   # 64-bit unsigned multiply with overflow (Bug #239) — relieves
   # ACC32 regalloc pressure that otherwise wipes out HD6309 -O2/-Og.
   mc6809/umulodi4.S
+  # 16-bit unsigned multiply with overflow: three MULs, no division.
+  mc6809/umulohi4.S
   # MC6839 FP ROM image — embedded as a relocatable blob. The MC6839 is a
   # position-independent OS-9 module; it lands wherever the linker places
   # the .mc6839_rom section (alongside .text). Exports __fpreg / __fpstak.
