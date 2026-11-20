@@ -116,6 +116,11 @@ MAME remains available for the 6309.
   first character it does not accept, without an error, so a program can open
   or delete the wrong file. Names made of letters, digits, `_` and `.` are
   safe on every version.
+* On NitrOS-9 Level 1, a file open twice does not show what one path wrote
+  to the other: the second path sees only what has reached the disk, and the
+  file's size as it was when that path opened. `fflush` does not change
+  this. Level 1's file manager keeps no common view of a file's open paths;
+  Level 2's does, and behaves as POSIX expects.
 * There is no Windows bundle.
 
 ## 1.0
