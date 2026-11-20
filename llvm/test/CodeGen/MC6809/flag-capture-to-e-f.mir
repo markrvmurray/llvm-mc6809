@@ -1,0 +1,43 @@
+# RUN: llc -mtriple=mc6809 -mcpu=hd6309 -run-pass=mc6809-expand-pseudos \
+# RUN:     -verify-machineinstrs %s -o - | FileCheck %s
+
+# An add whose carry is used as a value carries the byte that receives it as
+# an implicit def. Nothing about an implicit operand constrains its class, so
+# the allocator may widen it to all of ACC8 and choose E or F on the 6309.
+# E and F have no ADC: the carry is captured in B, kept around the capture,
+# and moved across. It used to be left out, and the byte read whatever E
+# held (a 16-bit multiply-with-overflow check missed its carry).
+
+# CHECK-LABEL: name: carry_to_e
+# CHECK:      ADDBi8 1, {{.*}}implicit-def $c
+# CHECK-NEXT: PSHSs $ab
+# CHECK-NEXT: LDBi8 {{.*}}0
+# CHECK-NEXT: ADCBi8 {{.*}}0
+# CHECK-NEXT: $ae = TFRp {{.*}}$ab
+# CHECK-NEXT: $ab = PULSs
+---
+name: carry_to_e
+tracksRegLiveness: true
+body: |
+  bb.0:
+    liveins: $ab
+    $ab = AddSetCarry_i8_Imm $ab, 1, implicit-def $nz, implicit-def $v, implicit-def $c, implicit-def $ae
+    RTSr implicit $ab, implicit $ae
+...
+
+# CHECK-LABEL: name: carry_to_f
+# CHECK:      ADDBi8 1, {{.*}}implicit-def $c
+# CHECK-NEXT: PSHSs {{.*}}$ab
+# CHECK-NEXT: LDBi8 {{.*}}0
+# CHECK-NEXT: ADCBi8 {{.*}}0
+# CHECK-NEXT: $af = TFRp {{.*}}$ab
+# CHECK-NEXT: $ab = PULSs
+---
+name: carry_to_f
+tracksRegLiveness: true
+body: |
+  bb.0:
+    liveins: $ab
+    $ab = AddSetCarry_i8_Imm $ab, 1, implicit-def $nz, implicit-def $v, implicit-def $c, implicit-def $af
+    RTSr implicit $af
+...

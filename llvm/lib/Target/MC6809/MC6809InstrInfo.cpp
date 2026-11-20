@@ -2736,7 +2736,9 @@ bool MC6809InstrInfo::isFlagCaptureTag(const MachineInstr &MI, const MachineOper
   Register Reg = MO.getReg();
   if (Reg.isVirtual())
     return false; // pre-RA: classified by register class, not here
-  if (!MC6809::ACC8_AB_SPRegClass.contains(Reg))
+  // Any byte register: the allocator may widen the tag's class to all of
+  // ACC8, E and F included, since an implicit operand carries no class.
+  if (!MC6809::ACC8RegClass.contains(Reg))
     return false;
   // A byte the descriptor itself declares as an implicit def (the E/F cheat
   // forms) is the producer's own business, not a capture request.
@@ -2774,6 +2776,15 @@ void MC6809InstrInfo::emitFlagCapture(MachineIRBuilder &Builder, MCPhysReg Flag,
     }
   }
 #endif
+  if (DstReg == MC6809::AE || DstReg == MC6809::AF) {
+    // E and F have neither ADC nor the shifts: capture in B, kept, and move
+    // the byte across. Neither the push nor the pull touches the flags.
+    unsigned Pushed = pushStagingReg(Builder, MC6809::AB);
+    emitFlagCapture(Builder, Flag, MC6809::AB);
+    copyPhysReg(Builder.getMBB(), Builder.getInsertPt(), DebugLoc(), DstReg, MC6809::AB, /*KillSrc=*/true);
+    pullStagingReg(Builder, MC6809::AB, Pushed);
+    return;
+  }
   Register RealDst = DstReg;
   bool StageDst = needsMaterialization(DstReg);
   unsigned StagePushed = 0;

@@ -61,7 +61,8 @@ unchanged since 1.0, code takes 12-20% fewer cycles in all on the 6809 and
   bytes; negating a value in E, F or W also added the DP register, which is
   not zero in an OS-9 program; and a failed OS-9 system call could look
   successful, so `fopen` for writing or appending, `statvfs`, `rmdir` and
-  signal delivery all went wrong.
+  signal delivery all went wrong; and a carry or overflow flag kept as a
+  value could be lost when it was given the E or F register.
 * At `-O0`, a branch on the borrow of a subtraction whose result was unused
   tested a stale carry.
 * A reload could be removed, or a value reused, across a store that wrote
