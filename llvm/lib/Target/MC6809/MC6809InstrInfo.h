@@ -413,6 +413,9 @@ private:
   // Control flow pseudos
   // void expandGBR(MachineIRBuilder &Builder) const;
 
+  // Views of the generated IndexedForms table (buildOpcodeMaps).
+  void buildOpcodeMaps();
+
   DenseMap<RegPlusOffsetLen, unsigned> LEAPtrAddImmOpcode;
   DenseMap<RegPlusReg, unsigned> LEAPtrAddRegOpcode;
 
@@ -424,43 +427,32 @@ private:
   DenseMap<Register, unsigned> AddImmediateOpcode;
   DenseMap<RegPlusOffsetLen, unsigned> AddIdxImmOpcode;
   DenseMap<RegPlusReg, unsigned> AddIdxRegOpcode;
-  DenseMap<Register, unsigned> AddPopOpcode;
 
   DenseMap<Register, unsigned> AddCarryImmediateOpcode;
   DenseMap<RegPlusOffsetLen, unsigned> AddCarryIdxImmOpcode;
-  DenseMap<RegPlusReg, unsigned> AddCarryIdxRegOpcode;
-
-  DenseMap<Register, unsigned> AddPullOpcode;
 
   DenseMap<Register, unsigned> SubImmediateOpcode;
   DenseMap<RegPlusOffsetLen, unsigned> SubIdxImmOpcode;
   DenseMap<RegPlusReg, unsigned> SubIdxRegOpcode;
-  DenseMap<Register, unsigned> SubPullOpcode;
 
   DenseMap<Register, unsigned> SubBorrowImmediateOpcode;
   DenseMap<RegPlusOffsetLen, unsigned> SubBorrowIdxImmOpcode;
-  DenseMap<RegPlusReg, unsigned> SubBorrowIdxRegOpcode;
-  // DenseMap<Register, unsigned> SubBorrowPopOpcode;
 
   DenseMap<Register, unsigned> CompareImmediateOpcode;
   DenseMap<RegPlusOffsetLen, unsigned> CompareIdxImmOpcode;
   DenseMap<RegPlusReg, unsigned> CompareIdxRegOpcode;
-  // DenseMap<Register, unsigned> ComparePopOpcode;
 
   DenseMap<Register, unsigned> TestRegOpcode;
 
   DenseMap<Register, unsigned> ANDImmediateOpcode;
   DenseMap<RegPlusOffsetLen, unsigned> ANDIdxImmOpcode;
   DenseMap<RegPlusReg, unsigned> ANDIdxRegOpcode;
-  DenseMap<Register, unsigned> ANDPullOpcode;
   DenseMap<Register, unsigned> ORImmediateOpcode;
   DenseMap<RegPlusOffsetLen, unsigned> ORIdxImmOpcode;
   DenseMap<RegPlusReg, unsigned> ORIdxRegOpcode;
-  DenseMap<Register, unsigned> ORPullOpcode;
   DenseMap<Register, unsigned> XORImmediateOpcode;
   DenseMap<RegPlusOffsetLen, unsigned> XORIdxImmOpcode;
   DenseMap<RegPlusReg, unsigned> XORIdxRegOpcode;
-  DenseMap<Register, unsigned> XORPullOpcode;
 
   struct ContextImmediate {
     DenseMap<Register, unsigned> *Opcode;

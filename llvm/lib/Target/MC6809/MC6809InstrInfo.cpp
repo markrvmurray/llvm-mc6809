@@ -54,9 +54,15 @@ struct IndexedForm {
   unsigned Inst;
   unsigned Family;      // offset into the table's string pool
   uint8_t Form;         // an IdxForm
-  uint16_t IdxValueEnc; // hardware encoding of the loaded/stored register
+  uint16_t IdxValueEnc; // hardware encoding of the register moved or operated on
   uint8_t IdxAccess;    // 0 neither, 1 load, 2 store
+  uint8_t ArithOp;      // an ArithOp, or 0
 };
+// The operation of an arithmetic, logical, compare, LEA or test row
+// (ArithOp in MC6809InstrFormats.td).
+enum ArithOp : uint8_t { OpNone, OpAdd, OpAddCarry, OpSub, OpSubBorrow, OpCompare, OpAnd, OpOr, OpEor, OpLea, OpTest };
+// Forms past IdxForm::Dir, which only the operation lookups use.
+enum : uint8_t { FormRegA = 8, FormRegB, FormRegD, FormRegE, FormRegF, FormRegW, FormImm, FormInherent };
 } // end anonymous namespace
 #define GET_MC6809IndexedForms_DECL
 #define GET_MC6809IndexedForms_IMPL
@@ -64,7 +70,7 @@ struct IndexedForm {
 } // namespace llvm::MC6809
 
 std::optional<MC6809::IdxForm> MC6809InstrInfo::getIdxForm(unsigned Opc) {
-  if (const MC6809::IndexedForm *Row = MC6809::getIndexedForm(Opc))
+  if (const MC6809::IndexedForm *Row = MC6809::getIndexedForm(Opc); Row && Row->Form <= static_cast<unsigned>(MC6809::IdxForm::Dir))
     return static_cast<MC6809::IdxForm>(Row->Form);
   return std::nullopt;
 }
@@ -200,11 +206,12 @@ unsigned MC6809InstrInfo::getIdxSibling(unsigned Opc, MC6809::IdxForm Form) {
   static const DenseMap<std::pair<unsigned, unsigned>, unsigned> Siblings = [] {
     DenseMap<std::pair<unsigned, unsigned>, unsigned> M;
     for (const MC6809::IndexedForm &Row : MC6809::MC6809IndexedForms)
-      M[{Row.Family, Row.Form}] = Row.Inst;
+      if (Row.Form <= static_cast<unsigned>(MC6809::IdxForm::Dir))
+        M[{Row.Family, Row.Form}] = Row.Inst;
     return M;
   }();
   const MC6809::IndexedForm *Row = MC6809::getIndexedForm(Opc);
-  if (!Row)
+  if (!Row || Row->Form > static_cast<unsigned>(MC6809::IdxForm::Dir))
     return 0;
   return Siblings.lookup({Row->Family, static_cast<unsigned>(Form)});
 }
@@ -220,237 +227,128 @@ MC6809InstrInfo::MC6809InstrInfo(const MC6809Subtarget &STI)
     : MC6809GenInstrInfo(STI, RI,
                          /*CFSetupOpcode=*/MC6809::ADJCALLSTACKDOWN,
                          /*CFDestroyOpcode=*/MC6809::ADJCALLSTACKUP) {
+  buildOpcodeMaps();
+}
 
-  LEAPtrAddImmOpcode = {
-      {{MC6809::IX, -1}, MC6809::LEAXi_o16}, {{MC6809::IX, 0}, MC6809::LEAXi_o0}, {{MC6809::IX, 5}, MC6809::LEAXi_o5}, {{MC6809::IX, 8}, MC6809::LEAXi_o8}, {{MC6809::IX, 16}, MC6809::LEAXi_o16},
-      {{MC6809::IY, -1}, MC6809::LEAYi_o16}, {{MC6809::IY, 0}, MC6809::LEAYi_o0}, {{MC6809::IY, 5}, MC6809::LEAYi_o5}, {{MC6809::IY, 8}, MC6809::LEAYi_o8}, {{MC6809::IY, 16}, MC6809::LEAYi_o16},
-      {{MC6809::SU, -1}, MC6809::LEAUi_o16}, {{MC6809::SU, 0}, MC6809::LEAUi_o0}, {{MC6809::SU, 5}, MC6809::LEAUi_o5}, {{MC6809::SU, 8}, MC6809::LEAUi_o8}, {{MC6809::SU, 16}, MC6809::LEAUi_o16},
-      {{MC6809::SS, -1}, MC6809::LEASi_o16}, {{MC6809::SS, 0}, MC6809::LEASi_o0}, {{MC6809::SS, 5}, MC6809::LEASi_o5}, {{MC6809::SS, 8}, MC6809::LEASi_o8}, {{MC6809::SS, 16}, MC6809::LEASi_o16},
-  };
-  LEAPtrAddRegOpcode = {
-      {{MC6809::IX, MC6809::AA}, MC6809::LEAXi_oA}, {{MC6809::IX, MC6809::AB}, MC6809::LEAXi_oB}, {{MC6809::IX, MC6809::AD}, MC6809::LEAXi_oD}, {{MC6809::IX, MC6809::AE}, MC6809::LEAXi_oE}, {{MC6809::IX, MC6809::AF}, MC6809::LEAXi_oF},
-      {{MC6809::IX, MC6809::AW}, MC6809::LEAXi_oW}, {{MC6809::IY, MC6809::AA}, MC6809::LEAYi_oA}, {{MC6809::IY, MC6809::AB}, MC6809::LEAYi_oB}, {{MC6809::IY, MC6809::AD}, MC6809::LEAYi_oD}, {{MC6809::IY, MC6809::AE}, MC6809::LEAYi_oE},
-      {{MC6809::IY, MC6809::AF}, MC6809::LEAYi_oF}, {{MC6809::IY, MC6809::AW}, MC6809::LEAYi_oW}, {{MC6809::SU, MC6809::AA}, MC6809::LEAUi_oA}, {{MC6809::SU, MC6809::AB}, MC6809::LEAUi_oB}, {{MC6809::SU, MC6809::AD}, MC6809::LEAUi_oD},
-      {{MC6809::SU, MC6809::AE}, MC6809::LEAUi_oE}, {{MC6809::SU, MC6809::AF}, MC6809::LEAUi_oF}, {{MC6809::SU, MC6809::AW}, MC6809::LEAUi_oW}, {{MC6809::SS, MC6809::AA}, MC6809::LEASi_oA}, {{MC6809::SS, MC6809::AB}, MC6809::LEASi_oB},
-      {{MC6809::SS, MC6809::AD}, MC6809::LEASi_oD}, {{MC6809::SS, MC6809::AE}, MC6809::LEASi_oE}, {{MC6809::SS, MC6809::AF}, MC6809::LEASi_oF}, {{MC6809::SS, MC6809::AW}, MC6809::LEASi_oW},
-  };
-  LoadImmediateOpcode = {
-      {MC6809::AA, MC6809::LDAi8},  {MC6809::AB, MC6809::LDBi8},  {MC6809::AE, MC6809::LDEi8},  {MC6809::AF, MC6809::LDFi8},  {MC6809::AD, MC6809::LDDi16}, {MC6809::AW, MC6809::LDWi16},
-      {MC6809::AQ, MC6809::LDQi32}, {MC6809::IX, MC6809::LDXi16}, {MC6809::IY, MC6809::LDYi16}, {MC6809::SU, MC6809::LDUi16}, {MC6809::SS, MC6809::LDSi16},
-  };
-  LoadIdxRegOpcode = {
-      {{MC6809::AA, MC6809::AA}, MC6809::LDAi_oA}, {{MC6809::AA, MC6809::AB}, MC6809::LDAi_oB}, {{MC6809::AA, MC6809::AD}, MC6809::LDAi_oD}, {{MC6809::AA, MC6809::AE}, MC6809::LDAi_oE}, {{MC6809::AA, MC6809::AF}, MC6809::LDAi_oF},
-      {{MC6809::AA, MC6809::AW}, MC6809::LDAi_oW}, {{MC6809::AB, MC6809::AA}, MC6809::LDBi_oA}, {{MC6809::AB, MC6809::AB}, MC6809::LDBi_oB}, {{MC6809::AB, MC6809::AD}, MC6809::LDBi_oD}, {{MC6809::AB, MC6809::AE}, MC6809::LDBi_oE},
-      {{MC6809::AB, MC6809::AF}, MC6809::LDBi_oF}, {{MC6809::AB, MC6809::AW}, MC6809::LDBi_oW}, {{MC6809::AD, MC6809::AA}, MC6809::LDDi_oA}, {{MC6809::AD, MC6809::AB}, MC6809::LDDi_oB}, {{MC6809::AD, MC6809::AD}, MC6809::LDDi_oD},
-      {{MC6809::AD, MC6809::AE}, MC6809::LDDi_oE}, {{MC6809::AD, MC6809::AF}, MC6809::LDDi_oF}, {{MC6809::AD, MC6809::AW}, MC6809::LDDi_oW}, {{MC6809::AE, MC6809::AA}, MC6809::LDEi_oA}, {{MC6809::AE, MC6809::AB}, MC6809::LDEi_oB},
-      {{MC6809::AE, MC6809::AD}, MC6809::LDEi_oD}, {{MC6809::AE, MC6809::AE}, MC6809::LDEi_oE}, {{MC6809::AE, MC6809::AF}, MC6809::LDEi_oF}, {{MC6809::AE, MC6809::AW}, MC6809::LDEi_oW}, {{MC6809::AF, MC6809::AA}, MC6809::LDFi_oA},
-      {{MC6809::AF, MC6809::AB}, MC6809::LDFi_oB}, {{MC6809::AF, MC6809::AD}, MC6809::LDFi_oD}, {{MC6809::AF, MC6809::AE}, MC6809::LDFi_oE}, {{MC6809::AF, MC6809::AF}, MC6809::LDFi_oF}, {{MC6809::AF, MC6809::AW}, MC6809::LDFi_oW},
-      {{MC6809::AW, MC6809::AA}, MC6809::LDWi_oA}, {{MC6809::AW, MC6809::AB}, MC6809::LDWi_oB}, {{MC6809::AW, MC6809::AD}, MC6809::LDWi_oD}, {{MC6809::AW, MC6809::AE}, MC6809::LDWi_oE}, {{MC6809::AW, MC6809::AF}, MC6809::LDWi_oF},
-      {{MC6809::AW, MC6809::AW}, MC6809::LDWi_oW}, {{MC6809::AQ, MC6809::AA}, MC6809::LDQi_oA}, {{MC6809::AQ, MC6809::AB}, MC6809::LDQi_oB}, {{MC6809::AQ, MC6809::AD}, MC6809::LDQi_oD}, {{MC6809::AQ, MC6809::AE}, MC6809::LDQi_oE},
-      {{MC6809::AQ, MC6809::AF}, MC6809::LDQi_oF}, {{MC6809::AQ, MC6809::AW}, MC6809::LDQi_oW}, {{MC6809::IX, MC6809::AA}, MC6809::LDXi_oA}, {{MC6809::IX, MC6809::AB}, MC6809::LDXi_oB}, {{MC6809::IX, MC6809::AD}, MC6809::LDXi_oD},
-      {{MC6809::IX, MC6809::AE}, MC6809::LDXi_oE}, {{MC6809::IX, MC6809::AF}, MC6809::LDXi_oF}, {{MC6809::IX, MC6809::AW}, MC6809::LDXi_oW}, {{MC6809::IY, MC6809::AA}, MC6809::LDYi_oA}, {{MC6809::IY, MC6809::AB}, MC6809::LDYi_oB},
-      {{MC6809::IY, MC6809::AD}, MC6809::LDYi_oD}, {{MC6809::IY, MC6809::AE}, MC6809::LDYi_oE}, {{MC6809::IY, MC6809::AF}, MC6809::LDYi_oF}, {{MC6809::IY, MC6809::AW}, MC6809::LDYi_oW}, {{MC6809::SU, MC6809::AA}, MC6809::LDUi_oA},
-      {{MC6809::SU, MC6809::AB}, MC6809::LDUi_oB}, {{MC6809::SU, MC6809::AD}, MC6809::LDUi_oD}, {{MC6809::SU, MC6809::AE}, MC6809::LDUi_oE}, {{MC6809::SU, MC6809::AF}, MC6809::LDUi_oF}, {{MC6809::SU, MC6809::AW}, MC6809::LDUi_oW},
-      {{MC6809::SS, MC6809::AA}, MC6809::LDSi_oA}, {{MC6809::SS, MC6809::AB}, MC6809::LDSi_oB}, {{MC6809::SS, MC6809::AD}, MC6809::LDSi_oD}, {{MC6809::SS, MC6809::AE}, MC6809::LDSi_oE}, {{MC6809::SS, MC6809::AF}, MC6809::LDSi_oF},
-      {{MC6809::SS, MC6809::AW}, MC6809::LDSi_oW},
-  };
-  StoreIdxRegOpcode = {
-      {{MC6809::AA, MC6809::AA}, MC6809::STAi_oA}, {{MC6809::AA, MC6809::AB}, MC6809::STAi_oB}, {{MC6809::AA, MC6809::AD}, MC6809::STAi_oD}, {{MC6809::AA, MC6809::AE}, MC6809::STAi_oE}, {{MC6809::AA, MC6809::AF}, MC6809::STAi_oF},
-      {{MC6809::AA, MC6809::AW}, MC6809::STAi_oW}, {{MC6809::AB, MC6809::AA}, MC6809::STBi_oA}, {{MC6809::AB, MC6809::AB}, MC6809::STBi_oB}, {{MC6809::AB, MC6809::AD}, MC6809::STBi_oD}, {{MC6809::AB, MC6809::AE}, MC6809::STBi_oE},
-      {{MC6809::AB, MC6809::AF}, MC6809::STBi_oF}, {{MC6809::AB, MC6809::AW}, MC6809::STBi_oW}, {{MC6809::AD, MC6809::AA}, MC6809::STDi_oA}, {{MC6809::AD, MC6809::AB}, MC6809::STDi_oB}, {{MC6809::AD, MC6809::AD}, MC6809::STDi_oD},
-      {{MC6809::AD, MC6809::AE}, MC6809::STDi_oE}, {{MC6809::AD, MC6809::AF}, MC6809::STDi_oF}, {{MC6809::AD, MC6809::AW}, MC6809::STDi_oW}, {{MC6809::AE, MC6809::AA}, MC6809::STEi_oA}, {{MC6809::AE, MC6809::AB}, MC6809::STEi_oB},
-      {{MC6809::AE, MC6809::AD}, MC6809::STEi_oD}, {{MC6809::AE, MC6809::AE}, MC6809::STEi_oE}, {{MC6809::AE, MC6809::AF}, MC6809::STEi_oF}, {{MC6809::AE, MC6809::AW}, MC6809::STEi_oW}, {{MC6809::AF, MC6809::AA}, MC6809::STFi_oA},
-      {{MC6809::AF, MC6809::AB}, MC6809::STFi_oB}, {{MC6809::AF, MC6809::AD}, MC6809::STFi_oD}, {{MC6809::AF, MC6809::AE}, MC6809::STFi_oE}, {{MC6809::AF, MC6809::AF}, MC6809::STFi_oF}, {{MC6809::AF, MC6809::AW}, MC6809::STFi_oW},
-      {{MC6809::AW, MC6809::AA}, MC6809::STWi_oA}, {{MC6809::AW, MC6809::AB}, MC6809::STWi_oB}, {{MC6809::AW, MC6809::AD}, MC6809::STWi_oD}, {{MC6809::AW, MC6809::AE}, MC6809::STWi_oE}, {{MC6809::AW, MC6809::AF}, MC6809::STWi_oF},
-      {{MC6809::AW, MC6809::AW}, MC6809::STWi_oW}, {{MC6809::AQ, MC6809::AA}, MC6809::STQi_oA}, {{MC6809::AQ, MC6809::AB}, MC6809::STQi_oB}, {{MC6809::AQ, MC6809::AD}, MC6809::STQi_oD}, {{MC6809::AQ, MC6809::AE}, MC6809::STQi_oE},
-      {{MC6809::AQ, MC6809::AF}, MC6809::STQi_oF}, {{MC6809::AQ, MC6809::AW}, MC6809::STQi_oW}, {{MC6809::IX, MC6809::AA}, MC6809::STXi_oA}, {{MC6809::IX, MC6809::AB}, MC6809::STXi_oB}, {{MC6809::IX, MC6809::AD}, MC6809::STXi_oD},
-      {{MC6809::IX, MC6809::AE}, MC6809::STXi_oE}, {{MC6809::IX, MC6809::AF}, MC6809::STXi_oF}, {{MC6809::IX, MC6809::AW}, MC6809::STXi_oW}, {{MC6809::IY, MC6809::AA}, MC6809::STYi_oA}, {{MC6809::IY, MC6809::AB}, MC6809::STYi_oB},
-      {{MC6809::IY, MC6809::AD}, MC6809::STYi_oD}, {{MC6809::IY, MC6809::AE}, MC6809::STYi_oE}, {{MC6809::IY, MC6809::AF}, MC6809::STYi_oF}, {{MC6809::IY, MC6809::AW}, MC6809::STYi_oW}, {{MC6809::SU, MC6809::AA}, MC6809::STUi_oA},
-      {{MC6809::SU, MC6809::AB}, MC6809::STUi_oB}, {{MC6809::SU, MC6809::AD}, MC6809::STUi_oD}, {{MC6809::SU, MC6809::AE}, MC6809::STUi_oE}, {{MC6809::SU, MC6809::AF}, MC6809::STUi_oF}, {{MC6809::SU, MC6809::AW}, MC6809::STUi_oW},
-      {{MC6809::SS, MC6809::AA}, MC6809::STSi_oA}, {{MC6809::SS, MC6809::AB}, MC6809::STSi_oB}, {{MC6809::SS, MC6809::AD}, MC6809::STSi_oD}, {{MC6809::SS, MC6809::AE}, MC6809::STSi_oE}, {{MC6809::SS, MC6809::AF}, MC6809::STSi_oF},
-      {{MC6809::SS, MC6809::AW}, MC6809::STSi_oW},
-  };
-  AddImmediateOpcode = {
-      {{MC6809::AA}, MC6809::ADDAi8}, {{MC6809::AB}, MC6809::ADDBi8}, {{MC6809::AE}, MC6809::ADDEi8}, {{MC6809::AF}, MC6809::ADDFi8}, {{MC6809::AD}, MC6809::ADDDi16}, {{MC6809::AW}, MC6809::ADDWi16},
-  };
-  AddCarryImmediateOpcode = {
-      {{MC6809::AA}, MC6809::ADCAi8},
-      {{MC6809::AB}, MC6809::ADCBi8},
-      {{MC6809::AD}, MC6809::ADCDi16},
-  };
-  AddIdxImmOpcode = {
-      {{MC6809::AA, -1}, MC6809::ADDAi_o16}, {{MC6809::AA, 0}, MC6809::ADDAi_o0},   {{MC6809::AA, 5}, MC6809::ADDAi_o5},   {{MC6809::AA, 8}, MC6809::ADDAi_o8},   {{MC6809::AA, 16}, MC6809::ADDAi_o16}, {{MC6809::AB, -1}, MC6809::ADDBi_o16},
-      {{MC6809::AB, 0}, MC6809::ADDBi_o0},   {{MC6809::AB, 5}, MC6809::ADDBi_o5},   {{MC6809::AB, 8}, MC6809::ADDBi_o8},   {{MC6809::AB, 16}, MC6809::ADDBi_o16}, {{MC6809::AD, -1}, MC6809::ADDDi_o16}, {{MC6809::AD, 0}, MC6809::ADDDi_o0},
-      {{MC6809::AD, 5}, MC6809::ADDDi_o5},   {{MC6809::AD, 8}, MC6809::ADDDi_o8},   {{MC6809::AD, 16}, MC6809::ADDDi_o16}, {{MC6809::AE, -1}, MC6809::ADDEi_o16}, {{MC6809::AE, 0}, MC6809::ADDEi_o0},   {{MC6809::AE, 5}, MC6809::ADDEi_o5},
-      {{MC6809::AE, 8}, MC6809::ADDEi_o8},   {{MC6809::AE, 16}, MC6809::ADDEi_o16}, {{MC6809::AF, -1}, MC6809::ADDFi_o16}, {{MC6809::AF, 0}, MC6809::ADDFi_o0},   {{MC6809::AF, 5}, MC6809::ADDFi_o5},   {{MC6809::AF, 8}, MC6809::ADDFi_o8},
-      {{MC6809::AF, 16}, MC6809::ADDFi_o16}, {{MC6809::AW, -1}, MC6809::ADDWi_o16}, {{MC6809::AW, 0}, MC6809::ADDWi_o0},   {{MC6809::AW, 5}, MC6809::ADDWi_o5},   {{MC6809::AW, 8}, MC6809::ADDWi_o8},   {{MC6809::AW, 16}, MC6809::ADDWi_o16},
-  };
-  AddCarryIdxImmOpcode = {
-      {{MC6809::AA, -1}, MC6809::ADCAi_o16}, {{MC6809::AA, 0}, MC6809::ADCAi_o0}, {{MC6809::AA, 5}, MC6809::ADCAi_o5}, {{MC6809::AA, 8}, MC6809::ADCAi_o8}, {{MC6809::AA, 16}, MC6809::ADCAi_o16},
-      {{MC6809::AB, -1}, MC6809::ADCBi_o16}, {{MC6809::AB, 0}, MC6809::ADCBi_o0}, {{MC6809::AB, 5}, MC6809::ADCBi_o5}, {{MC6809::AB, 8}, MC6809::ADCBi_o8}, {{MC6809::AB, 16}, MC6809::ADCBi_o16},
-      {{MC6809::AD, -1}, MC6809::ADCDi_o16}, {{MC6809::AD, 0}, MC6809::ADCDi_o0}, {{MC6809::AD, 5}, MC6809::ADCDi_o5}, {{MC6809::AD, 8}, MC6809::ADCDi_o8}, {{MC6809::AD, 16}, MC6809::ADCDi_o16},
-  };
-  AddIdxRegOpcode = {
-      {{MC6809::AA, MC6809::AA}, MC6809::ADDAi_oA}, {{MC6809::AA, MC6809::AB}, MC6809::ADDAi_oB}, {{MC6809::AA, MC6809::AD}, MC6809::ADDAi_oD}, {{MC6809::AA, MC6809::AE}, MC6809::ADDAi_oE}, {{MC6809::AA, MC6809::AF}, MC6809::ADDAi_oF},
-      {{MC6809::AA, MC6809::AW}, MC6809::ADDAi_oW}, {{MC6809::AB, MC6809::AA}, MC6809::ADDBi_oA}, {{MC6809::AB, MC6809::AB}, MC6809::ADDBi_oB}, {{MC6809::AB, MC6809::AD}, MC6809::ADDBi_oD}, {{MC6809::AB, MC6809::AE}, MC6809::ADDBi_oE},
-      {{MC6809::AB, MC6809::AF}, MC6809::ADDBi_oF}, {{MC6809::AB, MC6809::AW}, MC6809::ADDBi_oW}, {{MC6809::AD, MC6809::AA}, MC6809::ADDDi_oA}, {{MC6809::AD, MC6809::AB}, MC6809::ADDDi_oB}, {{MC6809::AD, MC6809::AD}, MC6809::ADDDi_oD},
-      {{MC6809::AD, MC6809::AE}, MC6809::ADDDi_oE}, {{MC6809::AD, MC6809::AF}, MC6809::ADDDi_oF}, {{MC6809::AD, MC6809::AW}, MC6809::ADDDi_oW}, {{MC6809::AE, MC6809::AA}, MC6809::ADDEi_oA}, {{MC6809::AE, MC6809::AB}, MC6809::ADDEi_oB},
-      {{MC6809::AE, MC6809::AD}, MC6809::ADDEi_oD}, {{MC6809::AE, MC6809::AE}, MC6809::ADDEi_oE}, {{MC6809::AE, MC6809::AF}, MC6809::ADDEi_oF}, {{MC6809::AE, MC6809::AW}, MC6809::ADDEi_oW}, {{MC6809::AF, MC6809::AA}, MC6809::ADDFi_oA},
-      {{MC6809::AF, MC6809::AB}, MC6809::ADDFi_oB}, {{MC6809::AF, MC6809::AD}, MC6809::ADDFi_oD}, {{MC6809::AF, MC6809::AE}, MC6809::ADDFi_oE}, {{MC6809::AF, MC6809::AF}, MC6809::ADDFi_oF}, {{MC6809::AF, MC6809::AW}, MC6809::ADDFi_oW},
-      {{MC6809::AW, MC6809::AA}, MC6809::ADDWi_oA}, {{MC6809::AW, MC6809::AB}, MC6809::ADDWi_oB}, {{MC6809::AW, MC6809::AD}, MC6809::ADDWi_oD}, {{MC6809::AW, MC6809::AE}, MC6809::ADDWi_oE}, {{MC6809::AW, MC6809::AF}, MC6809::ADDWi_oF},
-      {{MC6809::AW, MC6809::AW}, MC6809::ADDWi_oW},
-  };
-  AddCarryIdxRegOpcode = {
-      {{MC6809::AA, MC6809::AA}, MC6809::ADCAi_oA}, {{MC6809::AA, MC6809::AB}, MC6809::ADCAi_oB}, {{MC6809::AA, MC6809::AD}, MC6809::ADCAi_oD}, {{MC6809::AA, MC6809::AE}, MC6809::ADCAi_oE}, {{MC6809::AA, MC6809::AF}, MC6809::ADCAi_oF},
-      {{MC6809::AA, MC6809::AW}, MC6809::ADCAi_oW}, {{MC6809::AB, MC6809::AA}, MC6809::ADCBi_oA}, {{MC6809::AB, MC6809::AB}, MC6809::ADCBi_oB}, {{MC6809::AB, MC6809::AD}, MC6809::ADCBi_oD}, {{MC6809::AB, MC6809::AE}, MC6809::ADCBi_oE},
-      {{MC6809::AB, MC6809::AF}, MC6809::ADCBi_oF}, {{MC6809::AB, MC6809::AW}, MC6809::ADCBi_oW}, {{MC6809::AD, MC6809::AA}, MC6809::ADCDi_oA}, {{MC6809::AD, MC6809::AB}, MC6809::ADCDi_oB}, {{MC6809::AD, MC6809::AD}, MC6809::ADCDi_oD},
-      {{MC6809::AD, MC6809::AE}, MC6809::ADCDi_oE}, {{MC6809::AD, MC6809::AF}, MC6809::ADCDi_oF}, {{MC6809::AD, MC6809::AW}, MC6809::ADCDi_oW},
-  };
-  SubBorrowImmediateOpcode = {
-      {{MC6809::AA}, MC6809::SBCAi8},
-      {{MC6809::AB}, MC6809::SBCBi8},
-      {{MC6809::AD}, MC6809::SBCDi16},
-  };
-  SubImmediateOpcode = {
-      {{MC6809::AA}, MC6809::SUBAi8}, {{MC6809::AB}, MC6809::SUBBi8}, {{MC6809::AE}, MC6809::SUBEi8}, {{MC6809::AF}, MC6809::SUBFi8}, {{MC6809::AD}, MC6809::SUBDi16}, {{MC6809::AW}, MC6809::SUBWi16},
-  };
-  SubIdxImmOpcode = {
-      {{MC6809::AA, -1}, MC6809::SUBAi_o16}, {{MC6809::AA, 0}, MC6809::SUBAi_o0},   {{MC6809::AA, 5}, MC6809::SUBAi_o5},   {{MC6809::AA, 8}, MC6809::SUBAi_o8},   {{MC6809::AA, 16}, MC6809::SUBAi_o16}, {{MC6809::AB, -1}, MC6809::SUBBi_o16},
-      {{MC6809::AB, 0}, MC6809::SUBBi_o0},   {{MC6809::AB, 5}, MC6809::SUBBi_o5},   {{MC6809::AB, 8}, MC6809::SUBBi_o8},   {{MC6809::AB, 16}, MC6809::SUBBi_o16}, {{MC6809::AD, -1}, MC6809::SUBDi_o16}, {{MC6809::AD, 0}, MC6809::SUBDi_o0},
-      {{MC6809::AD, 5}, MC6809::SUBDi_o5},   {{MC6809::AD, 8}, MC6809::SUBDi_o8},   {{MC6809::AD, 16}, MC6809::SUBDi_o16}, {{MC6809::AE, -1}, MC6809::SUBEi_o16}, {{MC6809::AE, 0}, MC6809::SUBEi_o0},   {{MC6809::AE, 5}, MC6809::SUBEi_o5},
-      {{MC6809::AE, 8}, MC6809::SUBEi_o8},   {{MC6809::AE, 16}, MC6809::SUBEi_o16}, {{MC6809::AF, -1}, MC6809::SUBFi_o16}, {{MC6809::AF, 0}, MC6809::SUBFi_o0},   {{MC6809::AF, 5}, MC6809::SUBFi_o5},   {{MC6809::AF, 8}, MC6809::SUBFi_o8},
-      {{MC6809::AF, 16}, MC6809::SUBFi_o16}, {{MC6809::AW, -1}, MC6809::SUBWi_o16}, {{MC6809::AW, 0}, MC6809::SUBWi_o0},   {{MC6809::AW, 5}, MC6809::SUBWi_o5},   {{MC6809::AW, 8}, MC6809::SUBWi_o8},   {{MC6809::AW, 16}, MC6809::SUBWi_o16},
-  };
-  SubBorrowIdxImmOpcode = {
-      {{MC6809::AA, -1}, MC6809::SBCAi_o16}, {{MC6809::AA, 0}, MC6809::SBCAi_o0}, {{MC6809::AA, 5}, MC6809::SBCAi_o5}, {{MC6809::AA, 8}, MC6809::SBCAi_o8}, {{MC6809::AA, 16}, MC6809::SBCAi_o16},
-      {{MC6809::AB, -1}, MC6809::SBCBi_o16}, {{MC6809::AB, 0}, MC6809::SBCBi_o0}, {{MC6809::AB, 5}, MC6809::SBCBi_o5}, {{MC6809::AB, 8}, MC6809::SBCBi_o8}, {{MC6809::AB, 16}, MC6809::SBCBi_o16},
-      {{MC6809::AD, -1}, MC6809::SBCDi_o16}, {{MC6809::AD, 0}, MC6809::SBCDi_o0}, {{MC6809::AD, 5}, MC6809::SBCDi_o5}, {{MC6809::AD, 8}, MC6809::SBCDi_o8}, {{MC6809::AD, 16}, MC6809::SBCDi_o16},
-  };
-  SubIdxRegOpcode = {
-      {{MC6809::AA, MC6809::AA}, MC6809::SUBAi_oA}, {{MC6809::AA, MC6809::AB}, MC6809::SUBAi_oB}, {{MC6809::AA, MC6809::AD}, MC6809::SUBAi_oD}, {{MC6809::AA, MC6809::AE}, MC6809::SUBAi_oE}, {{MC6809::AA, MC6809::AF}, MC6809::SUBAi_oF},
-      {{MC6809::AA, MC6809::AW}, MC6809::SUBAi_oW}, {{MC6809::AB, MC6809::AA}, MC6809::SUBBi_oA}, {{MC6809::AB, MC6809::AB}, MC6809::SUBBi_oB}, {{MC6809::AB, MC6809::AD}, MC6809::SUBBi_oD}, {{MC6809::AB, MC6809::AE}, MC6809::SUBBi_oE},
-      {{MC6809::AB, MC6809::AF}, MC6809::SUBBi_oF}, {{MC6809::AB, MC6809::AW}, MC6809::SUBBi_oW}, {{MC6809::AD, MC6809::AA}, MC6809::SUBDi_oA}, {{MC6809::AD, MC6809::AB}, MC6809::SUBDi_oB}, {{MC6809::AD, MC6809::AD}, MC6809::SUBDi_oD},
-      {{MC6809::AD, MC6809::AE}, MC6809::SUBDi_oE}, {{MC6809::AD, MC6809::AF}, MC6809::SUBDi_oF}, {{MC6809::AD, MC6809::AW}, MC6809::SUBDi_oW}, {{MC6809::AE, MC6809::AA}, MC6809::SUBEi_oA}, {{MC6809::AE, MC6809::AB}, MC6809::SUBEi_oB},
-      {{MC6809::AE, MC6809::AD}, MC6809::SUBEi_oD}, {{MC6809::AE, MC6809::AE}, MC6809::SUBEi_oE}, {{MC6809::AE, MC6809::AF}, MC6809::SUBEi_oF}, {{MC6809::AE, MC6809::AW}, MC6809::SUBEi_oW}, {{MC6809::AF, MC6809::AA}, MC6809::SUBFi_oA},
-      {{MC6809::AF, MC6809::AB}, MC6809::SUBFi_oB}, {{MC6809::AF, MC6809::AD}, MC6809::SUBFi_oD}, {{MC6809::AF, MC6809::AE}, MC6809::SUBFi_oE}, {{MC6809::AF, MC6809::AF}, MC6809::SUBFi_oF}, {{MC6809::AF, MC6809::AW}, MC6809::SUBFi_oW},
-      {{MC6809::AW, MC6809::AA}, MC6809::SUBWi_oA}, {{MC6809::AW, MC6809::AB}, MC6809::SUBWi_oB}, {{MC6809::AW, MC6809::AD}, MC6809::SUBWi_oD}, {{MC6809::AW, MC6809::AE}, MC6809::SUBWi_oE}, {{MC6809::AW, MC6809::AF}, MC6809::SUBWi_oF},
-      {{MC6809::AW, MC6809::AW}, MC6809::SUBWi_oW},
-  };
-  AddPullOpcode = {
-      {{MC6809::AA}, MC6809::ADDAi_Inc1}, {{MC6809::AB}, MC6809::ADDBi_Inc1}, {{MC6809::AE}, MC6809::ADDEi_Inc1}, {{MC6809::AF}, MC6809::ADDFi_Inc1}, {{MC6809::AD}, MC6809::ADDDi_Inc2}, {{MC6809::AW}, MC6809::ADDWi_Inc2},
-  };
-  SubPullOpcode = {
-      {{MC6809::AA}, MC6809::SUBAi_Inc1}, {{MC6809::AB}, MC6809::SUBBi_Inc1}, {{MC6809::AE}, MC6809::SUBEi_Inc1}, {{MC6809::AF}, MC6809::SUBFi_Inc1}, {{MC6809::AD}, MC6809::SUBDi_Inc2}, {{MC6809::AW}, MC6809::SUBWi_Inc2},
-  };
-  SubBorrowImmediateOpcode = {
-      {{MC6809::AA}, MC6809::SBCAi8},
-      {{MC6809::AB}, MC6809::SBCBi8},
-      {{MC6809::AD}, MC6809::SBCDi16},
-  };
-  SubBorrowIdxImmOpcode = {
-      {{MC6809::AA, -1}, MC6809::SBCAi_o16}, {{MC6809::AA, 0}, MC6809::SBCAi_o0}, {{MC6809::AA, 5}, MC6809::SBCAi_o5}, {{MC6809::AA, 8}, MC6809::SBCAi_o8}, {{MC6809::AA, 16}, MC6809::SBCAi_o16},
-      {{MC6809::AB, -1}, MC6809::SBCBi_o16}, {{MC6809::AB, 0}, MC6809::SBCBi_o0}, {{MC6809::AB, 5}, MC6809::SBCBi_o5}, {{MC6809::AB, 8}, MC6809::SBCBi_o8}, {{MC6809::AB, 16}, MC6809::SBCBi_o16},
-      {{MC6809::AD, -1}, MC6809::SBCDi_o16}, {{MC6809::AD, 0}, MC6809::SBCDi_o0}, {{MC6809::AD, 5}, MC6809::SBCDi_o5}, {{MC6809::AD, 8}, MC6809::SBCDi_o8}, {{MC6809::AD, 16}, MC6809::SBCDi_o16},
-  };
-  SubBorrowIdxRegOpcode = {
-      {{MC6809::AA, MC6809::AA}, MC6809::SBCAi_oA}, {{MC6809::AA, MC6809::AB}, MC6809::SBCAi_oB}, {{MC6809::AA, MC6809::AD}, MC6809::SBCAi_oD}, {{MC6809::AA, MC6809::AE}, MC6809::SBCAi_oE}, {{MC6809::AA, MC6809::AF}, MC6809::SBCAi_oF},
-      {{MC6809::AA, MC6809::AW}, MC6809::SBCAi_oW}, {{MC6809::AB, MC6809::AA}, MC6809::SBCBi_oA}, {{MC6809::AB, MC6809::AB}, MC6809::SBCBi_oB}, {{MC6809::AB, MC6809::AD}, MC6809::SBCBi_oD}, {{MC6809::AB, MC6809::AE}, MC6809::SBCBi_oE},
-      {{MC6809::AB, MC6809::AF}, MC6809::SBCBi_oF}, {{MC6809::AB, MC6809::AW}, MC6809::SBCBi_oW}, {{MC6809::AD, MC6809::AA}, MC6809::SBCDi_oA}, {{MC6809::AD, MC6809::AB}, MC6809::SBCDi_oB}, {{MC6809::AD, MC6809::AD}, MC6809::SBCDi_oD},
-      {{MC6809::AD, MC6809::AE}, MC6809::SBCDi_oE}, {{MC6809::AD, MC6809::AF}, MC6809::SBCDi_oF}, {{MC6809::AD, MC6809::AW}, MC6809::SBCDi_oW},
-  };
-  CompareIdxImmOpcode = {
-      {{MC6809::AA, -1}, MC6809::CMPAi_o16}, {{MC6809::AA, 0}, MC6809::CMPAi_o0},   {{MC6809::AA, 5}, MC6809::CMPAi_o5},   {{MC6809::AA, 8}, MC6809::CMPAi_o8},   {{MC6809::AA, 16}, MC6809::CMPAi_o16}, {{MC6809::AB, -1}, MC6809::CMPBi_o16},
-      {{MC6809::AB, 0}, MC6809::CMPBi_o0},   {{MC6809::AB, 5}, MC6809::CMPBi_o5},   {{MC6809::AB, 8}, MC6809::CMPBi_o8},   {{MC6809::AB, 16}, MC6809::CMPBi_o16}, {{MC6809::AD, -1}, MC6809::CMPDi_o16}, {{MC6809::AD, 0}, MC6809::CMPDi_o0},
-      {{MC6809::AD, 5}, MC6809::CMPDi_o5},   {{MC6809::AD, 8}, MC6809::CMPDi_o8},   {{MC6809::AD, 16}, MC6809::CMPDi_o16}, {{MC6809::AE, -1}, MC6809::CMPEi_o16}, {{MC6809::AE, 0}, MC6809::CMPEi_o0},   {{MC6809::AE, 5}, MC6809::CMPEi_o5},
-      {{MC6809::AE, 8}, MC6809::CMPEi_o8},   {{MC6809::AE, 16}, MC6809::CMPEi_o16}, {{MC6809::AF, -1}, MC6809::CMPFi_o16}, {{MC6809::AF, 0}, MC6809::CMPFi_o0},   {{MC6809::AF, 5}, MC6809::CMPFi_o5},   {{MC6809::AF, 8}, MC6809::CMPFi_o8},
-      {{MC6809::AF, 16}, MC6809::CMPFi_o16}, {{MC6809::AW, -1}, MC6809::CMPWi_o16}, {{MC6809::AW, 0}, MC6809::CMPWi_o0},   {{MC6809::AW, 5}, MC6809::CMPWi_o5},   {{MC6809::AW, 8}, MC6809::CMPWi_o8},   {{MC6809::AW, 16}, MC6809::CMPWi_o16},
-      {{MC6809::IX, -1}, MC6809::CMPXi_o16}, {{MC6809::IX, 0}, MC6809::CMPXi_o0},   {{MC6809::IX, 5}, MC6809::CMPXi_o5},   {{MC6809::IX, 8}, MC6809::CMPXi_o8},   {{MC6809::IX, 16}, MC6809::CMPXi_o16}, {{MC6809::IY, -1}, MC6809::CMPYi_o16},
-      {{MC6809::IY, 0}, MC6809::CMPYi_o0},   {{MC6809::IY, 5}, MC6809::CMPYi_o5},   {{MC6809::IY, 8}, MC6809::CMPYi_o8},   {{MC6809::IY, 16}, MC6809::CMPYi_o16}, {{MC6809::SU, -1}, MC6809::CMPUi_o16}, {{MC6809::SU, 0}, MC6809::CMPUi_o0},
-      {{MC6809::SU, 5}, MC6809::CMPUi_o5},   {{MC6809::SU, 8}, MC6809::CMPUi_o8},   {{MC6809::SU, 16}, MC6809::CMPUi_o16},
-  };
-  CompareIdxRegOpcode = {
-      {{MC6809::AA, MC6809::AA}, MC6809::CMPAi_oA}, {{MC6809::AA, MC6809::AB}, MC6809::CMPAi_oB}, {{MC6809::AA, MC6809::AD}, MC6809::CMPAi_oD}, {{MC6809::AA, MC6809::AE}, MC6809::CMPAi_oE}, {{MC6809::AA, MC6809::AF}, MC6809::CMPAi_oF},
-      {{MC6809::AA, MC6809::AW}, MC6809::CMPAi_oW}, {{MC6809::AB, MC6809::AA}, MC6809::CMPBi_oA}, {{MC6809::AB, MC6809::AB}, MC6809::CMPBi_oB}, {{MC6809::AB, MC6809::AD}, MC6809::CMPBi_oD}, {{MC6809::AB, MC6809::AE}, MC6809::CMPBi_oE},
-      {{MC6809::AB, MC6809::AF}, MC6809::CMPBi_oF}, {{MC6809::AB, MC6809::AW}, MC6809::CMPBi_oW}, {{MC6809::AD, MC6809::AA}, MC6809::CMPDi_oA}, {{MC6809::AD, MC6809::AB}, MC6809::CMPDi_oB}, {{MC6809::AD, MC6809::AD}, MC6809::CMPDi_oD},
-      {{MC6809::AD, MC6809::AE}, MC6809::CMPDi_oE}, {{MC6809::AD, MC6809::AF}, MC6809::CMPDi_oF}, {{MC6809::AD, MC6809::AW}, MC6809::CMPDi_oW}, {{MC6809::AE, MC6809::AA}, MC6809::CMPEi_oA}, {{MC6809::AE, MC6809::AB}, MC6809::CMPEi_oB},
-      {{MC6809::AE, MC6809::AD}, MC6809::CMPEi_oD}, {{MC6809::AE, MC6809::AE}, MC6809::CMPEi_oE}, {{MC6809::AE, MC6809::AF}, MC6809::CMPEi_oF}, {{MC6809::AE, MC6809::AW}, MC6809::CMPEi_oW}, {{MC6809::AF, MC6809::AA}, MC6809::CMPFi_oA},
-      {{MC6809::AF, MC6809::AB}, MC6809::CMPFi_oB}, {{MC6809::AF, MC6809::AD}, MC6809::CMPFi_oD}, {{MC6809::AF, MC6809::AE}, MC6809::CMPFi_oE}, {{MC6809::AF, MC6809::AF}, MC6809::CMPFi_oF}, {{MC6809::AF, MC6809::AW}, MC6809::CMPFi_oW},
-      {{MC6809::AW, MC6809::AA}, MC6809::CMPWi_oA}, {{MC6809::AW, MC6809::AB}, MC6809::CMPWi_oB}, {{MC6809::AW, MC6809::AD}, MC6809::CMPWi_oD}, {{MC6809::AW, MC6809::AE}, MC6809::CMPWi_oE}, {{MC6809::AW, MC6809::AF}, MC6809::CMPWi_oF},
-      {{MC6809::AW, MC6809::AW}, MC6809::CMPWi_oW}, {{MC6809::IX, MC6809::AA}, MC6809::CMPXi_oA}, {{MC6809::IX, MC6809::AB}, MC6809::CMPXi_oB}, {{MC6809::IX, MC6809::AD}, MC6809::CMPXi_oD}, {{MC6809::IX, MC6809::AE}, MC6809::CMPXi_oE},
-      {{MC6809::IX, MC6809::AF}, MC6809::CMPXi_oF}, {{MC6809::IX, MC6809::AW}, MC6809::CMPXi_oW}, {{MC6809::IY, MC6809::AA}, MC6809::CMPYi_oA}, {{MC6809::IY, MC6809::AB}, MC6809::CMPYi_oB}, {{MC6809::IY, MC6809::AD}, MC6809::CMPYi_oD},
-      {{MC6809::IY, MC6809::AE}, MC6809::CMPYi_oE}, {{MC6809::IY, MC6809::AF}, MC6809::CMPYi_oF}, {{MC6809::IY, MC6809::AW}, MC6809::CMPYi_oW}, {{MC6809::SU, MC6809::AA}, MC6809::CMPUi_oA}, {{MC6809::SU, MC6809::AB}, MC6809::CMPUi_oB},
-      {{MC6809::SU, MC6809::AD}, MC6809::CMPUi_oD}, {{MC6809::SU, MC6809::AE}, MC6809::CMPUi_oE}, {{MC6809::SU, MC6809::AF}, MC6809::CMPUi_oF}, {{MC6809::SU, MC6809::AW}, MC6809::CMPUi_oW},
-  };
-  CompareImmediateOpcode = {
-      {{MC6809::AA}, MC6809::CMPAi8},  {{MC6809::AB}, MC6809::CMPBi8},  {{MC6809::AE}, MC6809::CMPEi8},  {{MC6809::AF}, MC6809::CMPFi8},  {{MC6809::AD}, MC6809::CMPDi16},
-      {{MC6809::AW}, MC6809::CMPWi16}, {{MC6809::IX}, MC6809::CMPXi16}, {{MC6809::IY}, MC6809::CMPYi16}, {{MC6809::SU}, MC6809::CMPUi16}, {{MC6809::SS}, MC6809::CMPSi16},
-  };
-  TestRegOpcode = {
-      {{MC6809::AA}, MC6809::TSTAa}, {{MC6809::AB}, MC6809::TSTBa}, {{MC6809::AE}, MC6809::TSTEa}, {{MC6809::AF}, MC6809::TSTFa}, {{MC6809::AD}, MC6809::TSTDa}, {{MC6809::AW}, MC6809::TSTWa},
-  };
-  ANDImmediateOpcode = {
-      {{MC6809::AA}, MC6809::ANDAi8},
-      {{MC6809::AB}, MC6809::ANDBi8},
-      {{MC6809::AD}, MC6809::ANDDi16},
-  };
-  ANDIdxImmOpcode = {
-      {{MC6809::AA, -1}, MC6809::ANDAi_o16}, {{MC6809::AA, 0}, MC6809::ANDAi_o0}, {{MC6809::AA, 5}, MC6809::ANDAi_o5}, {{MC6809::AA, 8}, MC6809::ANDAi_o8}, {{MC6809::AA, 16}, MC6809::ANDAi_o16},
-      {{MC6809::AB, -1}, MC6809::ANDBi_o16}, {{MC6809::AB, 0}, MC6809::ANDBi_o0}, {{MC6809::AB, 5}, MC6809::ANDBi_o5}, {{MC6809::AB, 8}, MC6809::ANDBi_o8}, {{MC6809::AB, 16}, MC6809::ANDBi_o16},
-      {{MC6809::AD, -1}, MC6809::ANDDi_o16}, {{MC6809::AD, 0}, MC6809::ANDDi_o0}, {{MC6809::AD, 5}, MC6809::ANDDi_o5}, {{MC6809::AD, 8}, MC6809::ANDDi_o8}, {{MC6809::AD, 16}, MC6809::ANDDi_o16},
-  };
-  ANDIdxRegOpcode = {
-      {{MC6809::AA, MC6809::AA}, MC6809::ANDAi_oA}, {{MC6809::AA, MC6809::AB}, MC6809::ANDAi_oB}, {{MC6809::AA, MC6809::AD}, MC6809::ANDAi_oD}, {{MC6809::AA, MC6809::AE}, MC6809::ANDAi_oE}, {{MC6809::AA, MC6809::AF}, MC6809::ANDAi_oF},
-      {{MC6809::AA, MC6809::AW}, MC6809::ANDAi_oW}, {{MC6809::AB, MC6809::AA}, MC6809::ANDBi_oA}, {{MC6809::AB, MC6809::AB}, MC6809::ANDBi_oB}, {{MC6809::AB, MC6809::AD}, MC6809::ANDBi_oD}, {{MC6809::AB, MC6809::AE}, MC6809::ANDBi_oE},
-      {{MC6809::AB, MC6809::AF}, MC6809::ANDBi_oF}, {{MC6809::AB, MC6809::AW}, MC6809::ANDBi_oW}, {{MC6809::AD, MC6809::AA}, MC6809::ANDDi_oA}, {{MC6809::AD, MC6809::AB}, MC6809::ANDDi_oB}, {{MC6809::AD, MC6809::AD}, MC6809::ANDDi_oD},
-      {{MC6809::AD, MC6809::AE}, MC6809::ANDDi_oE}, {{MC6809::AD, MC6809::AF}, MC6809::ANDDi_oF}, {{MC6809::AD, MC6809::AW}, MC6809::ANDDi_oW},
-  };
-  ANDPullOpcode = {
-      {{MC6809::AA}, MC6809::ANDAi_Inc1},
-      {{MC6809::AB}, MC6809::ANDBi_Inc1},
-      {{MC6809::AD}, MC6809::ANDDi_Inc2},
-  };
-  ORImmediateOpcode = {
-      {{MC6809::AA}, MC6809::ORAi8},
-      {{MC6809::AB}, MC6809::ORBi8},
-      {{MC6809::AD}, MC6809::ORDi16},
-  };
-  ORIdxImmOpcode = {
-      {{MC6809::AA, -1}, MC6809::ORAi_o16}, {{MC6809::AA, 0}, MC6809::ORAi_o0}, {{MC6809::AA, 5}, MC6809::ORAi_o5}, {{MC6809::AA, 8}, MC6809::ORAi_o8}, {{MC6809::AA, 16}, MC6809::ORAi_o16},
-      {{MC6809::AB, -1}, MC6809::ORBi_o16}, {{MC6809::AB, 0}, MC6809::ORBi_o0}, {{MC6809::AB, 5}, MC6809::ORBi_o5}, {{MC6809::AB, 8}, MC6809::ORBi_o8}, {{MC6809::AB, 16}, MC6809::ORBi_o16},
-      {{MC6809::AD, -1}, MC6809::ORDi_o16}, {{MC6809::AD, 0}, MC6809::ORDi_o0}, {{MC6809::AD, 5}, MC6809::ORDi_o5}, {{MC6809::AD, 8}, MC6809::ORDi_o8}, {{MC6809::AD, 16}, MC6809::ORDi_o16},
-  };
-  ORIdxRegOpcode = {
-      {{MC6809::AA, MC6809::AA}, MC6809::ORAi_oA}, {{MC6809::AA, MC6809::AB}, MC6809::ORAi_oB}, {{MC6809::AA, MC6809::AD}, MC6809::ORAi_oD}, {{MC6809::AA, MC6809::AE}, MC6809::ORAi_oE}, {{MC6809::AA, MC6809::AF}, MC6809::ORAi_oF},
-      {{MC6809::AA, MC6809::AW}, MC6809::ORAi_oW}, {{MC6809::AB, MC6809::AA}, MC6809::ORBi_oA}, {{MC6809::AB, MC6809::AB}, MC6809::ORBi_oB}, {{MC6809::AB, MC6809::AD}, MC6809::ORBi_oD}, {{MC6809::AB, MC6809::AE}, MC6809::ORBi_oE},
-      {{MC6809::AB, MC6809::AF}, MC6809::ORBi_oF}, {{MC6809::AB, MC6809::AW}, MC6809::ORBi_oW}, {{MC6809::AD, MC6809::AA}, MC6809::ORDi_oA}, {{MC6809::AD, MC6809::AB}, MC6809::ORDi_oB}, {{MC6809::AD, MC6809::AD}, MC6809::ORDi_oD},
-      {{MC6809::AD, MC6809::AE}, MC6809::ORDi_oE}, {{MC6809::AD, MC6809::AF}, MC6809::ORDi_oF}, {{MC6809::AD, MC6809::AW}, MC6809::ORDi_oW},
-  };
-  ORPullOpcode = {
-      {{MC6809::AA}, MC6809::ORAi_Inc1},
-      {{MC6809::AB}, MC6809::ORBi_Inc1},
-      {{MC6809::AD}, MC6809::ORDi_Inc2},
-  };
-  XORImmediateOpcode = {
-      {{MC6809::AA}, MC6809::EORAi8},
-      {{MC6809::AB}, MC6809::EORBi8},
-      {{MC6809::AD}, MC6809::EORDi16},
-  };
-  XORIdxImmOpcode = {
-      {{MC6809::AA, -1}, MC6809::EORAi_o16}, {{MC6809::AA, 0}, MC6809::EORAi_o0}, {{MC6809::AA, 5}, MC6809::EORAi_o5}, {{MC6809::AA, 8}, MC6809::EORAi_o8}, {{MC6809::AA, 16}, MC6809::EORAi_o16},
-      {{MC6809::AB, -1}, MC6809::EORBi_o16}, {{MC6809::AB, 0}, MC6809::EORBi_o0}, {{MC6809::AB, 5}, MC6809::EORBi_o5}, {{MC6809::AB, 8}, MC6809::EORBi_o8}, {{MC6809::AB, 16}, MC6809::EORBi_o16},
-      {{MC6809::AD, -1}, MC6809::EORDi_o16}, {{MC6809::AD, 0}, MC6809::EORDi_o0}, {{MC6809::AD, 5}, MC6809::EORDi_o5}, {{MC6809::AD, 8}, MC6809::EORDi_o8}, {{MC6809::AD, 16}, MC6809::EORDi_o16},
-  };
-  XORIdxRegOpcode = {
-      {{MC6809::AA, MC6809::AA}, MC6809::EORAi_oA}, {{MC6809::AA, MC6809::AB}, MC6809::EORAi_oB}, {{MC6809::AA, MC6809::AD}, MC6809::EORAi_oD}, {{MC6809::AA, MC6809::AE}, MC6809::EORAi_oE}, {{MC6809::AA, MC6809::AF}, MC6809::EORAi_oF},
-      {{MC6809::AA, MC6809::AW}, MC6809::EORAi_oW}, {{MC6809::AB, MC6809::AA}, MC6809::EORBi_oA}, {{MC6809::AB, MC6809::AB}, MC6809::EORBi_oB}, {{MC6809::AB, MC6809::AD}, MC6809::EORBi_oD}, {{MC6809::AB, MC6809::AE}, MC6809::EORBi_oE},
-      {{MC6809::AB, MC6809::AF}, MC6809::EORBi_oF}, {{MC6809::AB, MC6809::AW}, MC6809::EORBi_oW}, {{MC6809::AD, MC6809::AA}, MC6809::EORDi_oA}, {{MC6809::AD, MC6809::AB}, MC6809::EORDi_oB}, {{MC6809::AD, MC6809::AD}, MC6809::EORDi_oD},
-      {{MC6809::AD, MC6809::AE}, MC6809::EORDi_oE}, {{MC6809::AD, MC6809::AF}, MC6809::EORDi_oF}, {{MC6809::AD, MC6809::AW}, MC6809::EORDi_oW},
-  };
-  XORPullOpcode = {
-      {{MC6809::AA}, MC6809::EORAi_Inc1},
-      {{MC6809::AB}, MC6809::EORBi_Inc1},
-      {{MC6809::AD}, MC6809::EORDi_Inc2},
-  };
+// The opcode for an operation on a register in a given form -- the add to B
+// with an 8-bit offset, the load of X indexed by A -- comes from the
+// generated IndexedForms table: each instruction's multiclass records its
+// operation, the register it works on and its addressing form. The maps are
+// views of the table by the key each expansion looks up with.
+void MC6809InstrInfo::buildOpcodeMaps() {
+  using namespace MC6809;
+  static const Register OffsetRegs[] = {MC6809::AA, MC6809::AB, MC6809::AD, MC6809::AE, MC6809::AF, MC6809::AW};
+  static const int OffsetLen[] = {0, 5, 8, 16};
+  for (const IndexedForm &Row : MC6809IndexedForms) {
+    Register R = valueRegForEncoding(Row.IdxValueEnc);
+    if (!R)
+      continue;
+    if (Row.Form == FormImm) {
+      DenseMap<Register, unsigned> *M = Row.IdxAccess == 1 ? &LoadImmediateOpcode : nullptr;
+      switch (Row.ArithOp) {
+      case OpAdd:
+        M = &AddImmediateOpcode;
+        break;
+      case OpAddCarry:
+        M = &AddCarryImmediateOpcode;
+        break;
+      case OpSub:
+        M = &SubImmediateOpcode;
+        break;
+      case OpSubBorrow:
+        M = &SubBorrowImmediateOpcode;
+        break;
+      case OpCompare:
+        M = &CompareImmediateOpcode;
+        break;
+      case OpAnd:
+        M = &ANDImmediateOpcode;
+        break;
+      case OpOr:
+        M = &ORImmediateOpcode;
+        break;
+      case OpEor:
+        M = &XORImmediateOpcode;
+        break;
+      default:
+        break;
+      }
+      if (M)
+        (*M)[R] = Row.Inst;
+    } else if (Row.Form == FormInherent) {
+      if (Row.ArithOp == OpTest)
+        TestRegOpcode[R] = Row.Inst;
+    } else if (Row.Form <= static_cast<unsigned>(IdxForm::O16)) {
+      // Keyed by the offset field's width; -1, an offset that is a symbol,
+      // takes the 16-bit form.
+      DenseMap<RegPlusOffsetLen, unsigned> *M = nullptr;
+      switch (Row.ArithOp) {
+      case OpAdd:
+        M = &AddIdxImmOpcode;
+        break;
+      case OpAddCarry:
+        M = &AddCarryIdxImmOpcode;
+        break;
+      case OpSub:
+        M = &SubIdxImmOpcode;
+        break;
+      case OpSubBorrow:
+        M = &SubBorrowIdxImmOpcode;
+        break;
+      case OpCompare:
+        M = &CompareIdxImmOpcode;
+        break;
+      case OpAnd:
+        M = &ANDIdxImmOpcode;
+        break;
+      case OpOr:
+        M = &ORIdxImmOpcode;
+        break;
+      case OpEor:
+        M = &XORIdxImmOpcode;
+        break;
+      case OpLea:
+        M = &LEAPtrAddImmOpcode;
+        break;
+      default:
+        break;
+      }
+      if (!M)
+        continue;
+      (*M)[{R, OffsetLen[Row.Form]}] = Row.Inst;
+      if (Row.Form == static_cast<unsigned>(IdxForm::O16))
+        (*M)[{R, -1}] = Row.Inst;
+    } else if (Row.Form >= FormRegA && Row.Form <= FormRegW) {
+      DenseMap<RegPlusReg, unsigned> *M = Row.IdxAccess == 1 ? &LoadIdxRegOpcode : Row.IdxAccess == 2 ? &StoreIdxRegOpcode : nullptr;
+      switch (Row.ArithOp) {
+      case OpAdd:
+        M = &AddIdxRegOpcode;
+        break;
+      case OpSub:
+        M = &SubIdxRegOpcode;
+        break;
+      case OpCompare:
+        M = &CompareIdxRegOpcode;
+        break;
+      case OpAnd:
+        M = &ANDIdxRegOpcode;
+        break;
+      case OpOr:
+        M = &ORIdxRegOpcode;
+        break;
+      case OpEor:
+        M = &XORIdxRegOpcode;
+        break;
+      case OpLea:
+        M = &LEAPtrAddRegOpcode;
+        break;
+      default:
+        break;
+      }
+      if (M)
+        (*M)[{R, OffsetRegs[Row.Form - FormRegA]}] = Row.Inst;
+    }
+  }
 }
 
 bool MC6809InstrInfo::isJumpTableBranch(const MachineBasicBlock::instr_iterator &I) const { return false; }

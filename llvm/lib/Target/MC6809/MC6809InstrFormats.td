@@ -382,6 +382,11 @@ class MC6809Inst<string mnemonic, Opcode opcode> : Instruction {
   // 2 for a store (0 for anything else). The IndexedForms table carries them.
   bits<16> IdxValueEnc = 0xFFFF;
   bits<2> IdxAccess = 0;
+  // For an arithmetic, logical, compare, LEA or test instruction, set by its
+  // multiclass: the operation (an ArithOp below). With IdxValueEnc, the
+  // register it operates on, the IndexedForms table answers "the add to B
+  // indexed by A" without a hand-written map.
+  bits<4> ArithOp = 0;
 }
 
 class Accumulator<string mnemonic, Opcode opcode> : MC6809Inst<mnemonic, opcode> {
@@ -3099,15 +3104,18 @@ class MC6809Stack_P1<dag outs, string mnemonic, Opcode opc, list<Register> defs,
 // name of its indexed multiclass, e.g. "LDDi") and its offset form. The
 // indexed multiclasses emit one for each of their constant-offset forms, so
 // "the 8-bit-offset sibling of LDDi_o16" is a table lookup, not a hand table.
-class IndexedFormInfo<Instruction inst, string family, bits<3> form> {
+class IndexedFormInfo<Instruction inst, string family, bits<4> form> {
   Instruction Inst = inst;
   string Family = family;
-  bits<3> Form = form; // MC6809::IdxForm: 0 o0, 1 o5, 2 o8, 3 o16, 4 o0I, 5 o8I, 6 o16I,
-                       // 7 the family's direct-page form
+  bits<4> Form = form; // MC6809::IdxForm: 0 o0, 1 o5, 2 o8, 3 o16, 4 o0I, 5 o8I, 6 o16I,
+                       // 7 the family's direct-page form; then the forms only
+                       // the operation lookups use: 8-13 indexed by A, B, D,
+                       // E, F, W; 14 immediate; 15 inherent
   // Set, like the instruction's own, by the `let` of a load or store
   // multiclass around the indexed multiclass that makes this row.
   bits<16> IdxValueEnc = 0xFFFF;
   bits<2> IdxAccess = 0;
+  bits<4> ArithOp = 0;
   // Unused here: they absorb the `let ... in { defm ... }` that wrap the
   // indexed multiclasses, which apply to every record a multiclass makes.
   bit mayLoad = ?;
@@ -3121,4 +3129,32 @@ class IndexedFormInfo<Instruction inst, string family, bits<3> form> {
   bit hasSideEffects = ?;
   bit isAsCheapAsAMove = ?;
   list<Predicate> Predicates = [];
+}
+
+// The operation an arithmetic, logical, compare, LEA or test instruction
+// performs (ArithOp, above): MC6809::ArithOp in MC6809InstrInfo.cpp.
+defvar ArithOpAdd       = 1;
+defvar ArithOpAddCarry  = 2;
+defvar ArithOpSub       = 3;
+defvar ArithOpSubBorrow = 4;
+defvar ArithOpCompare   = 5;
+defvar ArithOpAnd       = 6;
+defvar ArithOpOr        = 7;
+defvar ArithOpEor       = 8;
+defvar ArithOpLea       = 9;
+defvar ArithOpTest      = 10;
+
+// An ALU family's operation, from its mnemonic (`adda`, `sbcd`, `orb`, ...).
+// BIT tests rather than computes, and has no entry.
+class ArithOpOf<string mnem> {
+  defvar P3 = !substr(mnem, 0, 3);
+  int Op = !cond(!eq(P3, "add") : ArithOpAdd,
+                 !eq(P3, "adc") : ArithOpAddCarry,
+                 !eq(P3, "sub") : ArithOpSub,
+                 !eq(P3, "sbc") : ArithOpSubBorrow,
+                 !eq(P3, "cmp") : ArithOpCompare,
+                 !eq(P3, "and") : ArithOpAnd,
+                 !eq(P3, "eor") : ArithOpEor,
+                 !eq(!substr(mnem, 0, 2), "or") : ArithOpOr,
+                 true : 0);
 }

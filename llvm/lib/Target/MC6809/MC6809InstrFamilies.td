@@ -188,6 +188,7 @@ let Predicates = [IsHD6309], mayLoad = true,
                [NZ,N,Z,V,AA,AB,AD,AE,AF,AW,AQ], []>;
   def LDQe   : MC6809Extended_P2<(outs), "ldq", Opcode<0xFC,2>,
                [NZ,N,Z,V,AA,AB,AD,AE,AF,AW,AQ], []>;  def LDQd_form : IndexedFormInfo<LDQd, "LDQi", 7>;
+  def LDQi32_form : IndexedFormInfo<LDQi32, "LDQi", 14>;
 }
 
 // --- Patterns (connect LLVM IR to pseudo-instructions) ---

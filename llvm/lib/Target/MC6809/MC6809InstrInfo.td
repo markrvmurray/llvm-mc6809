@@ -227,6 +227,12 @@ multiclass MC6809Indexed_P1<string Mnemonic, Opcode opcode, dag outdag, list<Reg
   def _o0I_form  : IndexedFormInfo<!cast<Instruction>(NAME # "_o0I"),  NAME, 4>;
   def _o8I_form  : IndexedFormInfo<!cast<Instruction>(NAME # "_o8I"),  NAME, 5>;
   def _o16I_form : IndexedFormInfo<!cast<Instruction>(NAME # "_o16I"), NAME, 6>;
+  def _oA_form   : IndexedFormInfo<!cast<Instruction>(NAME # "_oA"),   NAME, 8>;
+  def _oB_form   : IndexedFormInfo<!cast<Instruction>(NAME # "_oB"),   NAME, 9>;
+  def _oD_form   : IndexedFormInfo<!cast<Instruction>(NAME # "_oD"),   NAME, 10>;
+  def _oE_form   : IndexedFormInfo<!cast<Instruction>(NAME # "_oE"),   NAME, 11>;
+  def _oF_form   : IndexedFormInfo<!cast<Instruction>(NAME # "_oF"),   NAME, 12>;
+  def _oW_form   : IndexedFormInfo<!cast<Instruction>(NAME # "_oW"),   NAME, 13>;
 }
 // ============================== Load8 multiclass ======================================
 // Produces all concrete forms of an 8-bit load: immediate, direct, indexed (all
@@ -243,6 +249,7 @@ multiclass Load8Concrete<string Mnem, Opcode ImmOpc, Opcode DirOpc,
     defm i : MC6809Indexed_P1<Mnem, IdxOpc, (outs), Defs, []>;
     def e  : MC6809Extended_P1<(outs), Mnem, ExtOpc, Defs, []>;
     def d_form : IndexedFormInfo<!cast<Instruction>(NAME # "d"), NAME # "i", 7>;
+    def i8_form : IndexedFormInfo<!cast<Instruction>(NAME # "i8"), NAME # "i", 14>;
   }
 }
 
@@ -256,6 +263,7 @@ multiclass Load16Concrete<string Mnem, Opcode ImmOpc, Opcode DirOpc,
     defm i  : MC6809Indexed_P1<Mnem, IdxOpc, (outs), Defs, []>;
     def e   : MC6809Extended_P1<(outs), Mnem, ExtOpc, Defs, []>;
     def d_form : IndexedFormInfo<!cast<Instruction>(NAME # "d"), NAME # "i", 7>;
+    def i16_form : IndexedFormInfo<!cast<Instruction>(NAME # "i16"), NAME # "i", 14>;
   }
 }
 
@@ -291,11 +299,13 @@ multiclass ALU8Concrete<string Mnem, Opcode ImmOpc, Opcode DirOpc,
                         Opcode IdxOpc, Opcode ExtOpc,
                         list<Register> Defs, list<Register> Uses,
                         bit IsCompare = 0, bit IsAdd = 0> {
-  let mayLoad = true, isCompare = IsCompare, isAdd = IsAdd in {
+  let mayLoad = true, isCompare = IsCompare, isAdd = IsAdd,
+      ArithOp = ArithOpOf<Mnem>.Op, IdxValueEnc = !head(Uses).HWEncoding in {
     def i8 : MC6809Immediate8Bit_P1<(outs), Mnem, ImmOpc, Defs, Uses>;
     def d  : MC6809Direct_P1<(outs), Mnem, DirOpc, Defs, Uses>;
     defm i : MC6809Indexed_P1<Mnem, IdxOpc, (outs), Defs, Uses>;
     def e  : MC6809Extended_P1<(outs), Mnem, ExtOpc, Defs, Uses>;
+    def i8_form : IndexedFormInfo<!cast<Instruction>(NAME # "i8"), NAME # "i", 14>;
   }
 }
 
@@ -304,11 +314,13 @@ multiclass ALU16Concrete<string Mnem, Opcode ImmOpc, Opcode DirOpc,
                          Opcode IdxOpc, Opcode ExtOpc,
                          list<Register> Defs, list<Register> Uses,
                          bit IsCompare = 0, bit IsAdd = 0> {
-  let mayLoad = true, isCompare = IsCompare, isAdd = IsAdd in {
+  let mayLoad = true, isCompare = IsCompare, isAdd = IsAdd,
+      ArithOp = ArithOpOf<Mnem>.Op, IdxValueEnc = !head(Uses).HWEncoding in {
     def i16 : MC6809Immediate16Bit_P1<(outs), Mnem, ImmOpc, Defs, Uses>;
     def d   : MC6809Direct_P1<(outs), Mnem, DirOpc, Defs, Uses>;
     defm i  : MC6809Indexed_P1<Mnem, IdxOpc, (outs), Defs, Uses>;
     def e   : MC6809Extended_P1<(outs), Mnem, ExtOpc, Defs, Uses>;
+    def i16_form : IndexedFormInfo<!cast<Instruction>(NAME # "i16"), NAME # "i", 14>;
   }
 }
 
@@ -435,7 +447,11 @@ defm CLR : UnaryAcc8_AB<"clra", Opcode<0x4F,1>, [AA,NZ,N,Z,V,C,AA], [],
 // TST accumulator forms — separate because isCompare = true and defs differ.
 let isCompare = true in {
   def TSTAa : MC6809Accumulator_P1<(outs), "tsta", Opcode<0x4D,1>, [NZ,N,Z,V], [AA]>;
+  let ArithOp = ArithOpTest, IdxValueEnc = AA.HWEncoding in
+  def TSTAa_form : IndexedFormInfo<TSTAa, "TSTA", 15>;
   def TSTBa : MC6809Accumulator_P1<(outs), "tstb", Opcode<0x5D,1>, [NZ,N,Z,V], [AB]>;
+  let ArithOp = ArithOpTest, IdxValueEnc = AB.HWEncoding in
+  def TSTBa_form : IndexedFormInfo<TSTBa, "TSTB", 15>;
 }
 
 // LEA: indexed only (Page 1).
@@ -453,6 +469,7 @@ let isCompare = true in {
 // does NOT materialise these implicit Defs — so it re-adds implicit-def $z
 // itself (Bug #365).
 multiclass LEAConcrete<string Mnem, Opcode IdxOpc, list<Register> Defs> {
+  let ArithOp = ArithOpLea, IdxValueEnc = !head(Defs).HWEncoding in
   defm i : MC6809Indexed_P1<Mnem, IdxOpc, (outs), Defs, []>;
 }
 
@@ -727,6 +744,12 @@ multiclass MC6809Indexed_P2<string Mnemonic, Opcode opcode, dag outdag, list<Reg
   def _o0I_form  : IndexedFormInfo<!cast<Instruction>(NAME # "_o0I"),  NAME, 4>;
   def _o8I_form  : IndexedFormInfo<!cast<Instruction>(NAME # "_o8I"),  NAME, 5>;
   def _o16I_form : IndexedFormInfo<!cast<Instruction>(NAME # "_o16I"), NAME, 6>;
+  def _oA_form   : IndexedFormInfo<!cast<Instruction>(NAME # "_oA"),   NAME, 8>;
+  def _oB_form   : IndexedFormInfo<!cast<Instruction>(NAME # "_oB"),   NAME, 9>;
+  def _oD_form   : IndexedFormInfo<!cast<Instruction>(NAME # "_oD"),   NAME, 10>;
+  def _oE_form   : IndexedFormInfo<!cast<Instruction>(NAME # "_oE"),   NAME, 11>;
+  def _oF_form   : IndexedFormInfo<!cast<Instruction>(NAME # "_oF"),   NAME, 12>;
+  def _oW_form   : IndexedFormInfo<!cast<Instruction>(NAME # "_oW"),   NAME, 13>;
 }
 // ============================== PAGE MC6809Indexed_P3 ==================================
 multiclass MC6809Indexed_P3<string Mnemonic, Opcode opcode, dag outdag, list<Register> defsin, list<Register> usesin> {
@@ -803,6 +826,12 @@ multiclass MC6809Indexed_P3<string Mnemonic, Opcode opcode, dag outdag, list<Reg
   def _o0I_form  : IndexedFormInfo<!cast<Instruction>(NAME # "_o0I"),  NAME, 4>;
   def _o8I_form  : IndexedFormInfo<!cast<Instruction>(NAME # "_o8I"),  NAME, 5>;
   def _o16I_form : IndexedFormInfo<!cast<Instruction>(NAME # "_o16I"), NAME, 6>;
+  def _oA_form   : IndexedFormInfo<!cast<Instruction>(NAME # "_oA"),   NAME, 8>;
+  def _oB_form   : IndexedFormInfo<!cast<Instruction>(NAME # "_oB"),   NAME, 9>;
+  def _oD_form   : IndexedFormInfo<!cast<Instruction>(NAME # "_oD"),   NAME, 10>;
+  def _oE_form   : IndexedFormInfo<!cast<Instruction>(NAME # "_oE"),   NAME, 11>;
+  def _oF_form   : IndexedFormInfo<!cast<Instruction>(NAME # "_oF"),   NAME, 12>;
+  def _oW_form   : IndexedFormInfo<!cast<Instruction>(NAME # "_oW"),   NAME, 13>;
 }
 // ============================== END PAGES ==================================
 
@@ -816,6 +845,7 @@ multiclass Load8Concrete_P3<string Mnem, Opcode ImmOpc, Opcode DirOpc,
     defm i : MC6809Indexed_P3<Mnem, IdxOpc, (outs), Defs, []>;
     def e  : MC6809Extended_P3<(outs), Mnem, ExtOpc, Defs, []>;
     def d_form : IndexedFormInfo<!cast<Instruction>(NAME # "d"), NAME # "i", 7>;
+    def i8_form : IndexedFormInfo<!cast<Instruction>(NAME # "i8"), NAME # "i", 14>;
   }
 }
 
@@ -829,6 +859,7 @@ multiclass Load16Concrete_P2<string Mnem, Opcode ImmOpc, Opcode DirOpc,
     defm i  : MC6809Indexed_P2<Mnem, IdxOpc, (outs), Defs, []>;
     def e   : MC6809Extended_P2<(outs), Mnem, ExtOpc, Defs, []>;
     def d_form : IndexedFormInfo<!cast<Instruction>(NAME # "d"), NAME # "i", 7>;
+    def i16_form : IndexedFormInfo<!cast<Instruction>(NAME # "i16"), NAME # "i", 14>;
   }
 }
 
@@ -863,11 +894,13 @@ multiclass ALU8Concrete_P3<string Mnem, Opcode ImmOpc, Opcode DirOpc,
                            Opcode IdxOpc, Opcode ExtOpc,
                            list<Register> Defs, list<Register> Uses,
                            bit IsCompare = 0, bit IsAdd = 0> {
-  let Predicates = [IsHD6309], mayLoad = true, isCompare = IsCompare, isAdd = IsAdd in {
+  let Predicates = [IsHD6309], mayLoad = true, isCompare = IsCompare, isAdd = IsAdd,
+      ArithOp = ArithOpOf<Mnem>.Op, IdxValueEnc = !head(Uses).HWEncoding in {
     def i8 : MC6809Immediate8Bit_P3<(outs), Mnem, ImmOpc, Defs, Uses>;
     def d  : MC6809Direct_P3<(outs), Mnem, DirOpc, Defs, Uses>;
     defm i : MC6809Indexed_P3<Mnem, IdxOpc, (outs), Defs, Uses>;
     def e  : MC6809Extended_P3<(outs), Mnem, ExtOpc, Defs, Uses>;
+    def i8_form : IndexedFormInfo<!cast<Instruction>(NAME # "i8"), NAME # "i", 14>;
   }
 }
 
@@ -876,11 +909,13 @@ multiclass ALU16Concrete_P2<string Mnem, Opcode ImmOpc, Opcode DirOpc,
                             Opcode IdxOpc, Opcode ExtOpc,
                             list<Register> Defs, list<Register> Uses,
                             bit IsCompare = 0, bit IsAdd = 0> {
-  let mayLoad = true, isCompare = IsCompare, isAdd = IsAdd in {
+  let mayLoad = true, isCompare = IsCompare, isAdd = IsAdd,
+      ArithOp = ArithOpOf<Mnem>.Op, IdxValueEnc = !head(Uses).HWEncoding in {
     def i16 : MC6809Immediate16Bit_P2<(outs), Mnem, ImmOpc, Defs, Uses>;
     def d   : MC6809Direct_P2<(outs), Mnem, DirOpc, Defs, Uses>;
     defm i  : MC6809Indexed_P2<Mnem, IdxOpc, (outs), Defs, Uses>;
     def e   : MC6809Extended_P2<(outs), Mnem, ExtOpc, Defs, Uses>;
+    def i16_form : IndexedFormInfo<!cast<Instruction>(NAME # "i16"), NAME # "i", 14>;
   }
 }
 
@@ -948,6 +983,8 @@ let Predicates = [IsHD6309] in {
   def DECDa : MC6809Accumulator_P2<(outs), "decd", Opcode<0x4A,2>, [AD,NZ,N,Z,V,AA,AB,AD], [AD]>;
   def INCDa : MC6809Accumulator_P2<(outs), "incd", Opcode<0x4C,2>, [AD,NZ,N,Z,V,AA,AB,AD], [AD]>;
   def TSTDa : MC6809Accumulator_P2<(outs), "tstd", Opcode<0x4D,2>, [NZ,N,Z,V], [AD]>;
+  let ArithOp = ArithOpTest, IdxValueEnc = AD.HWEncoding in
+  def TSTDa_form : IndexedFormInfo<TSTDa, "TSTD", 15>;
   def CLRDa : MC6809Accumulator_P2<(outs), "clrd", Opcode<0x4F,2>, [AD,NZ,N,Z,V,C,AA,AB,AD], []>;
   def COMWa : MC6809Accumulator_P2<(outs), "comw", Opcode<0x53,2>, [AW,NZ,N,Z,V,C,AE,AF,AW], [AW]>;
   def LSRWa : MC6809Accumulator_P2<(outs), "lsrw", Opcode<0x54,2>, [AW,NZ,N,Z,C,AE,AF,AW], [AW]>;
@@ -956,6 +993,8 @@ let Predicates = [IsHD6309] in {
   def DECWa : MC6809Accumulator_P2<(outs), "decw", Opcode<0x5A,2>, [AW,NZ,N,Z,V,AE,AF,AW], [AW]>;
   def INCWa : MC6809Accumulator_P2<(outs), "incw", Opcode<0x5C,2>, [AW,NZ,N,Z,V,AE,AF,AW], [AW]>;
   def TSTWa : MC6809Accumulator_P2<(outs), "tstw", Opcode<0x5D,2>, [NZ,N,Z,V], [AW]>;
+  let ArithOp = ArithOpTest, IdxValueEnc = AW.HWEncoding in
+  def TSTWa_form : IndexedFormInfo<TSTWa, "TSTW", 15>;
   def CLRWa : MC6809Accumulator_P2<(outs), "clrw", Opcode<0x5F,2>, [AW,NZ,N,Z,V,C,AE,AF,AW], []>;
 }
 
@@ -965,11 +1004,15 @@ let Predicates = [IsHD6309] in {
   def DECEa : MC6809Accumulator_P3<(outs), "dece", Opcode<0x4A,3>, [AE,NZ,N,Z,V,AE], [AE]>;
   def INCEa : MC6809Accumulator_P3<(outs), "ince", Opcode<0x4C,3>, [AE,NZ,N,Z,V,AE], [AE]>;
   def TSTEa : MC6809Accumulator_P3<(outs), "tste", Opcode<0x4D,3>, [NZ,N,Z,V], [AE]>;
+  let ArithOp = ArithOpTest, IdxValueEnc = AE.HWEncoding in
+  def TSTEa_form : IndexedFormInfo<TSTEa, "TSTE", 15>;
   def CLREa : MC6809Accumulator_P3<(outs), "clre", Opcode<0x4F,3>, [AE,NZ,N,Z,V,C,AE], []>;
   def COMFa : MC6809Accumulator_P3<(outs), "comf", Opcode<0x53,3>, [AF,NZ,N,Z,V,C,AF], [AF]>;
   def DECFa : MC6809Accumulator_P3<(outs), "decf", Opcode<0x5A,3>, [AF,NZ,N,Z,V,AF], [AF]>;
   def INCFa : MC6809Accumulator_P3<(outs), "incf", Opcode<0x5C,3>, [AF,NZ,N,Z,V,AF], [AF]>;
   def TSTFa : MC6809Accumulator_P3<(outs), "tstf", Opcode<0x5D,3>, [NZ,N,Z,V], [AF]>;
+  let ArithOp = ArithOpTest, IdxValueEnc = AF.HWEncoding in
+  def TSTFa_form : IndexedFormInfo<TSTFa, "TSTF", 15>;
   def CLRFa : MC6809Accumulator_P3<(outs), "clrf", Opcode<0x5F,3>, [AF,NZ,N,Z,V,C,AF], []>;
 }
 
