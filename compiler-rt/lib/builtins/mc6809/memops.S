@@ -22,10 +22,12 @@
 //   2,S = n (count, i16 on stack)
 // Returns IX = s. Clobbers: D. IY is callee-saved per MC6809_CSR.
 //
-// Stores a byte to make the count even, then a word to make it a
-// multiple of four, then two words per pass: 24 cycles per four bytes,
-// against 14 a byte for a byte loop.  One library serves the 6809 and
-// the 6309, so this is 6809 code.
+// HD6309: TFM from the fill byte, pushed on the stack, as a fixed
+// source: 3 cycles a byte.
+//
+// 6809: a byte to make the count even, a word to make it a multiple of
+// four, then two words per pass: 24 cycles per four bytes, against 14
+// a byte for a byte loop.
 //
 //===----------------------------------------------------------------------===//
 
@@ -34,6 +36,15 @@
 	.globl	__memset
 	.type	__memset,@function
 __memset:
+#ifdef __6309__
+	pshs	b,x,y		// fill byte for TFM; x for return; preserve y
+	ldw	7,s		// W = n (+1 fill, +2 saved X, +2 saved Y, +2 retaddr)
+	beq	.L__memset_6309_done
+	tfr	s,y		// Y -> the fill byte
+	tfm	y,x+
+.L__memset_6309_done:
+	puls	b,x,y,pc
+#else
 	pshs	x,y		// save x for return; preserve y (callee-saved per MC6809_CSR)
 	ldy	6,s		// Y = n (+2 saved Y, +2 saved X, +2 retaddr)
 	beq	.L__memset_done
@@ -58,3 +69,4 @@ __memset:
 	bne	.L__memset_loop
 .L__memset_done:
 	puls	x,y,pc
+#endif
