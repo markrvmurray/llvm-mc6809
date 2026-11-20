@@ -17,8 +17,8 @@
 ;; (_acia_init, putchar, puthex, putstr, putnl, halt) come from
 ;; runtime.inc unchanged. No source duplication.
 ;;
-;; Use with `; REQUIRES: mame, hd6309` in the lit RUN line — usim
-;; cannot execute LDMD or any subsequent native-mode instruction.
+;; Use with `; REQUIRES: hd6309` and `%hd6309sim` in the lit RUN line,
+;; which runs usim09batch --hd6309 (or MAME with MC6809_HD6309_SIM=mame).
 ;;
 
 	.section .rom,"ax",@progbits

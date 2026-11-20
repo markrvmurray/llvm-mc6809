@@ -1,11 +1,11 @@
 ; RUN: llvm-mc -triple=mc6809 -mcpu=hd6309 -I %S/Inputs --filetype=obj %s -o %t.o
 ; RUN: ld.lld -T %S/Inputs/link.ld %t.o -o %t.elf
-; RUN: %mamellvm6309 %t.elf | FileCheck %s
-; REQUIRES: mame, hd6309
+; RUN: %hd6309sim %t.elf | FileCheck %s
+; REQUIRES: hd6309
 ;
-; Bug #194 Phase A sentinel: HD6309-only LDQ/STQ exercise the full
-; lit infrastructure (runtime6309.inc + %mamellvm6309 wrapper).
-; usim09batch traps on LDMD/LDQ, so this test is gated to MAME only.
+; HD6309-only LDQ/STQ exercise the HD6309 lit infrastructure
+; (runtime6309.inc + %hd6309sim: usim by default, MAME with
+; MC6809_HD6309_SIM=mame).
 
 .include "runtime6309.inc"
 
