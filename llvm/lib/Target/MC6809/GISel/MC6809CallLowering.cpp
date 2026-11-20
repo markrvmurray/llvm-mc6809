@@ -598,12 +598,48 @@ bool MC6809CallLowering::lowerCall(MachineIRBuilder &MIRBuilder, CallLoweringInf
     StackSize = std::max(StackSize, RetAssigner.StackSize);
   }
 
+  // A pointer argument the callee hands back (memset, memcpy and memmove
+  // return their destination) comes back where a pointer result would, so
+  // the caller need not keep its own copy across the call: what follows in
+  // this block uses the returned value instead.
+  Register Returned, ReturnedArg;
+  if (Info.OrigRet.Ty->isVoidTy()) {
+    for (const ArgInfo &OrigArg : Info.OrigArgs) {
+      if (OrigArg.Regs.size() != 1 || OrigArg.Flags.empty() || !OrigArg.Flags[0].isReturned() || !OrigArg.Ty->isPointerTy())
+        continue;
+      ReturnedArg = OrigArg.Regs[0];
+      Returned = MRI.createGenericVirtualRegister(MRI.getType(ReturnedArg));
+      SmallVector<ArgInfo, 1> RetArgs;
+      splitToValueTypes(ArgInfo({Returned}, OrigArg.Ty, 0), RetArgs, DL);
+      MC6809IncomingReturnHandler RetHandler(MIRBuilder, MRI, Call);
+      MC6809ValueAssigner RetAssigner(/*IsIncoming=*/true, MRI, MF, /*IsReturn=*/true);
+      if (!determineAndHandleAssignments(RetHandler, RetAssigner, RetArgs, MIRBuilder, Info.CallConv, /*IsVarArg=*/false))
+        return false;
+      break;
+    }
+  }
+
   // Now that the size of the argument stack region is known, the setup call
   // frame pseudo can be given its arguments.
   CallSeqStart.addImm(StackSize).addImm(0);
 
   // Generate the call frame destroy pseudo with the correct sizes.
   MIRBuilder.buildInstr(MC6809::ADJCALLSTACKUP).addImm(StackSize).addImm(0);
+
+  if (Returned) {
+    GISelChangeObserver *Observer = MIRBuilder.getObserver();
+    for (MachineInstr &MI : make_range(MIRBuilder.getInsertPt(), MIRBuilder.getMBB().end())) {
+      if (MI.isDebugInstr() || !MI.readsRegister(ReturnedArg, /*TRI=*/nullptr))
+        continue;
+      if (Observer)
+        Observer->changingInstr(MI);
+      for (MachineOperand &MO : MI.uses())
+        if (MO.isReg() && MO.getReg() == ReturnedArg)
+          MO.setReg(Returned);
+      if (Observer)
+        Observer->changedInstr(MI);
+    }
+  }
 
   // Mark the function as having calls so the register allocator knows to
   // preserve caller-saved registers and the frame pointer.
