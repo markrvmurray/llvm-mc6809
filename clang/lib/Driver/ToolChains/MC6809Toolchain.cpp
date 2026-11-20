@@ -446,6 +446,13 @@ void mc6809::Linker::ConstructJob(Compilation &C, const JobAction &JA,
     CmdArgs.push_back(Args.MakeArgString(Twine("-L") + DECBLibPath.str()));
     SmallString<128> BuiltinsPath(D.ResourceDir);
     llvm::sys::path::append(BuiltinsPath, "lib", "mc6809-unknown-unknown");
+    // The HD6309 builtins first, as for the bare-metal triple.
+    StringRef CPU = Args.getLastArgValue(options::OPT_mcpu_EQ);
+    if (CPU == "hd6309" || CPU == "6309") {
+      SmallString<128> HD6309Path(BuiltinsPath);
+      llvm::sys::path::append(HD6309Path, "hd6309");
+      CmdArgs.push_back(Args.MakeArgString(Twine("-L") + HD6309Path.str()));
+    }
     CmdArgs.push_back(Args.MakeArgString(Twine("-L") + BuiltinsPath.str()));
   }
 
