@@ -271,7 +271,7 @@ trap '"$PICOLIBC/scripts/gen-mc6809-cross.sh" >/dev/null 2>&1 || true' EXIT
 COMMON="-Dformat-default=integer -Dprintf-aliases=false -Dstdio-float=false
         -Dposix-extensions=false -Dsearch-extensions=true -Dwant-libm=false
         -Dmb-capable=false -Dio-long-long=false -Dtests=false
-        -Doptimization=s"
+        -Dmalloc-clear-allocated=false -Doptimization=s"
 
 # build_variant TRIPLE SUBDIR CROSS [meson options...]
 #   SUBDIR is "" for a triple's default library, or the multilib directory
