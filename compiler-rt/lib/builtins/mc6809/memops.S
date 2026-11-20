@@ -22,20 +22,39 @@
 //   2,S = n (count, i16 on stack)
 // Returns IX = s. Clobbers: D. IY is callee-saved per MC6809_CSR.
 //
+// Stores a byte to make the count even, then a word to make it a
+// multiple of four, then two words per pass: 24 cycles per four bytes,
+// against 14 a byte for a byte loop.  One library serves the 6809 and
+// the 6309, so this is 6809 code.
+//
 //===----------------------------------------------------------------------===//
 
-	.section .text,"ax",@progbits
+	.section .text.__memset,"ax",@progbits
 
 	.globl	__memset
 	.type	__memset,@function
 __memset:
 	pshs	x,y		// save x for return; preserve y (callee-saved per MC6809_CSR)
-	// B already holds the fill byte (passed in register by the compiler)
-	ldy	6,s		// n (+2 saved Y, +2 saved X, +2 retaddr)
+	ldy	6,s		// Y = n (+2 saved Y, +2 saved X, +2 retaddr)
+	beq	.L__memset_done
+	tfr	b,a		// A = fill byte
+	ldb	7,s		// B = low byte of n
+	lsrb			// C = bit 0 of n
+	bcc	.L__memset_even
+	sta	,x+		// odd count: one byte first
+	leay	-1,y
+	beq	.L__memset_done
+.L__memset_even:
+	lsrb			// C = bit 1 of n
+	tfr	a,b		// D = fill:fill (TFR leaves CC alone)
+	bcc	.L__memset_loop
+	std	,x++		// count not a multiple of four: one word first
+	leay	-2,y
 	beq	.L__memset_done
 .L__memset_loop:
-	stb	,x+
-	leay	-1,y
+	std	,x++
+	std	,x++
+	leay	-4,y
 	bne	.L__memset_loop
 .L__memset_done:
 	puls	x,y,pc
