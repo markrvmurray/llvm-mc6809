@@ -6,19 +6,22 @@ tag with no section here is not published.
 
 ## 1.1.0-rc1
 
-The first candidate for llvm-mc6809 1.1.0: faster and smaller code, wrong
-code fixed, and interrupt handlers.
+The first candidate for llvm-mc6809 1.1.0: faster and smaller code, a good
+deal of wrong code fixed, interrupt handlers, and the 6309 under OS-9 tested
+as thoroughly as the 6809. LLVM and picolibc are updated to their current
+upstream versions.
 
 ### Smaller and faster
 
-Against 1.0, the C library for the 6809 at `-Os` is 22% smaller (146,820
-bytes of code, from 188,946), and the test programs take 17-20% fewer cycles
-on the 6809 at every level measured (`-O0`, `-O2`, `-Os`, `-Os` with LTO and
-with floating point).
+Against 1.0, the C library for the 6809 at `-Os` is 25% smaller (141,195
+bytes of code, from 188,946). On the test programs whose sources are
+unchanged since 1.0, code takes 12-20% fewer cycles in all on the 6809 and
+8-14% fewer on the 6309, at every optimisation level; a typical program is
+16-24% faster on the 6809 and 15-22% on the 6309.
 
 * Values kept in the direct-page registers are no longer saved and restored
   around every use that borrows an accumulator: a register is saved only
-  where its value is read again.
+  where its value is read again, and two such uses in a row share one save.
 * Fewer redundant loads and stores of the same memory, by one set of rules
   shared by the passes that remove them.
 * `clr` in place of loading zero, and on the 6309 `aim`, `oim` and `eim`
@@ -26,17 +29,59 @@ with floating point).
   memory on both processors.
 * An 8-bit by 8-bit multiply uses `MUL`; epilogues end in `puls ...,pc`;
   `strcmp` works a byte at a time.
+* A call's register arguments are computed after its stack arguments are
+  stored, so the two no longer compete for the accumulators, and `memset`,
+  `memcpy` and `memmove` are no longer made to keep a copy of the
+  destination they hand back.
+* `memset` stores a word at a time on the 6809 and uses `TFM` on the 6309.
+* A program that uses floating point carries only the parts of the
+  floating-point support it calls, 240-664 bytes less than before.
+* On OS-9 and in Disk BASIC programs, `-mcpu=hd6309` now links the 6309
+  build of the compiler's runtime library (multiply, divide and block moves
+  in single instructions); it was the 6809 one.
+
+### Changed behaviour
+
+* `malloc` and `realloc` no longer clear the memory they return, which C
+  does not ask of them; `calloc` still does. Allocating is much faster as a
+  result, but a program that read memory from `malloc` without writing it
+  first, and relied on it being zero, now sees whatever was there.
 
 ### Wrong code fixed
 
-* On the 6309, sign-extending the low part of a loaded `long` read its high
-  bytes.
+* Floating point: `+inf` and `-inf` were treated as one unsigned infinity,
+  so `sqrt(INFINITY)` gave NaN and `-INFINITY == INFINITY` was true;
+  `x > NaN` and `x >= NaN` were true; a `double` converted to `float` below
+  `FLT_MIN` became NaN; and `printf` could round a `float` up one digit
+  early just below a power of ten (`%.7f` of 0.9999999f gave 1.0000000).
+* `alignas` on a local variable was ignored.
+* A library call made while another call's arguments were being placed --
+  a 64-bit conversion, say -- could overwrite those arguments.
+* On the 6309: sign-extending the low part of a loaded `long` read its high
+  bytes; negating a value in E, F or W also added the DP register, which is
+  not zero in an OS-9 program; and a failed OS-9 system call could look
+  successful, so `fopen` for writing or appending, `statvfs`, `rmdir` and
+  signal delivery all went wrong.
 * At `-O0`, a branch on the borrow of a subtraction whose result was unused
   tested a stale carry.
 * A reload could be removed, or a value reused, across a store that wrote
   the same memory: a store through another pointer that may alias it, a
   store that overlapped it only in part, a 6309 `stq` or `sts`, or an
   access whose offset is a symbol (`tbl,x`) taken for one at offset 0.
+* On a Level 1 OS-9 system, a program could get a heap smaller than the one
+  it declared, depending only on where it was loaded.
+
+### Compiler and assembler errors fixed
+
+* The compiler no longer crashes on `__builtin_trap`, `-ftrapv` (both now
+  call `abort()`), C23 `fminimum`, `fmaximum` and their `_num` forms, or an
+  inline-assembly memory operand it has to find a register for.
+* Programs using conversions from floating point to unsigned integers,
+  `__builtin_popcount` on a `long`, or `fesetexcept` now link.
+* The assembler reported nothing for a register-pair instruction (`tfr`,
+  `exg`, `tfm`, `adcr` and the like) naming a register it did not know, and
+  left the instruction out; it now reports an error. It accepts the 6309's
+  zero register, written `0`.
 
 ### Interrupt handlers
 
@@ -51,8 +96,19 @@ See "Interrupt handlers" in MC6809-Toolchain-Usage.md.
 
 ### C library
 
+* picolibc is updated to its current version, which adds among other things
+  `quick_exit`, `call_once`, `free_sized`, `free_aligned_sized` and
+  `memalignment`, and a reworked `malloc`.
 * A program can declare the least heap it needs (`-Wl,--defsym=__heap_size_min=N`);
   if the heap it gets is smaller, the link fails rather than the program.
+
+### How it is tested
+
+As for 1.0, with the 6309 under OS-9 added: about 380 compiler tests, and
+the test programs at 31 combinations of optimisation level, processor,
+library and target, three of them on NitrOS-9 (Level 1 and Level 2 on the
+6809, Level 2 on the 6309). Every test now runs on USim, 6309 included;
+MAME remains available for the 6309.
 
 ### Known issues
 
