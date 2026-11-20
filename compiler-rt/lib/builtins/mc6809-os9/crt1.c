@@ -115,10 +115,19 @@ static void claim_heap(void) {
   // Ask for less rather than nothing.  A system without a DAT has one 64K
   // space for everything, so a large program often cannot have the whole
   // request -- and taking the static pool instead leaves it with a heap
-  // too small to open a file.  Halve until the kernel agrees or there is
-  // nothing worth asking for.
-  while (want > have + 256) {
+  // too small to open a file.  Halve until the kernel agrees, but never
+  // below the static pool: the heap is one or the other, and growth smaller
+  // than the pool would leave the program less than the heap it declared.
+  // How much there is to have depends on where the program landed -- a
+  // module a page shorter can leave one free page above its data area --
+  // so a small grant is no rarity.
+  unsigned floor = __os9_pool_len > 256 ? __os9_pool_len : 256;
+  while (want > have && want - have > floor) {
     if (_os_mem(want, 0, &top) == 0 && (char *)top > __os9_top) {
+      if ((unsigned)((char *)top - __os9_top) <= __os9_pool_len) {
+        _os_mem(have, 0, &top); // no better than the pool: give it back
+        return;
+      }
       __os9_heap_cur = __os9_top;
       __os9_heap_end = (char *)top;
       __os9_top = (char *)top;
