@@ -1,0 +1,68 @@
+# RUN: llc -mtriple=mc6809 -run-pass=mc6809-late-opt -o - %s | FileCheck %s
+
+# Two staged copies in a row: the first's `puls d` and the second's
+# `pshs d` leave the stack as it was and only reload D, which the next
+# instruction loads again whole. Both go.
+# CHECK-LABEL: name: back_to_back
+# CHECK:       PSHSs undef $ad
+# CHECK-NEXT:  LDDd $rs0
+# CHECK-NEXT:  STDd undef $rs2
+# CHECK-NEXT:  LDDd $rs1
+# CHECK-NEXT:  STDd undef $rs3
+# CHECK-NEXT:  $ad = PULSs
+# CHECK-NEXT:  RTSr
+---
+name: back_to_back
+tracksRegLiveness: true
+body: |
+  bb.0:
+    liveins: $ad, $rs0, $rs1, $rs2, $rs3
+    PSHSs undef $ad, implicit-def $ss, implicit $ss, implicit $ad
+    LDDd $rs0, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit-def $aa, implicit-def $ab, implicit-def $ad, implicit-def $aq
+    STDd undef $rs2, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit $ad, implicit-def $rs2
+    $ad = PULSs implicit-def $ss, implicit $ss
+    PSHSs undef $ad, implicit-def $ss, implicit $ss, implicit $ad
+    LDDd $rs1, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit-def $aa, implicit-def $ab, implicit-def $ad, implicit-def $aq
+    STDd undef $rs3, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit $ad, implicit-def $rs3
+    $ad = PULSs implicit-def $ss, implicit $ss
+    RTSr implicit $ad
+...
+
+# The next instruction writes only B: A must come back from the pull.
+# CHECK-LABEL: name: half_load_keeps
+# CHECK:       $ad = PULSs
+# CHECK-NEXT:  PSHSs
+# CHECK-NEXT:  LDBi_o8
+---
+name: half_load_keeps
+tracksRegLiveness: true
+body: |
+  bb.0:
+    liveins: $ad
+    PSHSs undef $ad, implicit-def $ss, implicit $ss, implicit $ad
+    $ad = PULSs implicit-def $ss, implicit $ss
+    PSHSs undef $ad, implicit-def $ss, implicit $ss, implicit $aa
+    LDBi_o8 4, $ss, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit-def $ab
+    STDd undef $rs0, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit $ad, implicit-def $rs0
+    $ad = PULSs implicit-def $ss, implicit $ss
+    RTSr implicit $ad
+...
+
+# The next instruction is no load at all: D keeps the pulled value.
+# CHECK-LABEL: name: not_a_load_keeps
+# CHECK:       $ad = PULSs
+# CHECK-NEXT:  PSHSs
+# CHECK-NEXT:  STDd
+---
+name: not_a_load_keeps
+tracksRegLiveness: true
+body: |
+  bb.0:
+    liveins: $ad
+    PSHSs undef $ad, implicit-def $ss, implicit $ss, implicit $ad
+    $ad = PULSs implicit-def $ss, implicit $ss
+    PSHSs undef $ad, implicit-def $ss, implicit $ss, implicit $ad
+    STDd undef $rs0, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit $ad, implicit-def $rs0
+    $ad = PULSs implicit-def $ss, implicit $ss
+    RTSr implicit $ad
+...

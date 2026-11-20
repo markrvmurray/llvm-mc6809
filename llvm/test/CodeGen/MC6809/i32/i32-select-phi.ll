@@ -51,8 +51,6 @@ define i32 @select_i32(i1 %c, i32 %a, i32 %b) {
 ; O2-NEXT:    pshs d
 ; O2-NEXT:    ldd 6,s
 ; O2-NEXT:    std <__rs0
-; O2-NEXT:    puls d
-; O2-NEXT:    pshs d
 ; O2-NEXT:    ldd 4,s
 ; O2-NEXT:    std <__rs1
 ; O2-NEXT:    puls d
@@ -81,16 +79,10 @@ define i32 @phi_i32(i1 %c, i32 %a, i32 %b) {
 ; O0-NEXT:    pshs d
 ; O0-NEXT:    ldd 8,s
 ; O0-NEXT:    std <__rs2
-; O0-NEXT:    puls d
-; O0-NEXT:    pshs d
 ; O0-NEXT:    ldd 6,s
 ; O0-NEXT:    std <__rs0
-; O0-NEXT:    puls d
-; O0-NEXT:    pshs d
 ; O0-NEXT:    ldd 12,s
 ; O0-NEXT:    std <__rs3
-; O0-NEXT:    puls d
-; O0-NEXT:    pshs d
 ; O0-NEXT:    ldd 10,s
 ; O0-NEXT:    std <__rs1
 ; O0-NEXT:    puls d
@@ -173,9 +165,6 @@ define i32 @phi_i32(i1 %c, i32 %a, i32 %b) {
 ; O2-NEXT:    ldb 3,s
 ; O2-NEXT:    lda 2,s
 ; O2-NEXT:    std <__rs0
-; O2-NEXT:    puls d
-; O2-NEXT:    pshs d
-; O2-NEXT:    ldd <__rs0
 ; O2-NEXT:    std 2,x
 ; O2-NEXT:    puls d
 ; O2-NEXT:    std ,x
@@ -257,8 +246,6 @@ define i32 @select_chain(i1 %c1, i1 %c2, i32 %a, i32 %b, i32 %d) {
 ; O2-NEXT:    pshs d
 ; O2-NEXT:    ldd 7,s
 ; O2-NEXT:    std <__rs0
-; O2-NEXT:    puls d
-; O2-NEXT:    pshs d
 ; O2-NEXT:    ldd 5,s
 ; O2-NEXT:    std <__rs1
 ; O2-NEXT:    puls d
@@ -268,8 +255,6 @@ define i32 @select_chain(i1 %c1, i1 %c2, i32 %a, i32 %b, i32 %d) {
 ; O2-NEXT:    pshs d
 ; O2-NEXT:    ldd 11,s
 ; O2-NEXT:    std <__rs0
-; O2-NEXT:    puls d
-; O2-NEXT:    pshs d
 ; O2-NEXT:    ldd 9,s
 ; O2-NEXT:    std <__rs1
 ; O2-NEXT:    puls d

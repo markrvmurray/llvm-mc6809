@@ -82,12 +82,8 @@ define void @sext_i32_to_i64_then_store(ptr %out, i32 %x) {
 ; CHECK-NEXT:    pshs d
 ; CHECK-NEXT:    ldd <__rs0
 ; CHECK-NEXT:    std 6,x
-; CHECK-NEXT:    puls d
-; CHECK-NEXT:    pshs d
 ; CHECK-NEXT:    ldd <__rs1
 ; CHECK-NEXT:    std 4,x
-; CHECK-NEXT:    puls d
-; CHECK-NEXT:    pshs d
 ; CHECK-NEXT:    ldd <__rs2
 ; CHECK-NEXT:    std 2,x
 ; CHECK-NEXT:    puls d

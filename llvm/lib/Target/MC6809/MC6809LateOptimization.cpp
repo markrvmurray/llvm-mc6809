@@ -36,6 +36,7 @@
 #define DEBUG_TYPE "mc6809-late-opt"
 
 STATISTIC(NumCompareZeroElided, "Redundant compares with zero removed");
+STATISTIC(NumPullPushElided, "puls r; pshs r pairs removed where r is rewritten next");
 STATISTIC(NumDPReloadsElided, "Redundant direct-page reloads removed");
 STATISTIC(NumLEAIntoLoad, "lea r,d; ld ,r folded to ld d,b");
 STATISTIC(NumMemoryRMW, "ld; op; st of one byte folded to a memory operation");
@@ -45,6 +46,8 @@ STATISTIC(NumWalkingCompensation, "Compensating lea inserted on the taken path o
 STATISTIC(NumDiamondHoist, "Diamond false-arm loads hoisted");
 
 using namespace llvm;
+
+static cl::opt<bool> EnablePullPush("mc6809-enable-late-pullpush", cl::init(true), cl::Hidden, cl::desc("Remove a puls r; pshs r pair when r is loaded whole next"));
 
 static cl::opt<bool> EnableDiamondFalseLoad("mc6809-enable-diamond-false-load", cl::init(true), cl::Hidden, cl::desc("Load a compare result's false value ahead of the compare"));
 
@@ -57,6 +60,7 @@ public:
   MC6809LateOptimization() : MachineFunctionPass(ID) { llvm::initializeMC6809LateOptimizationPass(*PassRegistry::getPassRegistry()); }
 
   bool runOnMachineFunction(MachineFunction &MF) override;
+  bool elidePullPush(MachineBasicBlock &MBB) const;
   bool elideCompareZero(MachineBasicBlock &MBB) const;
   bool elideRedundantLoad(MachineBasicBlock &MBB) const;
   bool foldLEAIntoLoad(MachineBasicBlock &MBB) const;
@@ -70,6 +74,7 @@ public:
 bool MC6809LateOptimization::runOnMachineFunction(MachineFunction &MF) {
   bool Changed = false;
   for (MachineBasicBlock &MBB : MF) {
+    Changed |= elidePullPush(MBB);
     Changed |= elideCompareZero(MBB);
     Changed |= elideRedundantLoad(MBB);
     Changed |= foldLEAIntoLoad(MBB);
@@ -77,6 +82,85 @@ bool MC6809LateOptimization::runOnMachineFunction(MachineFunction &MF) {
     Changed |= formWalkingCompareBranch(MBB);
     Changed |= hoistDiamondFalseLoad(MBB);
     Changed |= foldMemoryRMW(MBB);
+  }
+  return Changed;
+}
+
+// Two staged operations in a row each save the accumulator they borrow and
+// put it back, so between them it is pulled and at once pushed again:
+//     pshs d ; ldd <a ; ... ; std <a ; puls d
+//     pshs d ; ldd <b ; ... ; std <b ; puls d
+// A pull followed by a push of the same register leaves the stack as it was
+// and only reloads the register, so when the next instruction is a load of
+// all of it that does not read it the pair does nothing and both go. The first
+// save then covers both operations. (Pull and push leave CC alone.)
+bool MC6809LateOptimization::elidePullPush(MachineBasicBlock &MBB) const {
+  if (!EnablePullPush)
+    return false;
+  const TargetRegisterInfo &TRI = *MBB.getParent()->getSubtarget().getRegisterInfo();
+  // The one register a PULSs or PSHSs names, if it names just one.
+  auto SoleReg = [](const MachineInstr &MI) -> Register {
+    Register R;
+    for (const MachineOperand &MO : MI.explicit_operands()) {
+      if (!MO.isReg())
+        return Register();
+      if (R)
+        return Register();
+      R = MO.getReg();
+    }
+    return R;
+  };
+  // The register a load writes whole, from its opcode. Not an implicit def:
+  // a byte operation can carry an implicit def of D while writing one half.
+  auto LoadedReg = [](const MachineInstr &MI) -> Register {
+    if (auto LS = MC6809InstrInfo::getIdxLoadStore(MI.getOpcode()); LS && !LS->IsStore)
+      return LS->Value;
+    if (auto LS = MC6809InstrInfo::getDirLoadStore(MI.getOpcode()); LS && !LS->IsStore)
+      return LS->Value;
+    switch (MI.getOpcode()) {
+    case MC6809::LDAi8:
+    case MC6809::LDAe:
+      return MC6809::AA;
+    case MC6809::LDBi8:
+    case MC6809::LDBe:
+      return MC6809::AB;
+    case MC6809::LDDi16:
+      return MC6809::AD;
+    case MC6809::LDXi16:
+      return MC6809::IX;
+    case MC6809::LDYi16:
+      return MC6809::IY;
+    case MC6809::LDUi16:
+      return MC6809::SU;
+    default:
+      return Register();
+    }
+  };
+  auto NextReal = [&](MachineBasicBlock::iterator I) {
+    for (++I; I != MBB.end() && I->isDebugInstr(); ++I)
+      ;
+    return I;
+  };
+  bool Changed = false;
+  for (MachineBasicBlock::iterator I = MBB.begin(); I != MBB.end();) {
+    MachineInstr &Pull = *I;
+    MachineBasicBlock::iterator PushI = NextReal(I);
+    if (Pull.getOpcode() != MC6809::PULSs || PushI == MBB.end() || PushI->getOpcode() != MC6809::PSHSs) {
+      ++I;
+      continue;
+    }
+    Register R = SoleReg(Pull);
+    MachineBasicBlock::iterator NextI = NextReal(PushI);
+    if (!R || R == MC6809::CC || SoleReg(*PushI) != R || NextI == MBB.end() || !LoadedReg(*NextI) || !TRI.isSuperRegisterEq(R, LoadedReg(*NextI)) || NextI->readsRegister(R, &TRI)) {
+      ++I;
+      continue;
+    }
+    MachineBasicBlock::iterator After = std::next(PushI);
+    PushI->eraseFromParent();
+    Pull.eraseFromParent();
+    I = After;
+    ++NumPullPushElided;
+    Changed = true;
   }
   return Changed;
 }
