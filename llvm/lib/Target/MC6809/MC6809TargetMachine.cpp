@@ -98,6 +98,7 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeMC6809Target() {
   initializeMC6809FoldLoadIntoConsumerPass(PR);
   initializeMC6809PostIncExitUsesPass(PR);
   initializeMC6809FoldCallThroughMemPass(PR);
+  initializeMC6809SinkCallArgsPass(PR);
   initializeMC6809FoldBankCrossPass(PR);
 }
 
@@ -327,6 +328,9 @@ void MC6809PassConfig::addMachineSSAOptimization() {
   // Fold an INDEX->ACCUM copy into the store/compare that consumes it, keeping
   // the value in an index register (stx/cmpx) instead of transferring it to D.
   addPass(createMC6809FoldBankCrossPass());
+  // Compute each call's register arguments after its stack arguments are
+  // stored, so the two do not compete for the accumulators.
+  addPass(createMC6809SinkCallArgsPass());
 }
 
 void MC6809PassConfig::addOptimizedRegAlloc() {

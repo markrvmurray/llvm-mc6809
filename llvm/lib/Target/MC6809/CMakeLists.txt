@@ -36,6 +36,7 @@ add_llvm_target(MC6809CodeGen
   MC6809PostIncExitUses.cpp
   MC6809FoldBankCross.cpp
   MC6809FoldCallThroughMem.cpp
+  MC6809SinkCallArgs.cpp
   MC6809FrameLowering.cpp
   MC6809ISelLowering.cpp
   MC6809CallFrameHoist.cpp

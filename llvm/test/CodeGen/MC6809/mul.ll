@@ -659,10 +659,9 @@ define dso_local i16 @mul_s_i16(i16 noundef %a, i16 noundef %b) local_unnamed_ad
 ; O1:       ; %bb.0: ; %entry
 ; O1-NEXT:    pshs u
 ; O1-NEXT:    tfr s,u
-; O1-NEXT:    ldd 4,u
 ; O1-NEXT:    leas -2,s
 ; O1-NEXT:    stx ,s
-; O1-NEXT:    tfr d,x
+; O1-NEXT:    ldx 4,u
 ; O1-NEXT:    lbsr __mulhi3
 ; O1-NEXT:    leas 2,s
 ; O1-NEXT:    tfr u,s
@@ -672,10 +671,9 @@ define dso_local i16 @mul_s_i16(i16 noundef %a, i16 noundef %b) local_unnamed_ad
 ; O2:       ; %bb.0: ; %entry
 ; O2-NEXT:    pshs u
 ; O2-NEXT:    tfr s,u
-; O2-NEXT:    ldd 4,u
 ; O2-NEXT:    leas -2,s
 ; O2-NEXT:    stx ,s
-; O2-NEXT:    tfr d,x
+; O2-NEXT:    ldx 4,u
 ; O2-NEXT:    lbsr __mulhi3
 ; O2-NEXT:    leas 2,s
 ; O2-NEXT:    tfr u,s
@@ -685,10 +683,9 @@ define dso_local i16 @mul_s_i16(i16 noundef %a, i16 noundef %b) local_unnamed_ad
 ; O3:       ; %bb.0: ; %entry
 ; O3-NEXT:    pshs u
 ; O3-NEXT:    tfr s,u
-; O3-NEXT:    ldd 4,u
 ; O3-NEXT:    leas -2,s
 ; O3-NEXT:    stx ,s
-; O3-NEXT:    tfr d,x
+; O3-NEXT:    ldx 4,u
 ; O3-NEXT:    lbsr __mulhi3
 ; O3-NEXT:    leas 2,s
 ; O3-NEXT:    tfr u,s
@@ -852,10 +849,9 @@ define dso_local i16 @mul_u_i16(i16 noundef %a, i16 noundef %b) local_unnamed_ad
 ; O1:       ; %bb.0: ; %entry
 ; O1-NEXT:    pshs u
 ; O1-NEXT:    tfr s,u
-; O1-NEXT:    ldd 4,u
 ; O1-NEXT:    leas -2,s
 ; O1-NEXT:    stx ,s
-; O1-NEXT:    tfr d,x
+; O1-NEXT:    ldx 4,u
 ; O1-NEXT:    lbsr __mulhi3
 ; O1-NEXT:    leas 2,s
 ; O1-NEXT:    tfr u,s
@@ -865,10 +861,9 @@ define dso_local i16 @mul_u_i16(i16 noundef %a, i16 noundef %b) local_unnamed_ad
 ; O2:       ; %bb.0: ; %entry
 ; O2-NEXT:    pshs u
 ; O2-NEXT:    tfr s,u
-; O2-NEXT:    ldd 4,u
 ; O2-NEXT:    leas -2,s
 ; O2-NEXT:    stx ,s
-; O2-NEXT:    tfr d,x
+; O2-NEXT:    ldx 4,u
 ; O2-NEXT:    lbsr __mulhi3
 ; O2-NEXT:    leas 2,s
 ; O2-NEXT:    tfr u,s
@@ -878,10 +873,9 @@ define dso_local i16 @mul_u_i16(i16 noundef %a, i16 noundef %b) local_unnamed_ad
 ; O3:       ; %bb.0: ; %entry
 ; O3-NEXT:    pshs u
 ; O3-NEXT:    tfr s,u
-; O3-NEXT:    ldd 4,u
 ; O3-NEXT:    leas -2,s
 ; O3-NEXT:    stx ,s
-; O3-NEXT:    tfr d,x
+; O3-NEXT:    ldx 4,u
 ; O3-NEXT:    lbsr __mulhi3
 ; O3-NEXT:    leas 2,s
 ; O3-NEXT:    tfr u,s
