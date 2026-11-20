@@ -17,6 +17,7 @@
 
 #include "llvm/ADT/APFloat.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/Twine.h"
 #include "llvm/MC/MCContext.h"
 #include "llvm/MC/MCExpr.h"
 #include "llvm/MC/MCFixup.h"
@@ -25,6 +26,7 @@
 #include "llvm/MC/MCRegisterInfo.h"
 #include "llvm/MC/MCSubtargetInfo.h"
 #include "llvm/Support/Casting.h"
+#include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/raw_ostream.h"
 
 using namespace llvm;
@@ -166,40 +168,17 @@ unsigned MC6809MCCodeEmitter::getMachineOpValue(const MCInst &MI, const MCOperan
 unsigned MC6809MCCodeEmitter::encodeImm3(const MCInst &MI, unsigned Op, SmallVectorImpl<MCFixup> &Fixups, const MCSubtargetInfo &STI) const { return MI.getOperand(Op).getImm(); }
 
 unsigned MC6809MCCodeEmitter::encodeRegOpValue(const MCInst &MI, unsigned Op, SmallVectorImpl<MCFixup> &Fixups, const MCSubtargetInfo &STI) const {
-  unsigned Reg = MI.getOperand(Op).getReg();
-  // Map registers to 4-bit TFR/EXG/TFM postbyte encoding.
-  switch (Reg) {
-  case MC6809::AD:
-    return 0; // D
-  case MC6809::IX:
-    return 1; // X
-  case MC6809::IY:
-    return 2; // Y
-  case MC6809::SU:
-    return 3; // U
-  case MC6809::SS:
-    return 4; // S
-  case MC6809::PC:
-    return 5; // PC
-  case MC6809::AW:
-    return 6; // W (6309)
-  case MC6809::AV:
-    return 7; // V (6309)
-  case MC6809::AA:
-    return 8; // A
-  case MC6809::AB:
-    return 9; // B
-  case MC6809::CC:
-    return 10; // CC
-  case MC6809::DP:
-    return 11; // DP
-  case MC6809::AE:
-    return 14; // E (6309)
-  case MC6809::AF:
-    return 15; // F (6309)
-  default:
-    return Reg;
-  }
+  MCRegister Reg = MI.getOperand(Op).getReg();
+  // The 4-bit TFR/EXG/TFM and register-register postbyte code is each
+  // register's hardware encoding in MC6809RegisterInfo.td: D=0 X=1 Y=2 U=3
+  // S=4 PC=5 W=6 V=7 A=8 B=9 CC=10 DP=11, the HD6309 zero register 0=12,
+  // E=14, F=15.  Anything else -- a condition-code flag, Q, MD -- has no
+  // code, and putting its number in the nibble would name some other
+  // register.
+  unsigned Code = Ctx.getRegisterInfo()->getEncodingValue(Reg);
+  if (Code > 15)
+    reportFatalInternalError(Twine("MC6809: ") + MCII.getName(MI.getOpcode()) + " names " + Ctx.getRegisterInfo()->getName(Reg) + ", which has no register postbyte code");
+  return Code;
 }
 
 unsigned MC6809MCCodeEmitter::encodeBIT8RegOpValue(const MCInst &MI, unsigned Op, SmallVectorImpl<MCFixup> &Fixups, const MCSubtargetInfo &STI) const {

@@ -38,7 +38,7 @@ class raw_ostream;
 /// Writes MC6809 machine code to a stream.
 class MC6809MCCodeEmitter : public MCCodeEmitter {
 public:
-  MC6809MCCodeEmitter(const MCInstrInfo &MCII, MCContext &Ctx) : MCII(MCII) {}
+  MC6809MCCodeEmitter(const MCInstrInfo &MCII, MCContext &Ctx) : MCII(MCII), Ctx(Ctx) {}
 
 private:
   unsigned encodeImm3(const MCInst &MI, unsigned Op, SmallVectorImpl<MCFixup> &Fixups, const MCSubtargetInfo &STI) const;
@@ -74,7 +74,7 @@ private:
   void operator=(const MC6809MCCodeEmitter &) = delete;
 
   const MCInstrInfo &MCII;
-  // MCContext &Ctx;
+  MCContext &Ctx;
 };
 
 } // namespace llvm
