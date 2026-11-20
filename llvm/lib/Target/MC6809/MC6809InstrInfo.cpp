@@ -1676,6 +1676,21 @@ void MC6809InstrInfo::copyPhysReg(MachineBasicBlock &MBB, MachineBasicBlock::ite
     Builder.buildInstr(DestReg == MC6809::C ? MC6809::MaterializeByteToCarry_i8 : MC6809::MaterializeByteToOverflow_i8).addUse(SrcReg, getKillRegState(KillSrc));
     return;
   }
+  // A flag to or from any other byte -- a direct-page register, or E or F
+  // on the HD6309 -- goes through B. A plain TFR is no flag access: on the
+  // HD6309 register code C in a TFR is the constant zero, so `tfr C,b`
+  // reads every carry as clear.
+  if (SrcReg == MC6809::C || SrcReg == MC6809::V || DestReg == MC6809::C || DestReg == MC6809::V) {
+    MachineFunction &MF = *MBB.getParent();
+    const TargetRegisterInfo &TRI = *MF.getSubtarget().getRegisterInfo();
+    const Register Stage = MC6809::AB;
+    const bool Preserve = stagingRegLiveAcross(MBB, MI, Stage, TRI);
+    const unsigned Pushed = Preserve ? pushStagingReg(Builder, Stage) : 0;
+    copyPhysReg(MBB, MI, DL, Stage, SrcReg, KillSrc);
+    copyPhysReg(MBB, MI, DL, DestReg, Stage, /*KillSrc=*/true);
+    pullStagingReg(Builder, Stage, Pushed);
+    return;
+  }
 
   // Handle copies involving imaginary registers. Emit concrete direct-page
   // instructions (not pseudos with frame indices, since PEI has already run
