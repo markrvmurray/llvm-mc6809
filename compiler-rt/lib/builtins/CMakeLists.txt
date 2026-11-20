@@ -1480,6 +1480,10 @@ else ()
         # a library, so they need no compiler-rt build of their own.
         add_subdirectory(mc6809-decb)
         add_subdirectory(mc6809-cxx)
+      endif ()
+      if (${arch} STREQUAL "mc6809")
+        # Both the bare-metal and the OS-9 builtins get an HD6309 variant:
+        # NitrOS-9 has 6309 builds too.
         # The library is built under the alternate name
         # libclang_rt.builtins-hd6309.a (so its target name doesn't
         # collide with the default builtins target). It's then copied

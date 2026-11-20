@@ -76,3 +76,10 @@ void _start(void) {}
 // LINK_BARE:     ld.lld
 // LINK_BARE:     "-Tlink.ld"
 // LINK_BARE-NOT: "-Tmc6809-os9.lds"
+
+// -mcpu=hd6309 searches the HD6309 build of the OS-9 builtins first.
+// RUN: %clang -### -target mc6809-unknown-os9 -mcpu=hd6309 -nostdinc %s -o %t.body 2>&1 \
+// RUN:   | FileCheck %s --check-prefix=LINK_OS9_6309
+// LINK_OS9_6309:      ld.lld
+// LINK_OS9_6309-SAME: "-L{{.*}}mc6809-unknown-os9{{/|\\\\}}hd6309"
+// LINK_OS9_6309-SAME: "-lclang_rt.builtins"
