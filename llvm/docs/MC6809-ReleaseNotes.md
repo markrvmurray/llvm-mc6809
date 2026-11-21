@@ -104,6 +104,8 @@ See "Interrupt handlers" in MC6809-Toolchain-Usage.md.
 * picolibc is updated to its current version, which adds among other things
   `quick_exit`, `call_once`, `free_sized`, `free_aligned_sized` and
   `memalignment`, and a reworked `malloc`.
+* `printf` and `scanf` take `%b` for binary, as C23 has it. The formatting
+  code is a little larger and slower for it, in programs that use them.
 * A program can declare the least heap it needs (`-Wl,--defsym=__heap_size_min=N`);
   if the heap it gets is smaller, the link fails rather than the program.
 
