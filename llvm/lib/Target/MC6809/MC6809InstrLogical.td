@@ -345,7 +345,7 @@ class MC6809LoadEffectiveAddress<RegisterClass idx, dag operand> : MC6809Logical
 }
 
 // LEAr n,r or LEAr a,r
-def LEA_Ptr_Imm : MC6809LoadEffectiveAddress<INDEX16, (ins i16imm:$offset)>;
+def LEA_Ptr_Imm : MC6809LoadEffectiveAddress<INDEX16, (ins i16imm:$offset)>, StaticStackForm<"Lea_iPtr", "Mem">;
 def LEA_Ptr_Reg8 : MC6809LoadEffectiveAddress<INDEX16, (ins ACC8:$offset)>;
 def LEA_Ptr_Reg16 : MC6809LoadEffectiveAddress<INDEX16, (ins ACC16:$offset)>;
 

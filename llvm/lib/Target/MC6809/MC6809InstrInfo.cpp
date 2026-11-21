@@ -41,6 +41,7 @@ using namespace llvm;
 #define DEBUG_TYPE "mc6809-instrinfo"
 
 #define GET_INSTRINFO_CTOR_DTOR
+#define GET_INSTRMAP_INFO
 #include "MC6809GenInstrInfo.inc"
 
 namespace llvm {
@@ -2623,7 +2624,14 @@ MachineInstr *MC6809InstrInfo::foldMemoryOperandImpl(MachineFunction &MF, Machin
   return MIB;
 }
 
-static unsigned memOpcodeOfStaticSym(unsigned SymOpc);
+/// The frame-slot (_Mem) pseudo a static-stack (_Sym) pseudo was rewritten
+/// from, or 0, so a fact about the _Mem form -- which flag it captures, say --
+/// carries over to its static-stack sibling. Generated, like
+/// getStaticSymOpcode, from the StaticStackForm fields of the definitions.
+static unsigned memOpcodeOfStaticSym(unsigned SymOpc) {
+  int32_t Mem = MC6809::getFrameSlotForm(SymOpc);
+  return Mem < 0 ? 0 : Mem;
+}
 
 std::optional<MCPhysReg> MC6809InstrInfo::phantomFlagOfProducer(unsigned Opcode) {
   // A static-stack producer captures the flag its frame-slot form does.
@@ -7406,141 +7414,12 @@ unsigned MC6809InstrInfo::getStaticStackDirectPageOpcode(unsigned ExtOpc) const 
 #undef DP
 }
 
-static unsigned staticSymOpcodeOf(unsigned MemOpc);
-
-unsigned MC6809InstrInfo::getStaticSymOpcode(unsigned MemOpc) const { return staticSymOpcodeOf(MemOpc); }
-
-/// The frame-slot (_Mem) pseudo a static-stack (_Sym) pseudo was rewritten
-/// from, or 0. Built once by inverting staticSymOpcodeOf, so a fact about
-/// the _Mem form -- which flag it captures, say -- carries over to its
-/// static-stack sibling without a second hand-kept list.
-static unsigned memOpcodeOfStaticSym(unsigned SymOpc) {
-  static const DenseMap<unsigned, unsigned> Inverse = [] {
-    DenseMap<unsigned, unsigned> M;
-    for (unsigned Opc = 0; Opc < MC6809::INSTRUCTION_LIST_END; ++Opc)
-      if (unsigned Sym = staticSymOpcodeOf(Opc))
-        M[Sym] = Opc;
-    return M;
-  }();
-  return Inverse.lookup(SymOpc);
-}
-
-static unsigned staticSymOpcodeOf(unsigned MemOpc) {
-  switch (MemOpc) {
-  case MC6809::Load_i8_Mem:
-    return MC6809::Load_i8_Sym;
-  case MC6809::Load_i16_Mem:
-    return MC6809::Load_i16_Sym;
-  case MC6809::Load_iPtr_Mem:
-    return MC6809::Load_iPtr_Sym;
-  case MC6809::Load_i32_Mem:
-    return MC6809::Load_i32_Sym;
-  case MC6809::Store_i8_Mem:
-    return MC6809::Store_i8_Sym;
-  case MC6809::Store_i16_Mem:
-    return MC6809::Store_i16_Sym;
-  case MC6809::Store_iPtr_Mem:
-    return MC6809::Store_iPtr_Sym;
-  case MC6809::Store_i32_Mem:
-    return MC6809::Store_i32_Sym;
-  // Arithmetic / carry-chain / bitwise / compare pseudos whose memory
-  // operand is a static-frame local — either the selector's frame folds or
-  // foldMemoryOperandImpl's spilled-second-source folds. Each _Mem form
-  // listed here has a _Sym multiclass sibling with a post-RA expander;
-  // this map is the single source of truth for "lowerable on the static
-  // frame" (the conservative whole-frame marking and the late spill-slot
-  // marking both key on it).
-  case MC6809::Add_i8_Mem:
-    return MC6809::Add_i8_Sym;
-  case MC6809::Add_i16_Mem:
-    return MC6809::Add_i16_Sym;
-  case MC6809::AddZext8_i16_Mem:
-    return MC6809::AddZext8_i16_Sym;
-  case MC6809::SubZext8_i16_Mem:
-    return MC6809::SubZext8_i16_Sym;
-  case MC6809::Sub_i8_Mem:
-    return MC6809::Sub_i8_Sym;
-  case MC6809::Sub_i16_Mem:
-    return MC6809::Sub_i16_Sym;
-  case MC6809::AddSetCarry_i8_Mem:
-    return MC6809::AddSetCarry_i8_Sym;
-  case MC6809::AddSetCarry_i16_Mem:
-    return MC6809::AddSetCarry_i16_Sym;
-  case MC6809::SubSetCarry_i8_Mem:
-    return MC6809::SubSetCarry_i8_Sym;
-  case MC6809::SubSetCarry_i16_Mem:
-    return MC6809::SubSetCarry_i16_Sym;
-  case MC6809::AddSetOverflow_i8_Mem:
-    return MC6809::AddSetOverflow_i8_Sym;
-  case MC6809::AddSetOverflow_i16_Mem:
-    return MC6809::AddSetOverflow_i16_Sym;
-  case MC6809::SubSetOverflow_i8_Mem:
-    return MC6809::SubSetOverflow_i8_Sym;
-  case MC6809::SubSetOverflow_i16_Mem:
-    return MC6809::SubSetOverflow_i16_Sym;
-  case MC6809::AddSetCarryUse_i8_Mem:
-    return MC6809::AddSetCarryUse_i8_Sym;
-  case MC6809::AddSetCarryUse_i16_Mem:
-    return MC6809::AddSetCarryUse_i16_Sym;
-  case MC6809::SubSetCarryUse_i8_Mem:
-    return MC6809::SubSetCarryUse_i8_Sym;
-  case MC6809::SubSetCarryUse_i16_Mem:
-    return MC6809::SubSetCarryUse_i16_Sym;
-  case MC6809::AddSetOverflowUse_i8_Mem:
-    return MC6809::AddSetOverflowUse_i8_Sym;
-  case MC6809::AddSetOverflowUse_i16_Mem:
-    return MC6809::AddSetOverflowUse_i16_Sym;
-  case MC6809::SubSetOverflowUse_i8_Mem:
-    return MC6809::SubSetOverflowUse_i8_Sym;
-  case MC6809::SubSetOverflowUse_i16_Mem:
-    return MC6809::SubSetOverflowUse_i16_Sym;
-  case MC6809::AND_i8_Mem:
-    return MC6809::AND_i8_Sym;
-  case MC6809::AND_i16_Mem:
-    return MC6809::AND_i16_Sym;
-  case MC6809::OR_i8_Mem:
-    return MC6809::OR_i8_Sym;
-  case MC6809::OR_i16_Mem:
-    return MC6809::OR_i16_Sym;
-  case MC6809::XOR_i8_Mem:
-    return MC6809::XOR_i8_Sym;
-  case MC6809::XOR_i16_Mem:
-    return MC6809::XOR_i16_Sym;
-  case MC6809::Compare_i8_Mem:
-    return MC6809::Compare_i8_Sym;
-  case MC6809::Compare_i16_Mem:
-    return MC6809::Compare_i16_Sym;
-  case MC6809::Compare_ptr_Mem:
-    return MC6809::Compare_ptr_Sym;
-  case MC6809::CompareBranch_i8_Mem:
-    return MC6809::CompareBranch_i8_Sym;
-  case MC6809::CompareBranch_i16_Mem:
-    return MC6809::CompareBranch_i16_Sym;
-  case MC6809::CompareBranch_ptr_Mem:
-    return MC6809::CompareBranch_ptr_Sym;
-  // i32 add/sub whose memory operand is a static-frame local, and the
-  // address-of (LEA) of a static-frame local — the escaping-object cases
-  // that let the whole frame move to the static region. The carry-USE i32
-  // forms are deliberately absent: their expansion is the EXG-D,W dance
-  // (expandAddSubCarryUse_i32_Mem) with no _Sym expander yet, so slots they
-  // reach stay on the dynamic frame.
-  case MC6809::Add_i32_Mem:
-    return MC6809::Add_i32_Sym;
-  case MC6809::Sub_i32_Mem:
-    return MC6809::Sub_i32_Sym;
-  case MC6809::AddSetCarry_i32_Mem:
-    return MC6809::AddSetCarry_i32_Sym;
-  case MC6809::SubSetCarry_i32_Mem:
-    return MC6809::SubSetCarry_i32_Sym;
-  case MC6809::AddSetOverflow_i32_Mem:
-    return MC6809::AddSetOverflow_i32_Sym;
-  case MC6809::SubSetOverflow_i32_Mem:
-    return MC6809::SubSetOverflow_i32_Sym;
-  case MC6809::LEA_Ptr_Imm:
-    return MC6809::Lea_iPtr_Sym;
-  default:
-    return 0;
-  }
+/// The static-stack (_Sym) sibling of a frame-slot pseudo, or 0 when it has
+/// none and a slot it reaches stays on the dynamic frame. Generated from the
+/// StaticStackForm fields of the instruction definitions.
+unsigned MC6809InstrInfo::getStaticSymOpcode(unsigned MemOpc) const {
+  int32_t Sym = MC6809::getStaticSymForm(MemOpc);
+  return Sym < 0 ? 0 : Sym;
 }
 
 /// Emit a 6809 8-bit register-register operation by loading LHS into

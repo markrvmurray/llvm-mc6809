@@ -47,7 +47,7 @@ multiclass MC6809Load<RegisterClass dst, ValueType vtype> {
     // one value of a single-register class (the AQ-only i32 pool) and the
     // rematerialized clone would be a second, unspillable one.
     let canFoldAsLoad = 1 in
-    def _Mem : MC6809LoadBase<dst, (ins INDEX16:$idx, unknown:$offset)>;
+    def _Mem : MC6809LoadBase<dst, (ins INDEX16:$idx, unknown:$offset)>, StaticStackForm<NAME, "Mem">;
     // Indirect-indexed load: dst = *(*(idx + offset)). The pointer itself lives
     // in memory at [idx+offset]; the 6809 indexed-indirect mode reads it and
     // derefs in one instruction, so the explicit pointer load AND the index
@@ -60,7 +60,7 @@ multiclass MC6809Load<RegisterClass dst, ValueType vtype> {
     // regalloc (dst is the class vreg). The post-RA expander (expandLoadSym)
     // picks the concrete reg-specific opcode and the addressing mode — direct
     // page / extended / PC-relative — from the global and the relocation model.
-    def _Sym : MC6809LoadBase<dst, (ins unknown:$sym)>;
+    def _Sym : MC6809LoadBase<dst, (ins unknown:$sym)>, StaticStackForm<NAME, "Sym">;
   }
 }
 
@@ -106,14 +106,14 @@ let Predicates = [IsHD6309] in {
   let isAsCheapAsAMove = true, isMoveImm = true, mayLoad = false in
     def Load_i32_Imm : MC6809LoadBase<AQc, (ins i32imm:$imm)>;
   let mayLoad = true, Defs = [NZ, V], canFoldAsLoad = 1 in
-    def Load_i32_Mem : MC6809LoadBase<AQc, (ins INDEX16:$idx, unknown:$offset)>;
+    def Load_i32_Mem : MC6809LoadBase<AQc, (ins INDEX16:$idx, unknown:$offset)>, StaticStackForm<"Load_i32", "Mem">;
   // i32 indirect-indexed load: AQ = *(*(idx+offset)). Single LDQ [n,r].
   // HD6309-only, like all i32.
   let mayLoad = true, Defs = [NZ, V] in
     def Load_i32_MemIndirect : MC6809LoadBase<AQc, (ins INDEX16:$idx, unknown:$offset)>;
   // i32 global load, register deferred (AQc), expanded by expandLoadSym.
   let mayLoad = true, Defs = [NZ, V] in
-    def Load_i32_Sym : MC6809LoadBase<AQc, (ins unknown:$sym)>;
+    def Load_i32_Sym : MC6809LoadBase<AQc, (ins unknown:$sym)>, StaticStackForm<"Load_i32", "Sym">;
 }
 
 // Loads a 0/1 boolean into the LSB of an ACC8 byte (or directly into
@@ -246,11 +246,11 @@ multiclass MC6809Store<RegisterClass src> {
   // in-memory pointer at [idx+offset] before storing through it). Same shape as
   // _Mem; expanded to the [n,r] indirect store opcode.
   def _MemIndirect : MC6809StoreBase<src, (ins INDEX16:$idx, unknown:$offset)>;
-  def _Mem : MC6809StoreBase<src, (ins INDEX16:$idx, unknown:$offset)>;
+  def _Mem : MC6809StoreBase<src, (ins INDEX16:$idx, unknown:$offset)>, StaticStackForm<NAME, "Mem">;
   // store to a global's address, register choice deferred to regalloc
   // (src is the class vreg). expandStoreSym picks the concrete reg-specific
   // opcode + addressing mode (direct page / extended / PC-relative).
-  def _Sym : MC6809StoreBase<src, (ins unknown:$sym)>;
+  def _Sym : MC6809StoreBase<src, (ins unknown:$sym)>, StaticStackForm<NAME, "Sym">;
 }
 
 defm Store_i8 : MC6809Store<ACC8>;
@@ -321,7 +321,7 @@ def Store_iPtr_PreDec  : MC6809StorePostMod<INDEX16>;
 // rather than spilling+reloading (a PC-relative LEA re-resolves at any location,
 // so cloning is correct). Mirrors Load_iPtr_Imm's flags for the non-PIC case.
 let Defs = [Z], isReMaterializable = 1, isAsCheapAsAMove = 1 in
-def Lea_iPtr_Sym : MC6809LogicalInstr {
+def Lea_iPtr_Sym : MC6809LogicalInstr, StaticStackForm<"Lea_iPtr", "Sym"> {
   dag OutOperandList = (outs INDEX16:$dst);
   dag InOperandList = (ins unknown:$sym);
 }
@@ -369,14 +369,14 @@ let Predicates = [IsHD6309] in {
   // dead-marked by regalloc anyway, producing the verifier hits
   // Bug #308 catalogues).
   let mayStore = true, Defs = [NZ, V] in
-    def Store_i32_Mem : MC6809StoreBase<AQc, (ins INDEX16:$idx, unknown:$offset)>;
+    def Store_i32_Mem : MC6809StoreBase<AQc, (ins INDEX16:$idx, unknown:$offset)>, StaticStackForm<"Store_i32", "Mem">;
   // i32 indirect-indexed store: *(*(idx+offset)) = AQ -> STQ [n,r]. mayLoad too
   // (reads the in-memory pointer first).
   let mayStore = true, mayLoad = true, Defs = [NZ, V] in
     def Store_i32_MemIndirect : MC6809StoreBase<AQc, (ins INDEX16:$idx, unknown:$offset)>;
   // i32 global store, register deferred (AQc), expanded by expandStoreSym.
   let mayStore = true, Defs = [NZ, V] in
-    def Store_i32_Sym : MC6809StoreBase<AQc, (ins unknown:$sym)>;
+    def Store_i32_Sym : MC6809StoreBase<AQc, (ins unknown:$sym)>, StaticStackForm<"Store_i32", "Sym">;
 }
 
 // --- Concrete instructions (register-specific, assembler/disassembler) ---
@@ -543,7 +543,7 @@ multiclass MC6809Arithmetic<ValueType vtype, RegisterClass dst, RegisterClass sr
     def _Imm : MC6809ArithmeticBase<dst, src, (ins !cast<Operand>(vtype#"imm"):$val)>;
   }
   let mayLoad = true in {
-    def _Mem : MC6809ArithmeticBase<memDst, memSrc, (ins INDEX16:$idx, unknown:$offset)>;
+    def _Mem : MC6809ArithmeticBase<memDst, memSrc, (ins INDEX16:$idx, unknown:$offset)>, StaticStackForm<NAME, "Mem">;
     // P3b: indirect-indexed (`op [n,r]`) -- same operands as _Mem, expanded to
     // the indirect-sibling opcode via indirectSiblingOf in expandIdxImm.
     def _MemIndirect : MC6809ArithmeticBase<memDst, memSrc, (ins INDEX16:$idx, unknown:$offset)>;
@@ -552,7 +552,7 @@ multiclass MC6809Arithmetic<ValueType vtype, RegisterClass dst, RegisterClass sr
     // offset. eliminateFrameIndex rewrites a _Mem whose frame index moved to
     // the static frame into this form; the post-RA expander emits the
     // extended (or PC-relative under PIC) access. Same tie and Defs as _Mem.
-    def _Sym : MC6809ArithmeticBase<memDst, memSrc, (ins unknown:$sym)>;
+    def _Sym : MC6809ArithmeticBase<memDst, memSrc, (ins unknown:$sym)>, StaticStackForm<NAME, "Sym">;
     if !ne(vtype, i32) then
       def _MemStep : MC6809ArithStepBase<!if(IsByte, ACC8_AB_SP, ACC16), [NZ, V, C]>;
     let Predicates = [IsHD6309] in {
@@ -658,9 +658,9 @@ multiclass MC6809ArithmeticCarry<ValueType vtype, RegisterClass dst, RegisterCla
     def _Imm : MC6809ArithmeticBaseCarry<dst, src, (ins !cast<Operand>(vtype#"imm"):$val)>;
   }
   let mayLoad = true in {
-    def _Mem : MC6809ArithmeticBaseCarry<dst, src, (ins INDEX16:$idx, unknown:$offset)>;
+    def _Mem : MC6809ArithmeticBaseCarry<dst, src, (ins INDEX16:$idx, unknown:$offset)>, StaticStackForm<NAME, "Mem">;
     // Static-stack sibling — see MC6809Arithmetic's _Sym member.
-    def _Sym : MC6809ArithmeticBaseCarry<dst, src, (ins unknown:$sym)>;
+    def _Sym : MC6809ArithmeticBaseCarry<dst, src, (ins unknown:$sym)>, StaticStackForm<NAME, "Sym">;
     if !ne(vtype, i32) then
       def _MemStep : MC6809ArithStepBase<!if(IsByte, ACC8_AB_SP, ACC16), [NZ, V, C], [], 1>;
     let Predicates = [IsHD6309] in {
@@ -781,9 +781,13 @@ multiclass MC6809ArithmeticCarryUse<ValueType vtype, RegisterClass dst, Register
     def _Imm : MC6809ArithmeticBaseSetCarryUse<dst, src, (ins !cast<Operand>(vtype#"imm"):$val)>;
   }
   let mayLoad = true in {
-    def _Mem : MC6809ArithmeticBaseSetCarryUse<dst, src, (ins INDEX16:$idx, unknown:$offset)>;
-    // Static-stack sibling — see MC6809Arithmetic's _Sym member.
-    def _Sym : MC6809ArithmeticBaseSetCarryUse<dst, src, (ins unknown:$sym)>;
+    def _Mem : MC6809ArithmeticBaseSetCarryUse<dst, src, (ins INDEX16:$idx, unknown:$offset)>, StaticStackForm<NAME, "Mem">;
+    // Static-stack sibling -- see MC6809Arithmetic's _Sym member. None for
+    // i32: its expansion (the EXG D,W sequence of
+    // expandAddSubCarryUse_i32_Mem) has no static-stack form, so a slot an
+    // i32 carry-in add or subtract reaches stays on the dynamic frame.
+    if !ne(vtype, i32) then
+      def _Sym : MC6809ArithmeticBaseSetCarryUse<dst, src, (ins unknown:$sym)>, StaticStackForm<NAME, "Sym">;
     if !eq(IsByte, 1) then
       def _MemStep : MC6809ArithStepBase<ACC8_AB_SP, [NZ, V, C], [C], 1>;
     let Predicates = [IsHD6309] in {
@@ -805,9 +809,10 @@ multiclass MC6809ArithmeticOverflowUse<ValueType vtype, RegisterClass dst, Regis
     def _Imm : MC6809ArithmeticBaseSetOverflowUse<dst, src, (ins !cast<Operand>(vtype#"imm"):$val)>;
   }
   let mayLoad = true in {
-    def _Mem : MC6809ArithmeticBaseSetOverflowUse<dst, src, (ins INDEX16:$idx, unknown:$offset)>;
-    // Static-stack sibling — see MC6809Arithmetic's _Sym member.
-    def _Sym : MC6809ArithmeticBaseSetOverflowUse<dst, src, (ins unknown:$sym)>;
+    def _Mem : MC6809ArithmeticBaseSetOverflowUse<dst, src, (ins INDEX16:$idx, unknown:$offset)>, StaticStackForm<NAME, "Mem">;
+    // Static-stack sibling, none for i32 -- see MC6809ArithmeticCarryUse.
+    if !ne(vtype, i32) then
+      def _Sym : MC6809ArithmeticBaseSetOverflowUse<dst, src, (ins unknown:$sym)>, StaticStackForm<NAME, "Sym">;
     if !eq(IsByte, 1) then
       def _MemStep : MC6809ArithStepBase<ACC8_AB_SP, [NZ, V, C], [V], 1>;
     let Predicates = [IsHD6309] in {
@@ -949,9 +954,9 @@ class MC6809AddZextByteBase<dag operand> : MC6809LogicalInstr {
 }
 
 multiclass MC6809AddZextByte {
-  def _Mem : MC6809AddZextByteBase<(ins INDEX16:$idx, unknown:$offset)>;
+  def _Mem : MC6809AddZextByteBase<(ins INDEX16:$idx, unknown:$offset)>, StaticStackForm<NAME, "Mem">;
   // Static-stack sibling -- see MC6809Arithmetic's _Sym member.
-  def _Sym : MC6809AddZextByteBase<(ins unknown:$sym)>;
+  def _Sym : MC6809AddZextByteBase<(ins unknown:$sym)>, StaticStackForm<NAME, "Sym">;
   def _MemStep : MC6809ArithStepBase<ADc, [NZ, V, C]>;
 }
 
@@ -992,11 +997,11 @@ multiclass MC6809Bitwise<ValueType vtype, RegisterClass reg, RegisterClass memRe
   if !eq(vtype, i16) then
     def _RegIdx : MC6809BitwiseBase<reg, (ins INDEX16:$src2)>;
   let mayLoad = true in {
-    def _Mem : MC6809BitwiseBase<memReg, (ins INDEX16:$idx, unknown:$offset)>;
+    def _Mem : MC6809BitwiseBase<memReg, (ins INDEX16:$idx, unknown:$offset)>, StaticStackForm<NAME, "Mem">;
     // P3b: indirect-indexed (`op [n,r]`) -- see MC6809Arithmetic _MemIndirect.
     def _MemIndirect : MC6809BitwiseBase<memReg, (ins INDEX16:$idx, unknown:$offset)>;
     // Static-stack sibling — see MC6809Arithmetic's _Sym member.
-    def _Sym : MC6809BitwiseBase<memReg, (ins unknown:$sym)>;
+    def _Sym : MC6809BitwiseBase<memReg, (ins unknown:$sym)>, StaticStackForm<NAME, "Sym">;
     // The word form is HD6309-only (ANDD/ORD/EORD); formation checks.
     def _MemStep : MC6809ArithStepBase<!if(!eq(vtype, i8), ACC8_AB_SP, ADc), [NZ, V]>;
 // (non-HD6309-only note retained: ACC8 already excludes
@@ -1146,12 +1151,12 @@ multiclass MC6809Compare<ValueType vtype, RegisterClass reg,
   if !eq(vtype, i16) then
     def _RegIdx : MC6809CompareBase<regreg, (ins INDEX16:$src2)>;
   let mayLoad = true in {
-    def _Mem : MC6809CompareBase<reg, (ins INDEX16:$idx, unknown:$offset)>;
+    def _Mem : MC6809CompareBase<reg, (ins INDEX16:$idx, unknown:$offset)>, StaticStackForm<NAME, "Mem">;
     // P3b: indirect-indexed compare (`cmp [n,r]`) -- expanded to the indirect-
     // sibling opcode via indirectSiblingOf in expandCompareIdx.
     def _MemIndirect : MC6809CompareBase<reg, (ins INDEX16:$idx, unknown:$offset)>;
     // Static-stack sibling — see MC6809Arithmetic's _Sym member.
-    def _Sym : MC6809CompareBase<reg, (ins unknown:$sym)>;
+    def _Sym : MC6809CompareBase<reg, (ins unknown:$sym)>, StaticStackForm<NAME, "Sym">;
     // Compare against `,r+` / `,-r` (and the 2-byte forms): the pointer
     // steps by the access size, after the access for a positive $step and
     // before it for a negative one (a walking compare, `cmpb ,x+`). Formed
@@ -1285,11 +1290,11 @@ multiclass MC6809CompareBranch<ValueType vtype, RegisterClass reg,
   if !eq(vtype, i16) then
     def _RegIdx : MC6809CompareBranchBase<regreg, (ins INDEX16:$src2)>;
   let mayLoad = true in {
-    def _Mem : MC6809CompareBranchBase<reg, (ins INDEX16:$idx, unknown:$offset)>;
+    def _Mem : MC6809CompareBranchBase<reg, (ins INDEX16:$idx, unknown:$offset)>, StaticStackForm<NAME, "Mem">;
     // P3b: indirect-indexed fused compare-branch (`cmp [n,r]; b<cc>`).
     def _MemIndirect : MC6809CompareBranchBase<reg, (ins INDEX16:$idx, unknown:$offset)>;
     // Static-stack sibling — see MC6809Arithmetic's _Sym member.
-    def _Sym : MC6809CompareBranchBase<reg, (ins unknown:$sym)>;
+    def _Sym : MC6809CompareBranchBase<reg, (ins unknown:$sym)>, StaticStackForm<NAME, "Sym">;
   }
 }
 
@@ -1314,10 +1319,10 @@ def CompareBranch_ptr_Reg : MC6809CompareBranchBase<INDEX16, (ins INDEX16:$src2)
 // register — avoiding the two-index-register pressure of CMPR that otherwise
 // reloads both spilled operands through the single IY staging register.
 let mayLoad = true in
-def CompareBranch_ptr_Mem : MC6809CompareBranchBase<INDEX16, (ins INDEX16:$idx, unknown:$offset)>;
+def CompareBranch_ptr_Mem : MC6809CompareBranchBase<INDEX16, (ins INDEX16:$idx, unknown:$offset)>, StaticStackForm<"CompareBranch_ptr", "Mem">;
 // Static-stack sibling — see MC6809Arithmetic's _Sym member.
 let mayLoad = true in
-def CompareBranch_ptr_Sym : MC6809CompareBranchBase<INDEX16, (ins unknown:$sym)>;
+def CompareBranch_ptr_Sym : MC6809CompareBranchBase<INDEX16, (ins unknown:$sym)>, StaticStackForm<"CompareBranch_ptr", "Sym">;
 
 // Bug #301 Phase D step 3.1 (2026-05-16 night): native HD6309 i32
 // compare-and-branch fused pseudo.  Single MachineInstr covering

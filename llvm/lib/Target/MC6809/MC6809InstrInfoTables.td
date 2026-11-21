@@ -29,6 +29,23 @@ def MC6809IndexedForms : GenericTable {
   let PrimaryKeyName = "getIndexedForm";
 }
 
+/// A frame-slot pseudo's static-stack sibling, and back (StaticStackForm).
+def getStaticSymForm : InstrMapping {
+  let FilterClass = "StaticStackForm";
+  let RowFields = ["StaticFamily"];
+  let ColFields = ["StaticAccess"];
+  let KeyCol = ["Mem"];
+  let ValueCols = [["Sym"]];
+}
+
+def getFrameSlotForm : InstrMapping {
+  let FilterClass = "StaticStackForm";
+  let RowFields = ["StaticFamily"];
+  let ColFields = ["StaticAccess"];
+  let KeyCol = ["Sym"];
+  let ValueCols = [["Mem"]];
+}
+
 def getIndexedFormByFamily : SearchIndex {
   let Table = MC6809IndexedForms;
   let Key = ["Family", "Form"];

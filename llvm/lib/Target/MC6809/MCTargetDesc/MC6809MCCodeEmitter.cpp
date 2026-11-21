@@ -33,10 +33,6 @@ using namespace llvm;
 
 #define DEBUG_TYPE "mccodeemitter"
 
-#define GET_INSTRMAP_INFO
-#include "MC6809GenInstrInfo.inc"
-#undef GET_INSTRMAP_INFO
-
 namespace llvm {
 
 void MC6809MCCodeEmitter::emitInstruction(uint64_t Val, unsigned Size, const MCSubtargetInfo &STI, raw_ostream &OS) const {

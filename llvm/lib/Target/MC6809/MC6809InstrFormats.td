@@ -3104,6 +3104,17 @@ class MC6809Stack_P1<dag outs, string mnemonic, Opcode opc, list<Register> defs,
 // name of its indexed multiclass, e.g. "LDDi") and its offset form. The
 // indexed multiclasses emit one for each of their constant-offset forms, so
 // "the 8-bit-offset sibling of LDDi_o16" is a table lookup, not a hand table.
+// A pseudo whose memory operand is a frame slot (Access "Mem") and its
+// static-stack sibling (Access "Sym"), which names a symbol in the static
+// frame instead. eliminateFrameIndex rewrites a "Mem" form whose slot moved to
+// the static frame into its "Sym" form (MC6809InstrInfo::getStaticSymOpcode,
+// generated from these fields), so a "Mem" form without a "Sym" sibling keeps
+// its slot on the dynamic frame. Both carry the same Family.
+class StaticStackForm<string family, string access> {
+  string StaticFamily = family;
+  string StaticAccess = access;
+}
+
 class IndexedFormInfo<Instruction inst, string family, bits<4> form> {
   Instruction Inst = inst;
   string Family = family;
