@@ -92,7 +92,6 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeMC6809Target() {
   initializeMC6809ShiftRotateChainPass(PR);
   initializeMC6809DirectPageAllocPass(PR);
   initializeMC6809StaticStackAllocPass(PR);
-  initializeMC6809PreferPage1IndexPass(PR);
   initializeMC6809FoldLongBranchPass(PR);
   initializeMC6809FoldAddSub16Pass(PR);
   initializeMC6809FoldLoadIntoConsumerPass(PR);
@@ -429,18 +428,6 @@ void MC6809PassConfig::addPreEmitPass() {
   // this never touches the phantom-carry chain.
   if (getOptLevel() != CodeGenOptLevel::None)
     addPass(createMachineCopyPropagationPass(/*UseCopyInstr=*/true));
-
-  // Re-home call-free IY live-ranges to the cheaper page-1 IX where IX is free.
-  // Deliberately runs LAST -- after every load/copy-elimination peephole
-  // (SpillOpt, LateOptimization, MachineCopyPropagation) -- because it is a pure
-  // register rename: running it earlier let those passes mis-react to the
-  // rewritten store/reload pairs (e.g. MachineCopyPropagation dropping a reload
-  // across a clobber once a cross-register sty/ldx became a same-register
-  // stx/ldx). With nothing downstream to react, the rename is harmless; it
-  // shrinks page-2 ops by one byte each, which BranchRelaxation (next) accounts
-  // for.
-  if (getOptLevel() != CodeGenOptLevel::None)
-    addPass(createMC6809PreferPage1IndexPass());
 
   addPass(&BranchRelaxationPassID);
   // Fold the `b!cc ; lbra` pairs relaxation left into the long conditional
