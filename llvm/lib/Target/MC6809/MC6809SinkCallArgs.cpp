@@ -21,7 +21,13 @@
 //
 // So, after instruction selection, the chain that computes each register
 // argument -- a load of an incoming argument, a truncation, a constant -- is
-// moved to just before the first argument copy, after the stack stores. Only
+// moved to just before the first argument copy, after the stack stores.
+// Chains that read a value from outside go first, since they may be its last
+// use and free its register; chains that make their value from nothing (an
+// incoming argument reloaded, a constant) go last, so that value is live for
+// as short a time as it can be. memset(p + n, c, n) otherwise loaded c while
+// n still held D for the pointer sum, and parked c in a direct-page register
+// with a push and pull of D around it. Only
 // single-use chains in the call's own block move, and only instructions with
 // nothing to order them: no stores, no calls, no side effects, no loads but
 // invariant ones, and no physical register they read or keep. Nothing after
@@ -145,6 +151,8 @@ bool MC6809SinkCallArgs::sinkForCall(MachineBasicBlock &MBB, MachineInstr &Call)
     return false;
 
   SmallPtrSet<MachineInstr *, 8> Chain;
+  // The instructions of chains that read nothing defined outside them.
+  SmallPtrSet<MachineInstr *, 8> SelfContained;
   for (MachineInstr *Copy : ArgCopies) {
     MachineInstr *DefMI = MRI->getVRegDef(Copy->getOperand(1).getReg());
     if (!DefMI || DefMI->getParent() != &MBB)
@@ -160,8 +168,20 @@ bool MC6809SinkCallArgs::sinkForCall(MachineBasicBlock &MBB, MachineInstr &Call)
     if (!Above)
       continue;
     SmallPtrSet<MachineInstr *, 8> Sub(Chain.begin(), Chain.end());
-    if (collect(*DefMI, *Setup, Sub))
-      Chain.insert(Sub.begin(), Sub.end());
+    if (!collect(*DefMI, *Setup, Sub))
+      continue;
+    SmallVector<MachineInstr *, 4> Added;
+    for (MachineInstr *MI : Sub)
+      if (!Chain.contains(MI))
+        Added.push_back(MI);
+    bool ReadsOutside = false;
+    for (MachineInstr *MI : Added)
+      for (const MachineOperand &MO : MI->uses())
+        if (MO.isReg() && MO.getReg().isVirtual() && !Sub.contains(MRI->getVRegDef(MO.getReg())))
+          ReadsOutside = true;
+    Chain.insert(Added.begin(), Added.end());
+    if (!ReadsOutside)
+      SelfContained.insert(Added.begin(), Added.end());
   }
   if (Chain.empty())
     return false;
@@ -178,11 +198,14 @@ bool MC6809SinkCallArgs::sinkForCall(MachineBasicBlock &MBB, MachineInstr &Call)
     }
   }
 
-  // Move them in their original order, with their debug values.
+  // Move them, the chains that read outside values first and the
+  // self-contained ones last, each in its original order, with their debug
+  // values.
   SmallVector<MachineInstr *, 8> Order;
-  for (MachineInstr &MI : make_range(MBB.begin(), MachineBasicBlock::iterator(Setup)))
-    if (Chain.contains(&MI))
-      Order.push_back(&MI);
+  for (bool Last : {false, true})
+    for (MachineInstr &MI : make_range(MBB.begin(), MachineBasicBlock::iterator(Setup)))
+      if (Chain.contains(&MI) && SelfContained.contains(&MI) == Last)
+        Order.push_back(&MI);
   for (MachineInstr *MI : Order) {
     Register Def = MI->getOperand(0).getReg();
     SmallVector<MachineInstr *, 2> Dbg;
