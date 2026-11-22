@@ -272,7 +272,13 @@ esac
 say "this is $(cat "$PREFIX/VERSION")"
 
 say "generating cross files against $PREFIX"
-MC6809_TOOLCHAIN=$PREFIX "$PICOLIBC/scripts/gen-mc6809-cross.sh" >/dev/null
+# Traced into a log: the generator runs under `set -eu`, so a command that
+# fails in it ends it at once and says nothing, and its own output says only
+# what it wrote.  The trace names the line that stopped it.
+gen_log=$PREFIX/.gen-cross.log
+MC6809_TOOLCHAIN=$PREFIX sh -x "$PICOLIBC/scripts/gen-mc6809-cross.sh" >"$gen_log" 2>&1 \
+  || { echo "$0: generating the cross files failed; the end of $gen_log:" >&2
+       tail -20 "$gen_log" >&2; exit 1; }
 trap '"$PICOLIBC/scripts/gen-mc6809-cross.sh" >/dev/null 2>&1 || true' EXIT
 
 COMMON="-Dformat-default=integer -Dprintf-aliases=false -Dstdio-float=false

@@ -197,6 +197,7 @@ jobs:
             meson=${log%.log}/meson-logs/meson-log.txt
             [ -f "$meson" ] && cp "$meson" "$keep/picolibc/${name%.log}.meson-log.txt"
           done
+          cp "$RUNNER_TEMP/mc6809/.gen-cross.log" "$keep/picolibc/gen-cross.log" 2>/dev/null || true
           cp "$BUILD_DIR/CMakeCache.txt" "$BUILD_DIR/CMakeFiles/CMakeConfigureLog.yaml" \
              "$keep/" 2>/dev/null || true
           find "$keep" -type f | sed "s|^$keep/|  kept: |"
