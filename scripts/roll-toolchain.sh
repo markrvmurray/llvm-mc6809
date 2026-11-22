@@ -88,6 +88,13 @@ while [ $# -gt 0 ]; do
   esac
 done
 [ -n "$PREFIX" ] || { echo "$0: --prefix is required" >&2; exit 2; }
+# One spelling for a Windows path.  The same directory arrives as
+# D:\a\_temp, /d/a/_temp or D:/a/_temp depending on who names it -- the
+# runner's environment, git-bash, or a native program such as clang -- and
+# the checks below compare paths as strings.  The forward-slash Windows form
+# is the one every party accepts, meson's cross files included.
+winpath() { if [ -n "$HOST_WINDOWS" ]; then cygpath -m "$1"; else printf '%s\n' "$1"; fi; }
+PREFIX=$(winpath "$PREFIX")
 [ -x "$LLVM_BUILD/bin/clang" ] || { echo "$0: no clang in $LLVM_BUILD/bin" >&2; exit 2; }
 [ -f "$PICOLIBC/meson.build" ] || { echo "$0: no picolibc at $PICOLIBC" >&2; exit 2; }
 
@@ -247,7 +254,7 @@ cp -R "$resdir" "$PREFIX/lib/clang/"
 
 # The staged compiler has to be the one that finds it, or the bundle is not
 # self-contained and every later step would be testing the build tree.
-staged_res=$("$PREFIX/bin/clang" -print-resource-dir)
+staged_res=$(winpath "$("$PREFIX/bin/clang" -print-resource-dir)")
 case "$staged_res" in
   "$PREFIX"/*|/private"$PREFIX"/*) : ;;
   *) echo "$0: the staged clang looks outside the prefix ($staged_res)" >&2
