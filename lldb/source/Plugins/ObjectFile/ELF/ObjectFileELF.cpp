@@ -4070,7 +4070,21 @@ size_t ObjectFileELF::ReadSectionData(Section *section,
   // pointers), the base class initialises the extractor with ELF32's
   // address size (4), but the DWARF content uses the target's 2-byte
   // addresses; this mismatch fires the DWARFDebugLine consistency assert.
-  section_data.SetAddressByteSize(GetAddressByteSize());
+  //
+  // The ELF structures themselves keep the class's size: a symbol table,
+  // relocation or dynamic entry is laid out by ELFCLASS32/64, and its
+  // parser picks that layout from the extractor's address size, so a 2
+  // there reads every 32-bit entry as a 64-bit one.
+  switch (section->GetType()) {
+  case eSectionTypeELFSymbolTable:
+  case eSectionTypeELFDynamicSymbols:
+  case eSectionTypeELFRelocationEntries:
+  case eSectionTypeELFDynamicLinkInfo:
+    break;
+  default:
+    section_data.SetAddressByteSize(GetAddressByteSize());
+    break;
+  }
 
   if (!(section->Get() & llvm::ELF::SHF_COMPRESSED))
     return result;
