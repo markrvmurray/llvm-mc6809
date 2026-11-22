@@ -300,11 +300,18 @@ build_variant() {
   rm -rf "$build" "$sysroot"
   # shellcheck disable=SC2086
   libdir=lib; [ -n "$subdir" ] && libdir=.
+  # meson judges the prefix by the host machine's rules, and the host is a
+  # bare 6809, so on Windows `D:/...` is not an absolute path to it.  There
+  # the library is configured for prefix / and installed into the sysroot
+  # through DESTDIR, which comes to the same files.  Elsewhere the prefix is
+  # the sysroot itself, as picolibc's installed files expect.
+  prefix=$sysroot destdir=
+  [ -n "$HOST_WINDOWS" ] && { prefix=/; destdir=$sysroot; }
   meson setup "$build" "$PICOLIBC" --cross-file "$PICOLIBC/scripts/$cross" \
-      -Dprefix="$sysroot" --libdir="$libdir" --includedir=include \
+      -Dprefix="$prefix" --libdir="$libdir" --includedir=include \
       $COMMON "$@" >"$build.log" 2>&1 \
     || { echo "$0: meson setup failed for $triple; see $build.log" >&2; exit 1; }
-  meson install -C "$build" --quiet >>"$build.log" 2>&1 \
+  meson install -C "$build" --quiet ${destdir:+--destdir "$destdir"} >>"$build.log" 2>&1 \
     || { echo "$0: install failed for $triple; see $build.log" >&2; exit 1; }
   # A variant keeps its headers only when they differ.  The 6309 library is
   # the same C library built for another processor, so its headers are
