@@ -273,8 +273,15 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: logs
+          # The roll's picolibc builds too: when one fails, the roll says
+          # only "see .build-<triple>.log", and that log -- and meson's own,
+          # beside it -- is the reason.  Both live in dot directories under
+          # the prefix, which upload-artifact skips unless told otherwise.
           path: |
             lit.log
             ${{ runner.temp }}/dist/check.log
+            ${{ runner.temp }}/mc6809/.build-*.log
+            ${{ runner.temp }}/mc6809/.build-*/meson-logs/meson-log.txt
+          include-hidden-files: true
           retention-days: 14
           if-no-files-found: ignore
