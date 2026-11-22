@@ -176,6 +176,10 @@ UnwindPlanSP ABIMC6809::CreateDefaultUnwindPlan() {
   row.SetRegisterLocationToAtCFAPlusOffset(dwarf_pc, -2, true);
   row.SetRegisterLocationToIsCFAPlusOffset(dwarf_s, 0, true);
   row.SetRegisterLocationToUnspecified(dwarf_u, true);
+  // A register this plan does not describe cannot be recovered in the
+  // caller's frame, so it must read as undefined there rather than as the
+  // callee's value.  lldb requires this of a default plan and asserts on it.
+  row.SetUnspecifiedRegistersAreUndefined(true);
 
   auto plan_sp = std::make_shared<UnwindPlan>(eRegisterKindDWARF);
   plan_sp->AppendRow(std::move(row));
