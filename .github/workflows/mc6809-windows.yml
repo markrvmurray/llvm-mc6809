@@ -44,7 +44,7 @@ jobs:
       # picolibc pinned to a commit, as CI pins it: the release's tag predates
       # the fixes this experiment needs (paths through sed on Windows; a check
       # that builds every case where there is no simulator).
-      PICOLIBC_REF: 2e757b15985938aef40613e8f160a44f304d11d6
+      PICOLIBC_REF: fd2b934763228d41478d270d9f0dabf92d84d64f
       # Short and on C:, away from the workspace on D:.  LLVM's deepest
       # build paths come close to MAX_PATH from a long prefix, and D: is the
       # smaller of the two disks.
