@@ -1,0 +1,9 @@
+add_lldb_unittest(ABIMC6809Tests
+  ABIMC6809Test.cpp
+  LINK_COMPONENTS
+    Support
+    MC6809
+  LINK_LIBS
+    lldbTarget
+    lldbPluginABIMC6809
+  )
