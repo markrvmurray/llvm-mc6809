@@ -22,8 +22,15 @@
 ;;
 
 	.section .rom,"ax",@progbits
+;; The outermost frame: nothing called _start, so its CFI leaves the
+;; return address undefined and a debugger's backtrace ends here
+;; rather than reading past the stack.
+	.cfi_sections .debug_frame
 	.globl	_start
 _start:
+	.cfi_startproc
+	.cfi_def_cfa s, 0
+	.cfi_undefined pc
 	lds	#0x4000		; stack at top of low-RAM data region
 	ldmd	#1		; HD6309: engage native mode
 	clra
@@ -43,6 +50,7 @@ _start:
 	jsr	halt
 _hang_6309:
 	bra	_hang_6309
+	.cfi_endproc
 
 ;; Suppress runtime.inc's own _start emission and pull in the helpers
 ;; (_acia_init, putchar, puthex, putstr, putnl, halt, vector table).

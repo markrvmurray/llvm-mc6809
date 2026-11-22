@@ -50,9 +50,17 @@
 
 	.section .text.startup,"ax",@progbits
 
+	// The outermost frame: the kernel started us, nothing called _start, so
+	// its CFI leaves the return address undefined and a debugger's backtrace
+	// ends here rather than reading past the stack.  (Into .debug_frame:
+	// the linker script discards .eh_frame.)
+	.cfi_sections .debug_frame
 	.globl	_start
 	.type	_start,@function
 _start:
+	.cfi_startproc
+	.cfi_def_cfa s, 0
+	.cfi_undefined pc
 	// --- 0. Keep the parameter string (X), its length (D) and the top of
 	//        the area (Y) while the data area is set up; U survives on its
 	//        own (nothing below writes it).
@@ -166,4 +174,5 @@ _start:
 	ldd	#__stack_size
 	std	mc6809_os9_data(__os9_stack_size),u
 	lbsr	__os9_crt1		// does not return (F$Exit)
+	.cfi_endproc
 	.size	_start, .-_start
