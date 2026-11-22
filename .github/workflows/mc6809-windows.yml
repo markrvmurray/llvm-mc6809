@@ -143,23 +143,37 @@ jobs:
               --corpus "$RUNNER_TEMP/unpacked/$bundle" 2>&1 | tee check.log
           sed -n 's/^\(pass=[0-9]* fail=[0-9]* not-run=[0-9]*\).*/windows-x86_64: \1/p' check.log | tail -1
 
+      # upload-artifact roots an artifact at the deepest directory common to
+      # every file, and a file on C: (the build) and one on D: (the
+      # workspace and the temporary directory) have none -- the upload then
+      # refuses outright.  So gather what is worth keeping into one
+      # directory first.  Each copy may find nothing: a run that stops
+      # early has not made the later files, and their absence is itself the
+      # answer.
+      - name: Gather the bundle and the logs
+        if: always()
+        shell: bash
+        run: |
+          keep=$RUNNER_TEMP/keep
+          mkdir -p "$keep/picolibc"
+          cp "$RUNNER_TEMP"/dist/*.zip "$RUNNER_TEMP"/dist/*.sha256 \
+             "$RUNNER_TEMP"/dist/*.log "$keep/" 2>/dev/null || true
+          for log in "$RUNNER_TEMP"/mc6809/.build-*.log; do
+            [ -f "$log" ] || continue
+            name=$(basename "$log"); name=${name#.}
+            cp "$log" "$keep/picolibc/$name"
+            meson=${log%.log}/meson-logs/meson-log.txt
+            [ -f "$meson" ] && cp "$meson" "$keep/picolibc/${name%.log}.meson-log.txt"
+          done
+          cp "$BUILD_DIR/CMakeCache.txt" "$BUILD_DIR/CMakeFiles/CMakeConfigureLog.yaml" \
+             "$keep/" 2>/dev/null || true
+          find "$keep" -type f | sed "s|^$keep/|  kept: |"
+
       - name: Keep the bundle and the logs
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: windows-x86_64-experiment
-          path: |
-            ${{ runner.temp }}/dist/*.zip
-            ${{ runner.temp }}/dist/*.sha256
-            ${{ runner.temp }}/dist/check.log
-            ${{ runner.temp }}/dist/*.log
-            ${{ runner.temp }}/mc6809/.build-*.log
-            ${{ runner.temp }}/mc6809/.build-*/meson-logs/meson-log.txt
-            ${{ env.BUILD_DIR }}/CMakeCache.txt
-            ${{ env.BUILD_DIR }}/CMakeFiles/CMakeConfigureLog.yaml
-          # The roll keeps each picolibc build, and its log, in a dot
-          # directory under the prefix; upload-artifact skips those unless
-          # told otherwise.
-          include-hidden-files: true
+          path: ${{ runner.temp }}/keep
           if-no-files-found: warn
           retention-days: 14
