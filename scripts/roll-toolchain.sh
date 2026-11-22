@@ -305,8 +305,14 @@ build_variant() {
   # the library is configured for prefix / and installed into the sysroot
   # through DESTDIR, which comes to the same files.  Elsewhere the prefix is
   # the sysroot itself, as picolibc's installed files expect.
+  #
+  # Git-for-Windows' shell rewrites an argument that looks like a POSIX path
+  # into a Windows one before a native program sees it, and `-Dprefix=/`
+  # arrived at meson as `-Dprefix=C:/Program Files/Git/`.  MSYS2_ARG_CONV_EXCL
+  # exempts that one argument; the cross file's path still needs converting.
   prefix=$sysroot destdir=
   [ -n "$HOST_WINDOWS" ] && { prefix=/; destdir=$sysroot; }
+  MSYS2_ARG_CONV_EXCL=-Dprefix= \
   meson setup "$build" "$PICOLIBC" --cross-file "$PICOLIBC/scripts/$cross" \
       -Dprefix="$prefix" --libdir="$libdir" --includedir=include \
       $COMMON "$@" >"$build.log" 2>&1 \
