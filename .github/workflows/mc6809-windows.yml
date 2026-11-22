@@ -1,0 +1,165 @@
+# Tries to build and check a Windows bundle.  Publishes nothing.
+#
+# No Windows bundle has ever been produced.  The roll script's side is done
+# and proven by forcing its Windows strategy on macOS (hardlinks, .exe,
+# .zip); what nobody knows is what Windows itself does with the rest:
+#
+#   * whether LLVM builds here in the time a job is allowed,
+#   * whether picolibc builds, and meson accepts the cross files (they carry
+#     MSYS-style paths, and the bare-metal one names an exe_wrapper that
+#     cannot exist here),
+#   * whether check-mc6809-toolchain, a shell script, runs under git-bash --
+#     which decides whether a Windows bundle can be checked or only built.
+#
+# This workflow exists to answer those, one run at a time, on a branch of
+# its own.  It cannot affect a release: it runs only on pushes to
+# windows-bundle, never on a tag; it may only read the repository; and the
+# bundle it makes is kept as a run artifact, never attached to anything.  A
+# tagged release runs the workflow files of the tagged commit, so nothing
+# here reaches one until this is merged and the release workflow is changed
+# on purpose.
+name: MC6809 Windows bundle (experiment)
+
+on:
+  push:
+    branches: [windows-bundle]
+
+concurrency:
+  group: mc6809-windows
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: windows-x86_64
+    if: github.repository == 'markrvmurray/llvm-mc6809'
+    # windows-2022: what llvm-mos builds its Windows packages on.
+    runs-on: windows-2022
+    timeout-minutes: 360
+
+    env:
+      MC6809_CHECK_ALLOW_UNRUNNABLE: 1
+      # picolibc at the release it goes with, as the release workflow does.
+      PICOLIBC_REF: RELEASE_1.1.0_rc1
+      # Short and on C:, away from the workspace on D:.  LLVM's deepest
+      # build paths come close to MAX_PATH from a long prefix, and D: is the
+      # smaller of the two disks.
+      BUILD_DIR: C:/b
+
+    steps:
+      # Before any checkout.  The runner's git converts line endings by
+      # default, and a shell script with CRs in it does not run under bash;
+      # LLVM's tree also has paths longer than Windows allows by default.
+      - name: Configure git for the checkouts
+        shell: bash
+        run: |
+          git config --global core.autocrlf false
+          git config --global core.eol lf
+          git config --global core.longpaths true
+
+      - name: Check out llvm-mc6809
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Check out picolibc
+        uses: actions/checkout@v4
+        with:
+          repository: markrvmurray/picolibc
+          ref: ${{ env.PICOLIBC_REF }}
+          path: _deps/picolibc
+
+      # Pinned first: from win19/20220814.1 cmake can pick the 32-bit
+      # python3.10 libraries over the 64-bit ones (llvm-mos hit it building
+      # lldb, which this does not build -- but it costs nothing to rule out).
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install build tools
+        shell: bash
+        run: |
+          python -m pip install --upgrade meson ninja
+          # The roll script archives with zip and the check below unpacks
+          # with unzip; neither comes with git-bash.
+          choco install -y --no-progress zip unzip
+          for t in meson ninja zip unzip cmake; do
+            printf '%-6s ' "$t"; command -v "$t" || echo "MISSING"
+          done
+
+      # LLVM's own action: puts the MSVC compiler and linker on the PATH
+      # for every later step.
+      - name: Set up MSVC
+        uses: llvm/actions/setup-windows@main
+        with:
+          arch: amd64
+
+      # PowerShell, not bash: git-bash has its own /usr/bin/link, which
+      # shadows MSVC's link.exe for anything that looks it up by name.
+      - name: Configure
+        shell: pwsh
+        run: |
+          cmake -C clang/cmake/caches/MC6809-Release.cmake `
+              -DLLVM_ENABLE_PROJECTS="clang;lld" `
+              -DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl `
+              -DLLVM_PARALLEL_LINK_JOBS=2 `
+              -G Ninja -S llvm -B $env:BUILD_DIR
+          Select-String -Path "$env:BUILD_DIR/CMakeCache.txt" `
+              -Pattern '^(CMAKE_BUILD_TYPE|LLVM_ENABLE_ASSERTIONS|CLANG_REPOSITORY_STRING|CMAKE_CXX_COMPILER):'
+
+      - name: Build
+        shell: pwsh
+        run: cmake --build $env:BUILD_DIR --target all
+
+      # From here on each step is the question being asked: its log is the
+      # answer whether it passes or not, so the logs are kept either way.
+      - name: Roll a bundle
+        shell: bash
+        run: |
+          scripts/roll-toolchain.sh \
+              --prefix "$RUNNER_TEMP/mc6809" \
+              --llvm-build "$BUILD_DIR" \
+              --picolibc "$GITHUB_WORKSPACE/_deps/picolibc" \
+              --tarball "$RUNNER_TEMP/dist"
+
+      # No usim on Windows, so the cases that run a program cannot pass
+      # here.  The numbers are recorded, not held to the other hosts'
+      # thresholds: what matters first is whether the check runs at all.
+      - name: Check the archive
+        shell: bash
+        run: |
+          set -o pipefail
+          cd "$RUNNER_TEMP/dist"
+          archive=$(find . -maxdepth 1 -name '*.zip' -print -quit)
+          [ -n "$archive" ] || { echo "::error::the roll produced no .zip"; exit 1; }
+          sha256sum -c "$(basename "$archive").sha256"
+          mkdir -p "$RUNNER_TEMP/unpacked"
+          unzip -q "$archive" -d "$RUNNER_TEMP/unpacked"
+          bundle=$(basename "$(find "$RUNNER_TEMP/unpacked" -maxdepth 1 \
+                      -mindepth 1 -type d -print -quit)")
+          "$GITHUB_WORKSPACE/_deps/picolibc/scripts/check-mc6809-toolchain" \
+              --corpus "$RUNNER_TEMP/unpacked/$bundle" 2>&1 | tee check.log
+          sed -n 's/^\(pass=[0-9]* fail=[0-9]* not-run=[0-9]*\).*/windows-x86_64: \1/p' check.log | tail -1
+
+      - name: Keep the bundle and the logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-x86_64-experiment
+          path: |
+            ${{ runner.temp }}/dist/*.zip
+            ${{ runner.temp }}/dist/*.sha256
+            ${{ runner.temp }}/dist/check.log
+            ${{ runner.temp }}/dist/*.log
+            ${{ runner.temp }}/mc6809/.build-*.log
+            ${{ runner.temp }}/mc6809/.build-*/meson-logs/meson-log.txt
+            ${{ env.BUILD_DIR }}/CMakeCache.txt
+            ${{ env.BUILD_DIR }}/CMakeFiles/CMakeConfigureLog.yaml
+          # The roll keeps each picolibc build, and its log, in a dot
+          # directory under the prefix; upload-artifact skips those unless
+          # told otherwise.
+          include-hidden-files: true
+          if-no-files-found: warn
+          retention-days: 14
