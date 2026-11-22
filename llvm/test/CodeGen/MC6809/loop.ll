@@ -62,10 +62,8 @@ define dso_local i16 @loop(ptr nocapture noundef readonly %pa, i8 noundef signex
 ; MC6809-O0-NEXT:    leas -3,s
 ; MC6809-O0-NEXT:    pshs u
 ; MC6809-O0-NEXT:    tfr s,u
-; MC6809-O0-NEXT:    pshs d
-; MC6809-O0-NEXT:    ldd #0
-; MC6809-O0-NEXT:    std <__rs0
-; MC6809-O0-NEXT:    puls d
+; MC6809-O0-NEXT:    clr <__rs0hi
+; MC6809-O0-NEXT:    clr <__rs0lo
 ; MC6809-O0-NEXT:    tstb
 ; MC6809-O0-NEXT:    ble .LBB0_3
 ; MC6809-O0-NEXT:  ; %bb.1: ; %for.body.preheader
@@ -107,18 +105,14 @@ define dso_local i16 @loop(ptr nocapture noundef readonly %pa, i8 noundef signex
 ; MC6809-O1:       ; %bb.0: ; %entry
 ; MC6809-O1-NEXT:    pshs u
 ; MC6809-O1-NEXT:    tfr s,u
-; MC6809-O1-NEXT:    pshs d
-; MC6809-O1-NEXT:    ldd #0
-; MC6809-O1-NEXT:    std <__rs0
-; MC6809-O1-NEXT:    puls d
+; MC6809-O1-NEXT:    clr <__rs0hi
+; MC6809-O1-NEXT:    clr <__rs0lo
 ; MC6809-O1-NEXT:    tstb
 ; MC6809-O1-NEXT:    ble .LBB0_3
 ; MC6809-O1-NEXT:  ; %bb.1: ; %for.body.preheader
 ; MC6809-O1-NEXT:    clra
-; MC6809-O1-NEXT:    pshs d
-; MC6809-O1-NEXT:    ldd #0
-; MC6809-O1-NEXT:    std <__rs0
-; MC6809-O1-NEXT:    puls d
+; MC6809-O1-NEXT:    clr <__rs0hi
+; MC6809-O1-NEXT:    clr <__rs0lo
 ; MC6809-O1-NEXT:  .LBB0_2: ; %for.body
 ; MC6809-O1-NEXT:    ; =>This Inner Loop Header: Depth=1
 ; MC6809-O1-NEXT:    pshs d
@@ -137,18 +131,14 @@ define dso_local i16 @loop(ptr nocapture noundef readonly %pa, i8 noundef signex
 ; MC6809-O2:       ; %bb.0: ; %entry
 ; MC6809-O2-NEXT:    pshs u
 ; MC6809-O2-NEXT:    tfr s,u
-; MC6809-O2-NEXT:    pshs d
-; MC6809-O2-NEXT:    ldd #0
-; MC6809-O2-NEXT:    std <__rs0
-; MC6809-O2-NEXT:    puls d
+; MC6809-O2-NEXT:    clr <__rs0hi
+; MC6809-O2-NEXT:    clr <__rs0lo
 ; MC6809-O2-NEXT:    tstb
 ; MC6809-O2-NEXT:    ble .LBB0_3
 ; MC6809-O2-NEXT:  ; %bb.1: ; %for.body.preheader
 ; MC6809-O2-NEXT:    clra
-; MC6809-O2-NEXT:    pshs d
-; MC6809-O2-NEXT:    ldd #0
-; MC6809-O2-NEXT:    std <__rs0
-; MC6809-O2-NEXT:    puls d
+; MC6809-O2-NEXT:    clr <__rs0hi
+; MC6809-O2-NEXT:    clr <__rs0lo
 ; MC6809-O2-NEXT:  .LBB0_2: ; %for.body
 ; MC6809-O2-NEXT:    ; =>This Inner Loop Header: Depth=1
 ; MC6809-O2-NEXT:    pshs d
@@ -167,18 +157,14 @@ define dso_local i16 @loop(ptr nocapture noundef readonly %pa, i8 noundef signex
 ; MC6809-O3:       ; %bb.0: ; %entry
 ; MC6809-O3-NEXT:    pshs u
 ; MC6809-O3-NEXT:    tfr s,u
-; MC6809-O3-NEXT:    pshs d
-; MC6809-O3-NEXT:    ldd #0
-; MC6809-O3-NEXT:    std <__rs0
-; MC6809-O3-NEXT:    puls d
+; MC6809-O3-NEXT:    clr <__rs0hi
+; MC6809-O3-NEXT:    clr <__rs0lo
 ; MC6809-O3-NEXT:    tstb
 ; MC6809-O3-NEXT:    ble .LBB0_3
 ; MC6809-O3-NEXT:  ; %bb.1: ; %for.body.preheader
 ; MC6809-O3-NEXT:    clra
-; MC6809-O3-NEXT:    pshs d
-; MC6809-O3-NEXT:    ldd #0
-; MC6809-O3-NEXT:    std <__rs0
-; MC6809-O3-NEXT:    puls d
+; MC6809-O3-NEXT:    clr <__rs0hi
+; MC6809-O3-NEXT:    clr <__rs0lo
 ; MC6809-O3-NEXT:  .LBB0_2: ; %for.body
 ; MC6809-O3-NEXT:    ; =>This Inner Loop Header: Depth=1
 ; MC6809-O3-NEXT:    pshs d

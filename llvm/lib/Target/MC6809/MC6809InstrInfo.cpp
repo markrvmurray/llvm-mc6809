@@ -6484,6 +6484,26 @@ void MC6809InstrInfo::expandLoadImm(MachineIRBuilder &Builder, MachineInstr &MI)
     Register Transit;
     if (RealReg == MC6809::AD)
       Transit = freeTransitIndex(MI, Register());
+    // Zero needs no register at all: two direct-page clears (4 bytes, 12
+    // cycles). That beats a push and pull of a busy D every way, and under
+    // optimisation for size it beats an index transit too (ldx #0;stx <rs is
+    // 5 bytes, ldy #0;sty <rs 7). D when it is free is no larger and
+    // faster. The clears set the flags the load would, and clear C as well,
+    // so only where C is not read later.
+    if (RealReg == MC6809::AD && (ValOp.isImm() || ValOp.isCImm()) && (ValOp.isImm() ? ValOp.getImm() : ValOp.getCImm()->getSExtValue()) == 0 &&
+        (Transit ? MF.getFunction().hasOptSize() : stagingSaveNeeded(MI, MC6809::AD))) {
+      MachineBasicBlock &MBB = *MI.getParent();
+      const TargetRegisterInfo &TRI = *MF.getSubtarget().getRegisterInfo();
+      if (!stagingRegReadLater(MBB, std::next(MI.getIterator()), MC6809::C, TRI)) {
+        Register Dest = DestRegOp.getReg();
+        for (unsigned Idx : {MC6809::sub_hi_byte, MC6809::sub_lo_byte}) {
+          Register Byte = TRI.getSubReg(Dest, Idx);
+          Builder.buildInstr(MC6809::CLRd).addReg(Byte, RegState::Undef).addReg(Byte, RegState::ImplicitDefine);
+        }
+        MI.removeFromParent();
+        return;
+      }
+    }
     if (Transit) {
       auto Load = Builder.buildInstr(LoadImmediateOpcode.at(Transit)).addDef(Transit, RegState::Implicit);
       if (ValOp.isGlobal())

@@ -1,0 +1,101 @@
+# RUN: llc -mtriple=mc6809 -run-pass=mc6809-expand-pseudos -verify-machineinstrs %s -o - | FileCheck %s
+
+# A zero loaded into a direct-page imaginary register needs no real register:
+# two clears of its bytes (4 bytes) do it. They replace a push and pull of a
+# busy D always, and an index transit (ldx #0;stx is 5 bytes, ldy #0;sty 7)
+# when optimising for size. A free D stays (clra;clrb;std is no larger and
+# faster), and so does everything else where C is read afterwards: a clear
+# clears C, the load leaves it alone.
+
+--- |
+  define void @size_transit() optsize { ret void }
+  define void @speed_transit() { ret void }
+  define void @d_free() optsize { ret void }
+  define void @nothing_free() { ret void }
+  define void @carry_read() { ret void }
+...
+---
+# D and Y busy, X free, optimising for size: the clears, not ldx;stx.
+name:            size_transit
+tracksRegLiveness: true
+noPhis:          true
+isSSA:           false
+noVRegs:         true
+body:             |
+  bb.0:
+    liveins: $ad
+    ; CHECK-LABEL: name: size_transit
+    ; CHECK:      CLRd undef $rs0hi
+    ; CHECK-NEXT: CLRd undef $rs0lo
+    ; CHECK-NEXT: RTSr
+    $rs0 = Load_i16_Imm 0, implicit-def dead $nz, implicit-def dead $v
+    RTSr implicit $ad, implicit $rs0
+...
+---
+# The same for speed: X carries it.
+name:            speed_transit
+tracksRegLiveness: true
+noPhis:          true
+isSSA:           false
+noVRegs:         true
+body:             |
+  bb.0:
+    liveins: $ad
+    ; CHECK-LABEL: name: speed_transit
+    ; CHECK-NOT:  CLRd
+    ; CHECK:      LDXi16 0
+    ; CHECK-NEXT: STXd undef $rs0
+    $rs0 = Load_i16_Imm 0, implicit-def dead $nz, implicit-def dead $v
+    RTSr implicit $ad, implicit $rs0
+...
+---
+# D free: through D, even optimising for size.
+name:            d_free
+tracksRegLiveness: true
+noPhis:          true
+isSSA:           false
+noVRegs:         true
+body:             |
+  bb.0:
+    ; CHECK-LABEL: name: d_free
+    ; CHECK-NOT:  CLRd
+    ; CHECK:      STDd undef $rs0
+    $rs0 = Load_i16_Imm 0, implicit-def dead $nz, implicit-def dead $v
+    RTSr implicit $rs0
+...
+---
+# D, X, U and Y all busy: the clears instead of a push and pull of D.
+name:            nothing_free
+tracksRegLiveness: true
+noPhis:          true
+isSSA:           false
+noVRegs:         true
+body:             |
+  bb.0:
+    liveins: $ad, $ix, $su, $iy
+    ; CHECK-LABEL: name: nothing_free
+    ; CHECK-NOT:  PSHS
+    ; CHECK:      CLRd undef $rs0hi
+    ; CHECK-NEXT: CLRd undef $rs0lo
+    ; CHECK-NEXT: RTSr
+    $rs0 = Load_i16_Imm 0, implicit-def dead $nz, implicit-def dead $v
+    RTSr implicit $ad, implicit $ix, implicit $su, implicit $iy, implicit $rs0
+...
+---
+# As above, but C is read afterwards: the clears would destroy it.
+name:            carry_read
+tracksRegLiveness: true
+noPhis:          true
+isSSA:           false
+noVRegs:         true
+body:             |
+  bb.0:
+    liveins: $ad, $ix, $su, $iy, $c
+    ; CHECK-LABEL: name: carry_read
+    ; CHECK-NOT:  CLRd
+    ; CHECK:      PSHSs
+    ; CHECK:      STDd undef $rs0
+    ; CHECK:      PULSs
+    $rs0 = Load_i16_Imm 0, implicit-def dead $nz, implicit-def dead $v
+    RTSr implicit $ad, implicit $ix, implicit $su, implicit $iy, implicit $c, implicit $rs0
+...

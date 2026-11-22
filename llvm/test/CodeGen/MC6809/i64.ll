@@ -1236,11 +1236,11 @@ define i64 @zext_i32_to_i64(i32 %v) {
 ; O0-NEXT:    pshs d
 ; O0-NEXT:    ldd 4,s
 ; O0-NEXT:    std <__rs0
-; O0-NEXT:    ldd #0
-; O0-NEXT:    std <__rs1
-; O0-NEXT:    ldd #0
-; O0-NEXT:    std <__rs2
 ; O0-NEXT:    puls d
+; O0-NEXT:    clr <__rs1hi
+; O0-NEXT:    clr <__rs1lo
+; O0-NEXT:    clr <__rs2hi
+; O0-NEXT:    clr <__rs2lo
 ; O0-NEXT:    std 6,x
 ; O0-NEXT:    ldd <__rs0
 ; O0-NEXT:    std 4,x

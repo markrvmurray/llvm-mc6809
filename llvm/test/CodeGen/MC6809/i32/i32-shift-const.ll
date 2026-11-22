@@ -426,10 +426,8 @@ define i32 @lshr_i32_16(i32 %x) {
 ; O0-LABEL: lshr_i32_16:
 ; O0:       ; %bb.0:
 ; O0-NEXT:    ldd 2,s
-; O0-NEXT:    pshs d
-; O0-NEXT:    ldd #0
-; O0-NEXT:    std <__rs0
-; O0-NEXT:    puls d
+; O0-NEXT:    clr <__rs0hi
+; O0-NEXT:    clr <__rs0lo
 ; O0-NEXT:    std 2,x
 ; O0-NEXT:    ldd <__rs0
 ; O0-NEXT:    std ,x
