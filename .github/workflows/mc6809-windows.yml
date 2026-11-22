@@ -47,6 +47,12 @@ jobs:
       # build paths come close to MAX_PATH from a long prefix, and D: is the
       # smaller of the two disks.
       BUILD_DIR: C:/b
+      # sccache, not ccache: it is the cache that understands cl.  Kept on
+      # local disk and carried between runs by actions/cache, as CI carries
+      # its ccache, rather than sccache's own GitHub cache backend, which
+      # makes one cache request per object file.
+      SCCACHE_DIR: C:/sccache
+      SCCACHE_CACHE_SIZE: 4G
 
     steps:
       # Before any checkout.  The runner's git converts line endings by
@@ -89,6 +95,18 @@ jobs:
             printf '%-6s ' "$t"; command -v "$t" || echo "MISSING"
           done
 
+      - name: Install sccache
+        uses: mozilla-actions/sccache-action@v0.0.11
+
+      # The newest cache any earlier run saved.  The first run finds none
+      # and builds everything; later ones recompile only what changed.
+      - name: Restore the compiler cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ env.SCCACHE_DIR }}
+          key: sccache-windows-${{ github.sha }}
+          restore-keys: sccache-windows-
+
       # LLVM's own action: puts the MSVC compiler and linker on the PATH
       # for every later step.
       - name: Set up MSVC
@@ -104,6 +122,8 @@ jobs:
           cmake -C clang/cmake/caches/MC6809-Release.cmake `
               -DLLVM_ENABLE_PROJECTS="clang;lld" `
               -DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl `
+              -DCMAKE_C_COMPILER_LAUNCHER=sccache `
+              -DCMAKE_CXX_COMPILER_LAUNCHER=sccache `
               -DLLVM_PARALLEL_LINK_JOBS=2 `
               -G Ninja -S llvm -B $env:BUILD_DIR
           Select-String -Path "$env:BUILD_DIR/CMakeCache.txt" `
@@ -111,7 +131,19 @@ jobs:
 
       - name: Build
         shell: pwsh
-        run: cmake --build $env:BUILD_DIR --target all
+        run: |
+          sccache --zero-stats | Out-Null
+          cmake --build $env:BUILD_DIR --target all
+          sccache --show-stats
+
+      # Saved here, straight after the build, not by a post-job step: the
+      # steps after this one are the experiment and may well fail, and a
+      # failed job would otherwise throw away two hours of compiling.
+      - name: Save the compiler cache
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ env.SCCACHE_DIR }}
+          key: sccache-windows-${{ github.sha }}
 
       # From here on each step is the question being asked: its log is the
       # answer whether it passes or not, so the logs are kept either way.
