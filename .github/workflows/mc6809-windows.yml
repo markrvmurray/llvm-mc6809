@@ -42,8 +42,9 @@ jobs:
     env:
       MC6809_CHECK_ALLOW_UNRUNNABLE: 1
       # picolibc pinned to a commit, as CI pins it: the release's tag predates
-      # the fixes this experiment needs (paths through sed on Windows).
-      PICOLIBC_REF: 3d114745ad837624513373cc7c531bce28cfd752
+      # the fixes this experiment needs (paths through sed on Windows; a check
+      # that builds every case where there is no simulator).
+      PICOLIBC_REF: 2e757b15985938aef40613e8f160a44f304d11d6
       # Short and on C:, away from the workspace on D:.  LLVM's deepest
       # build paths come close to MAX_PATH from a long prefix, and D: is the
       # smaller of the two disks.
