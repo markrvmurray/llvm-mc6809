@@ -55,6 +55,12 @@ jobs:
       # makes one cache request per object file.
       SCCACHE_DIR: C:/sccache
       SCCACHE_CACHE_SIZE: 4G
+      # Pinned, and part of the cache key.  sccache puts its own version
+      # into every entry's hash, so a new release misses on everything the
+      # old one stored: left to the action's "latest", the release of
+      # 0.20.0 turned a ten-minute build into a two-hour one.  Bumping
+      # this starts a fresh cache rather than restoring a useless one.
+      SCCACHE_VERSION: v0.20.0
 
     steps:
       # Before any checkout.  The runner's git converts line endings by
@@ -96,6 +102,8 @@ jobs:
 
       - name: Install sccache
         uses: mozilla-actions/sccache-action@v0.0.11
+        with:
+          version: ${{ env.SCCACHE_VERSION }}
 
       # The newest cache any earlier run saved.  The first run finds none
       # and builds everything; later ones recompile only what changed.
@@ -103,8 +111,8 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: ${{ env.SCCACHE_DIR }}
-          key: sccache-windows-${{ github.sha }}
-          restore-keys: sccache-windows-
+          key: sccache-windows-${{ env.SCCACHE_VERSION }}-${{ github.sha }}
+          restore-keys: sccache-windows-${{ env.SCCACHE_VERSION }}-
 
       # LLVM's own action: puts the MSVC compiler and linker on the PATH
       # for every later step.
@@ -142,7 +150,7 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: ${{ env.SCCACHE_DIR }}
-          key: sccache-windows-${{ github.sha }}
+          key: sccache-windows-${{ env.SCCACHE_VERSION }}-${{ github.sha }}
 
       # From here on each step is the question being asked: its log is the
       # answer whether it passes or not, so the logs are kept either way.
