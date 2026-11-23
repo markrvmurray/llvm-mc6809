@@ -1,8 +1,8 @@
 # Tries to build and check a Windows bundle.  Publishes nothing.
 #
 # No Windows bundle has ever been produced.  The roll script's side is done
-# and proven by forcing its Windows strategy on macOS (hardlinks, .exe,
-# .zip); what nobody knows is what Windows itself does with the rest:
+# and proven by forcing its Windows strategy on macOS (hardlinks, .exe);
+# what nobody knows is what Windows itself does with the rest:
 #
 #   * whether LLVM builds here in the time a job is allowed,
 #   * whether picolibc builds, and meson accepts the cross files (they carry
@@ -90,10 +90,7 @@ jobs:
         shell: bash
         run: |
           python -m pip install --upgrade meson ninja
-          # The roll script archives with zip and the check below unpacks
-          # with unzip; neither comes with git-bash.
-          choco install -y --no-progress zip unzip
-          for t in meson ninja zip unzip cmake; do
+          for t in meson ninja tar gzip cmake; do
             printf '%-6s ' "$t"; command -v "$t" || echo "MISSING"
           done
 
@@ -166,13 +163,30 @@ jobs:
         run: |
           set -o pipefail
           cd "$RUNNER_TEMP/dist"
-          archive=$(find . -maxdepth 1 -name '*.zip' -print -quit)
-          [ -n "$archive" ] || { echo "::error::the roll produced no .zip"; exit 1; }
+          archive=$(find . -maxdepth 1 -name '*.tar.gz' -print -quit)
+          [ -n "$archive" ] || { echo "::error::the roll produced no .tar.gz"; exit 1; }
           sha256sum -c "$(basename "$archive").sha256"
           mkdir -p "$RUNNER_TEMP/unpacked"
-          unzip -q "$archive" -d "$RUNNER_TEMP/unpacked"
+          # Unpacked by the tar.exe that comes with Windows, not git-bash's:
+          # it is what somebody without git-bash has.
+          "$SYSTEMROOT/System32/tar.exe" -xf "$(cygpath -w "$archive")" \
+              -C "$(cygpath -w "$RUNNER_TEMP/unpacked")"
           bundle=$(basename "$(find "$RUNNER_TEMP/unpacked" -maxdepth 1 \
                       -mindepth 1 -type d -print -quit)")
+          # The archive is small only because each tool's other names are
+          # hardlinks to it; a tar.exe that unpacked them as copies would
+          # bring the gigabyte back.  -ef compares the files' identities.
+          b=$RUNNER_TEMP/unpacked/$bundle
+          unlinked=0
+          for pair in bin/clang.exe:bin/mc6809-os9-clang.exe \
+                      bin/clang.exe:bin/clang++.exe \
+                      bin/lld.exe:bin/mc6809-ld.exe \
+                      lib/clang-runtimes/mc6809-unknown-unknown/lib/crt0-hosted.o:lib/clang-runtimes/mc6809/lib/crt0-hosted.o; do
+            if [ "$b/${pair%%:*}" -ef "$b/${pair#*:}" ]; then echo "linked:   $pair"
+            else echo "::error::not one file after unpacking: $pair"; unlinked=1; fi
+          done
+          echo "unpacked: $(du -sh "$b" | cut -f1)"
+          [ "$unlinked" -eq 0 ]
           "$GITHUB_WORKSPACE/_deps/picolibc/scripts/check-mc6809-toolchain" \
               --corpus "$RUNNER_TEMP/unpacked/$bundle" 2>&1 | tee check.log
           sed -n 's/^\(pass=[0-9]* fail=[0-9]* not-run=[0-9]*\).*/windows-x86_64: \1/p' check.log | tail -1
@@ -190,7 +204,7 @@ jobs:
         run: |
           keep=$RUNNER_TEMP/keep
           mkdir -p "$keep/picolibc"
-          cp "$RUNNER_TEMP"/dist/*.zip "$RUNNER_TEMP"/dist/*.sha256 \
+          cp "$RUNNER_TEMP"/dist/*.tar.gz "$RUNNER_TEMP"/dist/*.sha256 \
              "$RUNNER_TEMP"/dist/*.log "$keep/" 2>/dev/null || true
           for log in "$RUNNER_TEMP"/mc6809/.build-*.log; do
             [ -f "$log" ] || continue
