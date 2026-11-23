@@ -23,8 +23,15 @@
 .ifndef __runtime_skip_start
 
 	.section .rom,"ax",@progbits
+;; The outermost frame: nothing called _start, so its CFI leaves the
+;; return address undefined and a debugger's backtrace ends here
+;; rather than reading past the stack.
+	.cfi_sections .debug_frame
 	.globl	_start
 _start:
+	.cfi_startproc
+	.cfi_def_cfa s, 0
+	.cfi_undefined pc
 	;; Stack at top of DRAM (data region). Bug #181: previous value
 	;; was $C000, matching the old DRAM=$0000-$BFFF / CRAM=$C003-$FFCF
 	;; split. After the split moved to $0000-$3FFF / $4000-$FFCF,
@@ -47,6 +54,7 @@ _start:
 	jsr	halt
 _hang:
 	bra	_hang
+	.cfi_endproc
 
 .endif
 

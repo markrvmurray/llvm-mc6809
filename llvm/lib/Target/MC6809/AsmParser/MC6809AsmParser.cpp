@@ -680,7 +680,9 @@ public:
     return false;
   }
 
-  ParseStatus tryParseRegister(MCRegister &Reg, SMLoc &StartLoc, SMLoc &EndLoc) override {
+  // Whether the source text from StartLoc to EndLoc names a register, in any
+  // case.  Consumes nothing: the parser's own callers look ahead with it.
+  ParseStatus matchRegisterSpan(MCRegister &Reg, SMLoc StartLoc, SMLoc EndLoc) {
     std::string AnyCase(StartLoc.getPointer(), EndLoc.getPointer() - StartLoc.getPointer());
     llvm::transform(AnyCase, AnyCase.begin(), [](unsigned char C) { return std::tolower(C); });
     StringRef RegisterName(AnyCase.c_str(), AnyCase.size());
@@ -695,11 +697,25 @@ public:
     return (Reg != 0) ? ParseStatus::Success : ParseStatus::NoMatch;
   }
 
+  // The generic parser's hook (used by directives such as .cfi_offset): parse
+  // the current token as a register, report where it was, and consume it.
+  ParseStatus tryParseRegister(MCRegister &Reg, SMLoc &StartLoc, SMLoc &EndLoc) override {
+    const AsmToken &Tok = getLexer().getTok();
+    if (Tok.isNot(AsmToken::Identifier))
+      return ParseStatus::NoMatch;
+    if (!matchRegisterSpan(Reg, Tok.getLoc(), Tok.getEndLoc()).isSuccess())
+      return ParseStatus::NoMatch;
+    StartLoc = Tok.getLoc();
+    EndLoc = Tok.getEndLoc();
+    Parser.Lex();
+    return ParseStatus::Success;
+  }
+
   ParseStatus tryParseRegister(OperandVector &Operands) {
     MCRegister Reg = 0;
     SMLoc S = getLexer().getLoc();
     SMLoc E = getLexer().getTok().getEndLoc();
-    if (tryParseRegister(Reg, S, E).isSuccess()) {
+    if (matchRegisterSpan(Reg, S, E).isSuccess()) {
       Operands.push_back(MC6809Operand::createReg(MCSTI, Reg, S, E));
       return ParseStatus::Success;
     }
@@ -718,7 +734,7 @@ public:
       MCRegister Reg = 0;
       SMLoc RS = getLexer().getLoc();
       E = getLexer().getTok().getEndLoc();
-      if (tryParseRegister(Reg, RS, E).isFailure())
+      if (matchRegisterSpan(Reg, RS, E).isFailure())
         return ParseStatus::Failure;
       if (Reg == 0)
         break;
@@ -760,7 +776,7 @@ public:
         return ParseStatus::NoMatch;
       MCRegister Reg = 0;
       SMLoc E = getLexer().getTok().getEndLoc();
-      if (tryParseRegister(Reg, S, E).isSuccess()) {
+      if (matchRegisterSpan(Reg, S, E).isSuccess()) {
         Operands.push_back(MC6809Operand::createReg(MCSTI, Reg, S, E));
         return ParseStatus::Success;
       }
@@ -788,7 +804,7 @@ public:
 
     MCRegister Reg = 0;
     SMLoc E = getLexer().getTok().getEndLoc();
-    if (tryParseRegister(Reg, S, E).isSuccess()) {
+    if (matchRegisterSpan(Reg, S, E).isSuccess()) {
       Operands.push_back(MC6809Operand::createReg(MCSTI, Reg, S, E));
       return ParseStatus::Success;
     }
@@ -986,7 +1002,7 @@ public:
             MCRegister Reg = 0;
             SMLoc NS = NextTok.getLoc();
             SMLoc NE = NextTok.getEndLoc();
-            tryParseRegister(Reg, NS, NE);
+            matchRegisterSpan(Reg, NS, NE);
             if (Reg != 0)
               PushAsToken = true; // - before a register
           }
@@ -1008,7 +1024,13 @@ public:
     return false;
   }
 
-  bool parseRegister(MCRegister &Reg, SMLoc &StartLoc, SMLoc &EndLoc) override { return !tryParseRegister(Reg, StartLoc, EndLoc).isSuccess(); }
+  // A failure must say why: the generic directive parsers return quietly
+  // when this does, taking the diagnostic as already given.
+  bool parseRegister(MCRegister &Reg, SMLoc &StartLoc, SMLoc &EndLoc) override {
+    if (!tryParseRegister(Reg, StartLoc, EndLoc).isSuccess())
+      return Error(getLexer().getLoc(), "invalid register name");
+    return false;
+  }
 
 }; // class MC6809AsmParser
 } // end anonymous namespace

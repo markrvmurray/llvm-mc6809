@@ -1,0 +1,34 @@
+# The program entry points tell a debugger that nothing called them.
+#
+# Each _start's CFI leaves the return address undefined, so a backtrace
+# ends there instead of reading whatever lies past the top of the stack as
+# a caller.  Without it lldb walked on through dozens of made-up frames.
+# The OS-9 entry is assembly; the DECB one is C with its entry written out
+# in assembly, and must have its CFI with or without debug information; the
+# execution tests' runtime is the one the lldb tests run on.
+#
+# RUN: llvm-mc -triple=mc6809-unknown-os9 --filetype=obj -o %t-os9.o \
+# RUN:   %S/../../../../compiler-rt/lib/builtins/mc6809-os9/crt0.S
+# RUN: llvm-dwarfdump --debug-frame %t-os9.o | FileCheck %s
+#
+# RUN: %clang6809 --target=mc6809-unknown-decb -Os -c -o %t-decb.o \
+# RUN:   %S/../../../../compiler-rt/lib/builtins/mc6809-decb/crt0.c
+# RUN: llvm-dwarfdump --debug-frame %t-decb.o | FileCheck %s
+# RUN: %clang6809 --target=mc6809-unknown-decb -Os -g -c -o %t-decb-g.o \
+# RUN:   %S/../../../../compiler-rt/lib/builtins/mc6809-decb/crt0.c
+# RUN: llvm-dwarfdump --debug-frame %t-decb-g.o | FileCheck %s
+#
+# RUN: echo '.include "runtime.inc"' > %t-rt.s
+# RUN: llvm-mc -triple=mc6809 -I %S/../../MC/MC6809/Execution/Inputs \
+# RUN:   --filetype=obj -o %t-rt.o %t-rt.s
+# RUN: llvm-dwarfdump --debug-frame %t-rt.o | FileCheck %s
+# RUN: echo '.include "runtime6309.inc"' > %t-rt6309.s
+# RUN: llvm-mc -triple=mc6809 -mcpu=hd6309 \
+# RUN:   -I %S/../../MC/MC6809/Execution/Inputs --filetype=obj \
+# RUN:   -o %t-rt6309.o %t-rt6309.s
+# RUN: llvm-dwarfdump --debug-frame %t-rt6309.o | FileCheck %s
+
+# CHECK: FDE
+# CHECK: DW_CFA_def_cfa: SS +0
+# CHECK-NEXT: DW_CFA_undefined: PC
+# CHECK: CFA=SS: PC=undefined

@@ -176,6 +176,10 @@ UnwindPlanSP ABIMC6809::CreateDefaultUnwindPlan() {
   row.SetRegisterLocationToAtCFAPlusOffset(dwarf_pc, -2, true);
   row.SetRegisterLocationToIsCFAPlusOffset(dwarf_s, 0, true);
   row.SetRegisterLocationToUnspecified(dwarf_u, true);
+  // A register this plan does not describe cannot be recovered in the
+  // caller's frame, so it must read as undefined there rather than as the
+  // callee's value.  lldb requires this of a default plan and asserts on it.
+  row.SetUnspecifiedRegistersAreUndefined(true);
 
   auto plan_sp = std::make_shared<UnwindPlan>(eRegisterKindDWARF);
   plan_sp->AppendRow(std::move(row));
@@ -185,17 +189,18 @@ UnwindPlanSP ABIMC6809::CreateDefaultUnwindPlan() {
   return plan_sp;
 }
 
-// MC6809 llvm ABI callee-saves: U, S (and CC, DP in practice, but
-// for unwinding the volatile set is D, X, Y, A, B.
+// The calling convention (MC6809_CSR in llvm/lib/Target/MC6809/
+// MC6809CallingConv.td) preserves Y and U across a call; S comes back
+// where it was, and DP is never changed by compiled code.  D (A:B), X and
+// CC belong to the callee.
 bool ABIMC6809::RegisterIsVolatile(const RegisterInfo *reg_info) {
   if (!reg_info)
     return false;
   const char *name = reg_info->name;
   if (!name)
     return false;
-  // Callee-saved: u, s, dp — everything else is volatile.
-  return !(strcmp(name, "u") == 0 || strcmp(name, "s") == 0 ||
-           strcmp(name, "dp") == 0);
+  return !(strcmp(name, "y") == 0 || strcmp(name, "u") == 0 ||
+           strcmp(name, "s") == 0 || strcmp(name, "dp") == 0);
 }
 
 void ABIMC6809::Initialize() {

@@ -184,8 +184,12 @@ static constexpr const CoreDefinition g_core_definitions[] = {
     {eByteOrderLittle, 8, 2, 4, llvm::Triple::mips64el,
      ArchSpec::eCore_mips64r6el, "mips64r6el"},
 
-    // MC6809 / HD6309
-    {eByteOrderBig, 2, 1, 2, llvm::Triple::mc6809, ArchSpec::eCore_mc6809,
+    // MC6809 / HD6309.  Instructions run from 1 byte to 5: an HD6309
+    // `ldq #imm32`, or a page-2/3 instruction with a 16-bit indexed offset
+    // or an extended-indirect address.  The disassembler reads this many
+    // bytes per instruction it is asked for, so a smaller figure cuts the
+    // last instructions of a window short.
+    {eByteOrderBig, 2, 1, 5, llvm::Triple::mc6809, ArchSpec::eCore_mc6809,
      "mc6809"},
 
     // MSP430

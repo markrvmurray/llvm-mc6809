@@ -54,17 +54,34 @@ static void zero(char *from, char *to) {
     *from++ = 0;
 }
 
-// The entry proper, and naked so that nothing is pushed before S is read:
+// The entry proper, in assembly so that nothing is pushed before S is read:
 // an ordinary function's prologue runs first, and saving S after it records
 // our own frame rather than the stack BASIC handed over -- which is what the
 // first attempt did, and it reported a return address pointing into BASIC's
 // token table.
-__attribute__((naked, section(".text.startup"), used)) void _start(void) {
-  __asm__ __volatile__("sts __decb_entry_sp\n\t"
-                       "tfr dp,a\n\t"
-                       "sta __decb_entry_dp\n\t"
-                       "lbra __decb_main");
-}
+//
+// It is also where a debugger's backtrace should end: BASIC's frames above
+// it have no unwind information, so its CFI leaves the return address
+// undefined, and it calls __decb_main rather than branching there so that
+// the program's frames chain up to it.  The extra return address costs
+// nothing: __decb_main goes home through the S saved here.  The CFI is
+// written out here, frame and all, because a C function only has a CFI
+// frame to add to when it is compiled with debug or unwind information.
+__asm__(".pushsection .text.startup,\"ax\",@progbits\n"
+        "\t.cfi_sections .debug_frame\n"
+        "\t.globl _start\n"
+        "\t.type _start,@function\n"
+        "_start:\n"
+        "\t.cfi_startproc\n"
+        "\t.cfi_def_cfa s, 0\n"
+        "\t.cfi_undefined pc\n"
+        "\tsts __decb_entry_sp\n"
+        "\ttfr dp,a\n"
+        "\tsta __decb_entry_dp\n"
+        "\tjsr __decb_main\n"
+        "\t.cfi_endproc\n"
+        "\t.size _start, .-_start\n"
+        "\t.popsection\n");
 
 __attribute__((section(".text.startup"), used)) void __decb_main(void) {
 
