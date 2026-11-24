@@ -102,3 +102,10 @@ Forked from [llvm-mos](https://github.com/llvm-mos/llvm-mos), which is
 itself a fork of [LLVM](https://github.com/llvm/llvm-project), and the 6809
 backend borrows a good deal of hard-won structure from the 6502 one. Same
 licence as LLVM: Apache 2.0 with LLVM exceptions.
+
+## How it was made
+
+I had extensive help from [Claude Code](https://claude.com/claude-code),
+Anthropic's coding assistant, throughout: in the backend, the C library port,
+the tests, the tools and the release machinery. The design decisions, and the
+responsibility for what ships, are mine.
