@@ -28,6 +28,24 @@ MC6809ELFObjectWriter::MC6809ELFObjectWriter(uint8_t OSABI) : MCELFObjectTargetW
 unsigned MC6809ELFObjectWriter::getRelocType(const MCFixup &Fixup, const MCValue &Target, bool IsPCRel) const {
   unsigned Kind = Fixup.getKind();
   auto Specifier = static_cast<MC6809MCExpr::VariantKind>(Target.getSpecifier());
+  // A data word that holds a distance from itself (`.word target - .`, or an
+  // .eh_frame FDE's start, which is encoded PC-relative) needs a PC-relative
+  // relocation; an absolute one would leave the target's address where its
+  // distance belongs.  There are 8- and 16-bit ones; nothing wider.
+  if (IsPCRel) {
+    switch (Kind) {
+    case FK_Data_1:
+      return ELF::R_MC6809_PCREL_8;
+    case FK_Data_2:
+      return ELF::R_MC6809_PCREL_16;
+    case FK_Data_4:
+    case FK_Data_8:
+      reportError(Fixup.getLoc(), Twine(Kind == FK_Data_4 ? 4 : 8) + "-byte PC-relative data has no relocation on the MC6809");
+      return ELF::R_MC6809_NONE;
+    default:
+      break;
+    }
+  }
   switch (Kind) {
   case FK_Data_1:
     switch (Specifier) {

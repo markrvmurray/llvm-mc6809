@@ -67,8 +67,21 @@ static int getRelativeMC6809PCCorrection(const bool IsPCRel16);
 void MC6809AsmBackend::applyFixup(const MCFragment &F, const MCFixup &Fixup, const MCValue &Target, uint8_t *Data, uint64_t Value, bool IsResolved) {
   if (IsResolved && shouldForceRelocation(Fixup, Target))
     IsResolved = false;
-  if (!IsResolved)
-    Asm->getWriter().recordRelocation(F, Fixup, Target, Value);
+  if (!IsResolved) {
+    // R_MC6809_PCREL_8 and _16 measure from the end of their field, as a
+    // branch's offset counts from the end of the instruction it ends.  A data
+    // word holding its distance from itself (`.word x - .`, an .eh_frame
+    // FDE's start) counts from the field's start: say so in the addend.  Such
+    // a word is a PC-relative fixup, or a difference whose second symbol the
+    // ELF writer folds into the fixup's own place.
+    unsigned Kind = Fixup.getKind();
+    if ((Fixup.isPCRel() || Target.getSubSym()) && (Kind == FK_Data_1 || Kind == FK_Data_2)) {
+      MCValue FromStart = MCValue::get(Target.getAddSym(), Target.getSubSym(), Target.getConstant() + (Kind == FK_Data_1 ? 1 : 2), Target.getSpecifier());
+      Asm->getWriter().recordRelocation(F, Fixup, FromStart, Value);
+    } else {
+      Asm->getWriter().recordRelocation(F, Fixup, Target, Value);
+    }
+  }
 
   unsigned int Kind = Fixup.getKind();
 

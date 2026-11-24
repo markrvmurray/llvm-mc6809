@@ -386,6 +386,11 @@ void MCObjectFileInfo::initELFMCObjectFileInfo(const Triple &T, bool Large) {
   case Triple::xtensa:
     FDECFIEncoding = dwarf::DW_EH_PE_sdata4;
     break;
+  case Triple::mc6809:
+    // Addresses are 16 bits, and code is position-independent: the distance,
+    // in two bytes, describes the code wherever it is loaded.
+    FDECFIEncoding = dwarf::DW_EH_PE_pcrel | dwarf::DW_EH_PE_sdata2;
+    break;
   default:
     FDECFIEncoding = dwarf::DW_EH_PE_pcrel | dwarf::DW_EH_PE_sdata4;
     break;
