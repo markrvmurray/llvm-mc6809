@@ -27,7 +27,7 @@ jobs:
       llvm-ref: ${{ github.sha }}
       # Pinned to a commit, as CI pins it, until a picolibc release tag
       # carries the Windows fixes and the start-up check.
-      picolibc-ref: 41e0780b80dab66d9c3a774ad92748a075866b32
+      picolibc-ref: 35d2b8df1df960aba535ca5579b169a65f46dc72
       # A release builds clean; an on-demand run carries its compiles over.
       # Its cache is saved on the branch it ran from -- on MC6809, the
       # default branch, where every later run can read it.
