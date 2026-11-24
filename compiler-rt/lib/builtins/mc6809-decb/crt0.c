@@ -67,6 +67,10 @@ static void zero(char *from, char *to) {
 // nothing: __decb_main goes home through the S saved here.  The CFI is
 // written out here, frame and all, because a C function only has a CFI
 // frame to add to when it is compiled with debug or unwind information.
+//
+// Everything here, and the way home below, reaches its variables and
+// __decb_main PC-relative, as compiled code does, so the start-up code adds
+// no address of its own that ties the program to where it was linked.
 __asm__(".pushsection .text.startup,\"ax\",@progbits\n"
         "\t.cfi_sections .debug_frame\n"
         "\t.globl _start\n"
@@ -75,10 +79,10 @@ __asm__(".pushsection .text.startup,\"ax\",@progbits\n"
         "\t.cfi_startproc\n"
         "\t.cfi_def_cfa s, 0\n"
         "\t.cfi_undefined pc\n"
-        "\tsts __decb_entry_sp\n"
+        "\tsts __decb_entry_sp,pc\n"
         "\ttfr dp,a\n"
-        "\tsta __decb_entry_dp\n"
-        "\tjsr __decb_main\n"
+        "\tsta __decb_entry_dp,pc\n"
+        "\tlbsr __decb_main\n"
         "\t.cfi_endproc\n"
         "\t.size _start, .-_start\n"
         "\t.popsection\n");
@@ -108,9 +112,9 @@ __attribute__((section(".text.startup"), used)) void __decb_main(void) {
   // first makes it work whatever the program did to the stack in between.
   // Falling off the end of this function would do the same thing only while
   // everything in between was balanced.
-  __asm__ __volatile__("lda __decb_entry_dp\n\t"
+  __asm__ __volatile__("lda __decb_entry_dp,pc\n\t"
                        "tfr a,dp\n\t"
-                       "lds __decb_entry_sp\n\t"
+                       "lds __decb_entry_sp,pc\n\t"
                        "rts");
   __builtin_unreachable();
 }
