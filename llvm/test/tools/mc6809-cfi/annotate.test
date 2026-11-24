@@ -1,0 +1,47 @@
+# mc6809-cfi annotate writes CFI into hand-written assembly, for both CPUs at
+# once: a push in one CPU's arm of an #ifdef is noted in that arm, a callee-
+# saved register's slot is recorded and released (and only restated where
+# the straight path disagrees), and a shared tail after the routine's .size,
+# reached only by a jump, gets CFI of its own that starts from the jumper's
+# stack.  The result passes the checker for both CPUs.
+#
+# RUN: cp %S/Inputs/plain.S %t.S
+# RUN: %python %S/../../../../scripts/mc6809-cfi annotate %t.S
+# RUN: FileCheck %s < %t.S
+# RUN: clang --target=mc6809 -c -o %t.6809.o %t.S
+# RUN: %python %S/../../../../scripts/mc6809-cfi check --require %t.6809.o | FileCheck %s --check-prefix=OK
+# RUN: clang --target=mc6809 -mcpu=hd6309 -c -o %t.6309.o %t.S
+# RUN: %python %S/../../../../scripts/mc6809-cfi check --require %t.6309.o | FileCheck %s --check-prefix=OK
+# RUN: not %python %S/../../../../scripts/mc6809-cfi annotate %t.S | FileCheck %s --check-prefix=AGAIN
+#
+# OK: , 0 problem(s)
+# AGAIN: has CFI already; left alone
+
+# CHECK:      .cfi_sections .debug_frame
+# CHECK-NEXT: work:
+# CHECK-NEXT: .cfi_startproc
+# CHECK-NEXT: pshs u,y
+# CHECK-NEXT: .cfi_adjust_cfa_offset 4
+# CHECK-NEXT: .cfi_offset u, -4
+# CHECK-NEXT: .cfi_offset y, -6
+# CHECK:      #else
+# CHECK-NEXT: pshs x
+# CHECK-NEXT: .cfi_adjust_cfa_offset 2
+# CHECK-NEXT: puls d
+# CHECK-NEXT: .cfi_adjust_cfa_offset -2
+# CHECK:      lbra finish
+# CHECK-NEXT: done:
+# CHECK-NEXT: puls u,y
+# CHECK-NEXT: .cfi_adjust_cfa_offset -4
+# CHECK-NEXT: .cfi_restore u
+# CHECK-NEXT: .cfi_restore y
+# CHECK-NEXT: rts
+# CHECK-NEXT: .cfi_endproc
+# CHECK-NEXT: .size work, .-work
+# CHECK-NEXT: finish:
+# CHECK-NEXT: .cfi_startproc
+# CHECK-NEXT: .cfi_def_cfa_offset 6
+# CHECK-NEXT: .cfi_offset u, -4
+# CHECK-NEXT: .cfi_offset y, -6
+# CHECK-NEXT: puls u,y
+# CHECK:      .cfi_endproc

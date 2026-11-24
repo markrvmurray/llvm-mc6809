@@ -14,12 +14,15 @@ must leave S where the CFA says the caller's S is, and a jump out of the
 routine (a tail call) the same.
 
 It fails for:
-  * with --require, a function symbol in an executable section with no FDE
-    covering it (code compiled without -g has none, and is not wrong);
+  * with --require, a routine with no FDE covering it, in an object that has
+    CFI or was assembled from a .S or .s file (code compiled without -g has
+    none at all, and is not wrong);
   * an instruction whose CFA rule disagrees with where the stack is;
   * a return or tail jump with the stack unbalanced;
-  * an instruction it cannot follow -- S loaded from memory, an undecodable
-    byte, two paths reaching one instruction with different stacks.
+  * an instruction it cannot follow -- an undecodable byte, two paths
+    reaching one instruction with different stacks.  Where S is loaded from
+    memory (longjmp) nothing can say where it points, and the CFI's rule is
+    taken from there on.
 
 The CFI is what a debugger unwinds by.  Wrong CFI does no harm until somebody
 stops in the wrong place and is shown somebody else's frame.
@@ -69,30 +72,39 @@ class Tools:
 
 
 class Insn:
-    __slots__ = ('addr', 'mnem', 'ops', 'next')
+    __slots__ = ('addr', 'mnem', 'ops', 'next', 'file', 'line')
 
-    def __init__(self, addr, mnem, ops):
+    def __init__(self, addr, mnem, ops, file=None, line=None):
         self.addr, self.mnem, self.ops, self.next = addr, mnem, ops, None
+        self.file, self.line = file, line
 
 
 INSN_RE = re.compile(r'^\s*([0-9a-f]+):\s+(\S+)(?:\s+([^;]*?))?\s*(?:;.*)?$')
 RELOC_RE = re.compile(r'^\s+([0-9a-f]+):\s+(R_MC6809_\S+)\s+(\S+)')
 
 
-def disassemble(tools, obj, section):
-    """{address: Insn} for one section, and the addresses of instructions
-    whose operand carries a relocation (a branch or call to elsewhere)."""
-    insns, relocated, last = {}, set(), None
-    for line in tools.run('llvm-objdump', '-dr', '--no-show-raw-insn', '--section=' + section, obj).splitlines():
+def disassemble(tools, obj, section, start=None):
+    """{address: Insn} for one section (from start, if given), and for each
+    instruction whose operand carries a relocation -- a branch or call to
+    elsewhere -- the symbol it names."""
+    insns, relocated, last, where = {}, {}, None, (None, None)
+    args = ['-dlr', '--no-show-raw-insn', '--section=' + section]
+    if start is not None:
+        args.append('--start-address=0x%x' % start)
+    for line in tools.run('llvm-objdump', *(args + [obj])).splitlines():
         r = RELOC_RE.match(line)
         if r:
             if last is not None:
-                relocated.add(last)
+                relocated[last] = r.group(3)
+            continue
+        src = re.match(r'^; (.*):(\d+)\s*$', line)
+        if src:
+            where = (os.path.basename(src.group(1)), int(src.group(2)))
             continue
         m = INSN_RE.match(line)
         if m and not line.rstrip().endswith(':'):
             addr = int(m.group(1), 16)
-            insns[addr] = Insn(addr, m.group(2).lower(), (m.group(3) or '').strip())
+            insns[addr] = Insn(addr, m.group(2).lower(), (m.group(3) or '').strip(), *where)
             last = addr
     order = sorted(insns)
     for x, y in zip(order, order[1:]):
@@ -100,7 +112,7 @@ def disassemble(tools, obj, section):
     return insns, relocated
 
 
-ROW_RE = re.compile(r'^\s*0x([0-9a-f]+): CFA=([A-Za-z0-9]+)([+-]\d+)')
+ROW_RE = re.compile(r'^\s*0x([0-9a-f]+): CFA=([A-Za-z0-9]+)([+-]\d+)?[:\s]')
 FDE_RE = re.compile(r'^([0-9a-f]+) [0-9a-f]+ [0-9a-f]+ FDE cie=\S+ pc=([0-9a-f]+)\.\.\.([0-9a-f]+)')
 
 
@@ -115,12 +127,12 @@ def sections(tools, obj):
 
 
 def symbols(tools, obj):
-    """[(value, size, type, section index, name)]"""
+    """[(value, size, type, binding, section index, name)]"""
     out = []
     for line in tools.run('llvm-readelf', '-s', '-W', obj).splitlines():
         f = line.split()
         if len(f) >= 8 and f[0].endswith(':') and f[0][:-1].isdigit():
-            out.append((int(f[1], 16), int(f[2]) if f[2].isdigit() else 0, f[3], f[6], f[7]))
+            out.append((int(f[1], 16), int(f[2]) if f[2].isdigit() else 0, f[3], f[4], f[6], f[7]))
     return out
 
 
@@ -142,7 +154,7 @@ def frames(tools, obj, secs, syms):
         f = line.split()
         if len(f) >= 5 and re.match(r'^[0-9a-f]+$', f[0]) and f[2].startswith('R_MC6809'):
             where[int(f[0], 16)] = f[4]
-    by_name = {name: secs[idx][0] for value, size, typ, idx, name in syms if idx in secs}
+    by_name = {name: secs[idx][0] for value, size, typ, bind, idx, name in syms if idx in secs}
     names = {n for n, _ in secs.values()}
     fdes, cur, part = [], None, None
     for line in tools.run('llvm-dwarfdump', '--debug-frame', obj).splitlines():
@@ -160,8 +172,74 @@ def frames(tools, obj, secs, syms):
             continue
         m = ROW_RE.match(line)
         if m and cur is not None:
-            cur[3].append((int(m.group(1), 16), m.group(2).upper(), int(m.group(3))))
+            cur[3].append((int(m.group(1), 16), m.group(2).upper(), int(m.group(3) or 0)))
     return fdes
+
+
+# Calls followed by a byte of data the callee steps over: the MC6839 ROM finds
+# its operation code at its return address (FP_CALL: `lbsr __fpreg` on bare
+# metal, `jsr [,s++]` through the pushed entry on OS-9), and an OS-9 service
+# call is `swi2` and its code.
+INLINE_BYTE_CALLEES = {'__fpreg'}
+
+
+def inline_byte_follows(insn, relocated):
+    m, ops = insn.mnem, insn.ops.lower()
+    if m == 'swi2':
+        return True
+    if m in CALLS and relocated.get(insn.addr) in INLINE_BYTE_CALLEES:
+        return True
+    return m == 'jsr' and ops == '[,s++]'
+
+
+def successor(tools, obj, sec, code, insn):
+    """Where execution goes on after insn, decoding afresh if a data byte
+    put the next instruction somewhere the straight decode did not."""
+    insns, relocated = code
+    if insn.next is None:
+        return None
+    if not inline_byte_follows(insn, relocated):
+        return insn.next
+    # Step over the byte; the walk decodes afresh there if the straight
+    # decode was out of step (see ensure).
+    return insn.addr + instruction_length(tools, obj, sec, insn.addr) + 1
+
+
+def ensure(tools, obj, sec, code, addr):
+    """The instruction at addr, decoding from addr if no decode so far has
+    started an instruction there (a data byte put the straight decode out of
+    step).  Everything decoded from addr on is replaced by the new decode."""
+    insns, relocated = code
+    if addr not in insns:
+        more, rel = disassemble(tools, obj, sec, addr)
+        for a in [a for a in insns if a >= addr]:
+            del insns[a]
+        insns.update(more)
+        relocated.update(rel)
+        order = sorted(insns)
+        for x, y in zip(order, order[1:]):
+            insns[x].next = y
+    return insns.get(addr)
+
+
+def instruction_length(tools, obj, sec, addr):
+    out = tools.run('llvm-objdump', '-d', '--section=' + sec, '--start-address=0x%x' % addr,
+                    '--stop-address=0x%x' % (addr + 6), obj)
+    for line in out.splitlines():
+        m = re.match(r'^\s*([0-9a-f]+):\s+((?:[0-9a-f]{2} )+)', line)
+        if m and int(m.group(1), 16) == addr:
+            return len(m.group(2).split())
+    raise Problem('cannot measure the instruction at 0x%x in %s' % (addr, sec))
+
+
+def routines(secs, syms):
+    """{section: [(value, size, name)]}: functions, and global labels in code
+    (hand-written assembly does not always say .type @function)."""
+    out = {}
+    for value, size, typ, bind, idx, name in syms:
+        if idx in secs and secs[idx][1] and (typ == 'FUNC' or (typ == 'NOTYPE' and bind in ('GLOBAL', 'WEAK'))):
+            out.setdefault(secs[idx][0], []).append((value, size, name))
+    return out
 
 
 def number(text):
@@ -251,16 +329,25 @@ def check_object(tools, obj, label, require):
     secs = sections(tools, obj)
     syms = symbols(tools, obj)
     fdes = frames(tools, obj, secs, syms)
-    funcs = {}
-    for value, size, typ, idx, name in syms:
-        if typ == 'FUNC' and idx in secs and secs[idx][1]:
-            funcs.setdefault(secs[idx][0], []).append((value, size, name))
+    funcs = routines(secs, syms)
 
+    # Code compiled without debug information has no CFI at all, and is not
+    # wrong; hand-written assembly, and any object with some CFI, must cover
+    # every routine.
+    if require and (fdes or re.search(r'\.[sS]\.(o|obj)\)?$', label)):
+        for sec, items in funcs.items():
+            for value, size, name in items:
+                if size and not any(f[0] == sec and f[1] <= value < f[2] for f in fdes):
+                    problems.append('%s: %s: no CFI' % (label, name))
+
+    # Where each routine's CFI starts, for a jump or fall into it: CFA - S
+    # there, by its own first row.
+    firsts = {(sec, start): rows[0][2] for sec, start, end, rows in fdes if rows and rows[0][1] == 'SS'}
+    entry_of = {}
     for sec, items in funcs.items():
         for value, size, name in items:
-            if require and size and not any(f[0] == sec and f[1] <= value < f[2] for f in fdes):
-                problems.append('%s: %s: no CFI' % (label, name))
-
+            if (sec, value) in firsts:
+                entry_of[name] = firsts[(sec, value)]
     code = {}
     for sec, start, end, rows in fdes:
         if not rows:
@@ -271,6 +358,7 @@ def check_object(tools, obj, label, require):
         if sec not in code:
             code[sec] = disassemble(tools, obj, sec)
         insns, relocated = code[sec]
+        here = code[sec]
         named = sorted(funcs.get(sec, []))
 
         def where(addr):
@@ -313,11 +401,16 @@ def check_object(tools, obj, label, require):
                 ku = None
             seen[addr] = (ks, ku)
             COUNTS['insns'] += 1
-            insn = insns.get(addr)
+            insn = ensure(tools, obj, sec, here, addr)
             if insn is None or insn.mnem.startswith('<'):
                 problems.append('%s: %s: no instruction starts there' % (label, where(addr)))
                 continue
             rule = rule_at(addr)
+            if rule and rule[1] == 'SS' and ks is None:
+                # S was reloaded (longjmp's `lds`): nothing here can say
+                # where it points, so take the CFI's word from this row on.
+                ks = rule[2]
+                seen[addr] = (ks, ku)
             if rule and rule[1] in ('SS', 'SU'):
                 have = ks if rule[1] == 'SS' else ku
                 if have != rule[2]:
@@ -335,6 +428,12 @@ def check_object(tools, obj, label, require):
                 leave(addr, ks, 'return', sum(regbytes(r) for r in regs_of(ops)))
                 continue
             ks2, ku2 = step(insn, ks, ku)
+            if m in CALLS and addr not in relocated:
+                # A call into the same FDE (a local subroutine) is a frame of
+                # its own: the callee starts with only its return address.
+                tgt = target_of(ops)
+                if tgt is not None and start <= tgt < end:
+                    work.append((tgt, (2, None)))
             base = m[1:] if m.startswith('l') and m[1:] in BRANCHES else m
             if base in BRANCHES or m == 'jmp':
                 direct = base in BRANCHES or (not ops.startswith('[') and ',' not in ops)
@@ -342,15 +441,321 @@ def check_object(tools, obj, label, require):
                 if tgt is not None and start <= tgt < end:
                     work.append((tgt, (ks2, ku2)))
                 elif direct:
-                    leave(addr, ks2, 'tail jump', 2)
+                    # Into another routine here: it must start from the
+                    # stack left for it, or -- a branch to a label inside it
+                    # -- be where its CFI says it is at that label; out of the
+                    # object, from a call's.
+                    into = relocated.get(addr)
+                    other = [f for f in fdes if f[0] == sec and f[1] <= (tgt or -1) < f[2] and f[3]]
+                    if other:
+                        r = None
+                        for row in other[0][3]:
+                            if row[0] <= tgt:
+                                r = row
+                        leave(addr, ks2, 'branch into another routine', r[2] if r and r[1] == 'SS' else 2)
+                    else:
+                        leave(addr, ks2, 'jump into %s' % into if into in entry_of else 'tail jump',
+                              entry_of.get(into, 2))
                 if base == 'bra' or m == 'jmp':
                     continue
-            nxt = insn.next
-            if nxt is not None:
-                if m == 'swi2' and nxt == addr + 2 and addr + 3 in insns:
-                    nxt = addr + 3  # an OS-9 service call: SWI2 and its code byte
+            nxt = successor(tools, obj, sec, here, insn)
+            if nxt == end and m in CALLS:
+                pass    # a call that ends the routine does not return here
+            elif nxt == end and (sec, end) in firsts:
+                leave(addr, ks2, 'fall into the next routine', firsts[(sec, end)])
+            elif nxt is not None:
                 work.append((nxt, (ks2, ku2)))
     return problems
+
+
+# --------------------------------------------------------------- annotate
+
+PUSH_ORDER = ['pc', 'u', 'y', 'x', 'dp', 'b', 'a', 'cc']   # highest address first
+SAVED = ('u', 'y')                                           # callee-saved
+
+
+def slots(regs, ks):
+    """For a push at CFA-S = ks: {reg: CFA offset of its slot}."""
+    out, k = {}, ks
+    for r in PUSH_ORDER:
+        if r in regs or (r in ('a', 'b') and 'd' in regs):
+            k += regbytes(r)
+            out[r] = -k
+    return out
+
+
+def plan(tools, obj, source, label):
+    """What one assembled variant of source needs: {line: [directive, ...]}
+    to go after each line, {line: [...]} before, and per routine its
+    (name, first line, last line).
+
+    A routine starts from what a call leaves (CFA - S = 2, nothing saved)
+    unless other routines in the file reach it only by jumping or falling
+    into it -- a shared tail that finishes its callers' work -- in which case
+    it starts from the stack they leave, which must be the same for all."""
+    after, before, funcs, errors = {}, {}, [], []
+    secs = sections(tools, obj)
+    syms = symbols(tools, obj)
+    source_name = os.path.basename(source)
+    code, got, rlist = {}, {}, []
+    for sec, items in routines(secs, syms).items():
+        code[sec] = disassemble(tools, obj, sec)
+        insns = code[sec][0]
+        items.sort()
+        for i, (value, size, name) in enumerate(items):
+            end = value + size if size else (items[i + 1][0] if i + 1 < len(items) else max(insns) + 1)
+            if end > value:
+                rlist.append((sec, value, end, name))
+    starts = {(sec, value): name for sec, value, end, name in rlist}
+    names = {name for _, _, _, name in rlist}
+
+    def tail(sec, addr):
+        """A routine for code that other routines branch to but no routine
+        contains (a shared tail after their .size): it runs to the next
+        routine, or the end of the section."""
+        name = '%s+0x%x' % (sec, addr)
+        if name not in names:
+            later = [v for s2, v, e, n in rlist if s2 == sec and v > addr]
+            end = min(later) if later else max(code[sec][0]) + 1
+            rlist.append((sec, addr, end, name))
+            starts[(sec, addr)] = name
+            names.add(name)
+            tails.add(name)
+        return name
+    tails = set()
+
+    def simulate(sec, value, end, name, entry):
+        here = code[sec]
+        insns, relocated = here
+        state, into = {}, []
+        work = [(value, entry)]
+        while work:
+            addr, st = work.pop()
+            if addr == end and (sec, end) in starts:
+                into.append((starts[(sec, end)], st))     # falls into the next
+                continue
+            if addr == end and addr in insns and not any(v <= addr < e for s2, v, e, n in rlist if s2 == sec):
+                into.append((tail(sec, addr), st))         # falls into a shared tail
+                continue
+            if addr < value or addr >= end or ensure(tools, obj, sec, here, addr) is None:
+                continue
+            if addr in state:
+                if state[addr] != st:
+                    errors.append('%s: %s+0x%x: reached with CFA-S %s and with %s' % (
+                        label, name, addr - value, state[addr][0], st[0]))
+                continue
+            state[addr] = st
+            insn = got[(sec, addr)] = insns[addr]
+            ks, saved = st
+            m, ops = insn.mnem, insn.ops.lower()
+            regs = regs_of(ops) if m in ('pshs', 'puls') else []
+            if m in ('rts', 'rti') or (m == 'puls' and 'pc' in regs):
+                continue
+            ks2, _ = step(insn, ks, None)
+            saved2 = dict(saved)
+            if m == 'pshs' and ks is not None:
+                for r, off in slots(regs, ks).items():
+                    if r in SAVED and r not in saved2:
+                        saved2[r] = off
+            if m == 'puls' and ks is not None:
+                k = ks
+                for r in reversed(PUSH_ORDER):
+                    if r in regs or (r in ('a', 'b') and 'd' in regs):
+                        if r in SAVED and saved2.get(r) == -k:
+                            del saved2[r]
+                        k -= regbytes(r)
+            nst = (ks2, frozenset(saved2.items()))
+            if m in CALLS and addr not in relocated:
+                tgt = target_of(ops)
+                if tgt is not None and value <= tgt < end:
+                    work.append((tgt, (2, frozenset())))
+            base = m[1:] if m.startswith('l') and m[1:] in BRANCHES else m
+            if base in BRANCHES or m == 'jmp':
+                direct = base in BRANCHES or (not ops.startswith('[') and ',' not in ops)
+                if direct and relocated.get(addr) in names:
+                    into.append((relocated[addr], nst))     # jumps into another
+                else:
+                    tgt = target_of(ops) if direct and addr not in relocated else None
+                    if tgt is not None and value <= tgt < end:
+                        work.append((tgt, nst))
+                    elif tgt is not None and (sec, tgt) in starts:
+                        into.append((starts[(sec, tgt)], nst))
+                    elif tgt is not None and not any(v <= tgt < e for s2, v, e, n in rlist if s2 == sec):
+                        into.append((tail(sec, tgt), nst))
+                if base == 'bra' or m == 'jmp':
+                    continue
+            nxt = successor(tools, obj, sec, here, insn)
+            if nxt is not None and not (m in CALLS and nxt == end):
+                # (A call that is the routine's last instruction does not
+                # return here: what follows is somebody else's entry.)
+                work.append((nxt, nst))
+        return state, into
+
+    # Which routines are only jumped or fallen into: their entry comes from
+    # the routines that reach them, once those are known.  The rest are
+    # called, and start from what a call leaves.
+    call_entry = (2, frozenset())
+    targets = set()
+    i = 0
+    while i < len(rlist):      # (shared tails join the list as they are found)
+        targets |= {t for t, _ in simulate(*rlist[i], call_entry)[1]}
+        i += 1
+    by_name = {r[3]: r for r in rlist}
+    entry = {name: call_entry for name in names - targets}
+    reached, results = {}, {}
+    pending = [n for n in names if n in entry]
+    while pending:
+        name = pending.pop()
+        r = by_name[name]
+        results[r] = simulate(*r, entry[name])
+        for target, st in results[r][1]:
+            reached.setdefault(target, set()).add(st)
+            if len(reached[target]) > 1:
+                errors.append('%s: %s is entered with different stacks: %s' % (
+                    label, target, sorted(x[0] for x in reached[target])))
+                return after, before, funcs, errors
+            if target not in entry:
+                entry[target] = st
+                pending.append(target)
+    for name in names - set(entry):
+        errors.append('%s: %s is reached only from routines that are never entered' % (label, name))
+
+    for (sec, value, end, name), (state, _) in results.items():
+        if not state:
+            continue
+        insns = code[sec][0]
+
+        def line_of(addr):
+            i = got.get((sec, addr))
+            return i.line if i is not None and i.file == source_name else None
+        lines = [line_of(a) for a in sorted(state) if line_of(a)]
+        funcs.append((name, min(lines) if lines else None, max(lines) if lines else None, name in tails))
+        # Walk in address order, keeping what the CFI will say so far.
+        cfa, rules = 2, {}
+        for addr in sorted(state):
+            ks, saved = state[addr]
+            saved = dict(saved)
+            line = line_of(addr)
+            if ks is None:
+                errors.append('%s: %s+0x%x: cannot follow S (line %s)' % (label, name, addr - value, line))
+                break
+            fix = []
+            if ks != cfa:
+                fix.append('.cfi_def_cfa_offset %d' % ks)
+            for r in sorted(set(rules) | set(saved)):
+                if saved.get(r) != rules.get(r):
+                    fix.append('.cfi_offset %s, %d' % (r, saved[r]) if r in saved else '.cfi_restore %s' % r)
+            if fix:
+                if line is None:
+                    errors.append('%s: %s+0x%x: needs CFI but has no source line' % (label, name, addr - value))
+                    break
+                before.setdefault(line, []).extend(fix)
+            cfa, rules = ks, saved
+            insn = got[(sec, addr)]
+            m, ops = insn.mnem, insn.ops.lower()
+            regs = regs_of(ops) if m in ('pshs', 'puls') else []
+            if m in ('rts', 'rti') or (m == 'puls' and 'pc' in regs):
+                continue
+            # What the next instruction on the straight path sees.
+            nxt = successor(tools, obj, sec, code[sec], insn)
+            if nxt in state and m not in ('bra', 'lbra', 'jmp'):
+                nks, nsaved = state[nxt]
+                nsaved = dict(nsaved)
+                if nks is not None and nks != ks:
+                    if line is None:
+                        errors.append('%s: %s+0x%x: moves S but has no source line' % (label, name, addr - value))
+                        break
+                    after.setdefault(line, []).append('.cfi_adjust_cfa_offset %d' % (nks - ks))
+                    cfa = nks
+                for r in sorted(set(rules) | set(nsaved)):
+                    if nsaved.get(r) != rules.get(r):
+                        after.setdefault(line, []).append(
+                            '.cfi_offset %s, %d' % (r, nsaved[r]) if r in nsaved else '.cfi_restore %s' % r)
+                rules = nsaved
+    return after, before, funcs, errors
+
+
+def annotate(tools, args, source):
+    text = open(source).read().split('\n')
+    if any('.cfi_' in l for l in text):
+        return ['%s: has CFI already; left alone' % source]
+    plans, errors = [], []
+    for cpu in args.cpu.split(','):
+        with tempfile.TemporaryDirectory(prefix='mc6809-cfi.') as tmp:
+            obj = os.path.join(tmp, 'a.o')
+            cmd = [tools.path('clang'), '--target=' + args.target, '-mcpu=' + cpu, '-g', '-c', '-o', obj, source] + args.cflag
+            r = subprocess.run(cmd, capture_output=True, text=True)
+            if r.returncode:
+                return ['%s: %s does not assemble: %s' % (source, cpu, r.stderr.strip())]
+            a, b, f, e = plan(tools, obj, source, '%s[%s]' % (os.path.basename(source), cpu))
+            plans.append((cpu, a, b, f))
+            errors += e
+    if errors:
+        return errors
+    # Lines both variants assemble must want the same CFI.
+    merged_after, merged_before, ends, tails = {}, {}, {}, set()
+    for cpu, a, b, f in plans:
+        for d, merged in ((a, merged_after), (b, merged_before)):
+            for line, dirs in d.items():
+                if line in merged and merged[line] != dirs:
+                    errors.append('%s:%d: the variants want different CFI here: %s / %s' % (source, line, merged[line], dirs))
+                merged[line] = dirs
+        for name, first, last, is_tail in f:
+            ends.setdefault(name, []).append((first, last))
+            if is_tail:
+                tails.add(name)
+    if errors:
+        return errors
+    names = list(ends)
+    starts, stops, tail_starts = {}, {}, set()
+    for name in names:
+        if name in tails:
+            # No label of its own: its CFI opens before its first instruction
+            # and closes after its last.
+            for first, last in ends[name]:
+                if first is not None:
+                    tail_starts.add(first - 1)
+                if last is not None:
+                    stops.setdefault(('after', last - 1), name)
+            continue
+        label_re = re.compile(r'^\s*%s:' % re.escape(name))
+        size_re = re.compile(r'^\s*\.size\s+%s\b' % re.escape(name))
+        at = [i for i, l in enumerate(text) if label_re.match(l)]
+        if not at:
+            errors.append('%s: no label line for %s' % (source, name))
+            continue
+        starts[at[0]] = name
+        sz = [i for i, l in enumerate(text) if size_re.match(l)]
+        if sz:
+            stops[sz[0]] = name
+        else:
+            for first, last in ends[name]:
+                if last is not None:
+                    stops.setdefault(('after', last - 1), name)
+    if errors:
+        return errors
+    out, sections_done = [], False
+    for i, l in enumerate(text):
+        n = i + 1
+        if i in stops:
+            out.append('\t.cfi_endproc')
+        if i in tail_starts:
+            out.append('\t.cfi_startproc')
+        for d in merged_before.get(n, []):
+            out.append('\t' + d)
+        if i in starts and not sections_done:
+            out.append('\t.cfi_sections .debug_frame')
+            sections_done = True
+        out.append(l)
+        if i in starts:
+            out.append('\t.cfi_startproc')
+        for d in merged_after.get(n, []):
+            out.append('\t' + d)
+        if ('after', i) in stops:
+            out.append('\t.cfi_endproc')
+    with open(source, 'w') as f:
+        f.write('\n'.join(out))
+    return []
 
 
 def is_elf(path):
@@ -369,8 +774,7 @@ def objects(tools, path, tmp):
         return
     names = tools.run('llvm-ar', 't', path).split()
     for i, name in enumerate(names):
-        d = os.path.join(tmp, 'm%d' % i)
-        os.makedirs(d)
+        d = tempfile.mkdtemp(dir=tmp)
         subprocess.run([tools.path('llvm-ar'), 'xN', str(names[:i + 1].count(name)), os.path.abspath(path), name],
                        cwd=d, check=True)
         member = os.path.join(d, name)
@@ -385,8 +789,21 @@ def main():
     c.add_argument('--bindir', help='where llvm-objdump, llvm-dwarfdump, llvm-readelf and llvm-ar are')
     c.add_argument('--require', action='store_true', help='fail a function that has no CFI at all')
     c.add_argument('files', nargs='+')
+    an = sub.add_parser('annotate', help='write CFI into hand-written assembly sources')
+    an.add_argument('--bindir')
+    an.add_argument('--target', default='mc6809')
+    an.add_argument('--cpu', default='mc6809,hd6309', help='CPU variants that must agree')
+    an.add_argument('--cflag', action='append', default=[], help='an option for clang (repeatable)')
+    an.add_argument('files', nargs='+')
     args = ap.parse_args()
     tools = Tools(args.bindir)
+    if args.cmd == 'annotate':
+        problems = []
+        for source in args.files:
+            problems += annotate(tools, args, source)
+        for p in problems:
+            print(p)
+        return 1 if problems else 0
     problems, checked = [], 0
     with tempfile.TemporaryDirectory(prefix='mc6809-cfi.') as tmp:
         for path in args.files:
