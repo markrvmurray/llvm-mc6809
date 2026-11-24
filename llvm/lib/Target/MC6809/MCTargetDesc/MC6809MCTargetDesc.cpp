@@ -21,6 +21,7 @@
 #include "llvm/BinaryFormat/ELF.h"
 #include "llvm/MC/MCAsmBackend.h"
 #include "llvm/MC/MCCodeEmitter.h"
+#include "llvm/MC/MCDwarf.h"
 #include "llvm/MC/MCELFStreamer.h"
 #include "llvm/MC/MCInstrAnalysis.h"
 #include "llvm/MC/MCInstrInfo.h"
@@ -75,6 +76,18 @@ static MCSubtargetInfo *createMC6809MCSubtargetInfo(const Triple &TT, StringRef 
   return createMC6809MCSubtargetInfoImpl(TT, CPU, /*TuneCPU*/ CPU, Features);
 }
 
+// Every CIE starts a function where a call leaves it: the CFA is S as it was
+// before the call pushed the return address, S + 2 at entry, and the return
+// address is the PC at CFA - 2.  A routine whose CFI only adjusts the CFA as
+// it pushes and pulls then starts from the right rule, and so does a
+// consumer reading a frame with no rows of its own.
+static MCAsmInfo *createMC6809MCAsmInfo(const MCRegisterInfo &MRI, const Triple &TT, const MCTargetOptions &Options) {
+  MCAsmInfo *MAI = new MC6809MCAsmInfo(TT, Options);
+  MAI->addInitialFrameState(MCCFIInstruction::cfiDefCfa(nullptr, MRI.getDwarfRegNum(MC6809::SS, true), 2));
+  MAI->addInitialFrameState(MCCFIInstruction::createOffset(nullptr, MRI.getDwarfRegNum(MC6809::PC, true), -2));
+  return MAI;
+}
+
 static MCInstPrinter *createMC6809MCInstPrinter(const Triple &T, unsigned SyntaxVariant, const MCAsmInfo &MAI, const MCInstrInfo &MII, const MCRegisterInfo &MRI) {
   switch (SyntaxVariant) {
   case 0:
@@ -95,7 +108,7 @@ static MCInstrAnalysis *createMC6809MCInstrAnalysis(const MCInstrInfo *Info) { r
 
 extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeMC6809TargetMC() {
   // Register the MC asm info.
-  RegisterMCAsmInfo<MC6809MCAsmInfo> X(getTheMC6809Target());
+  TargetRegistry::RegisterMCAsmInfo(getTheMC6809Target(), createMC6809MCAsmInfo);
 
   // Register the MC instruction info.
   TargetRegistry::RegisterMCInstrInfo(getTheMC6809Target(), createMC6809MCInstrInfo);
