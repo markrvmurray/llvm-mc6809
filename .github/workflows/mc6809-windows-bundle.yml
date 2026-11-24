@@ -43,7 +43,7 @@ jobs:
       # What the check gives on Windows: every case that compiles and links
       # passes, and every case that would run a program is not run.  Held
       # like the other hosts' numbers, so cases cannot quietly disappear.
-      CHECK_MIN_PASS: 15
+      CHECK_MIN_PASS: 33
       CHECK_EXPECT_NOTRUN: 41
       # Short and on C:, away from the workspace on D:.  LLVM's deepest
       # build paths come close to MAX_PATH from a long prefix, and D: is the
