@@ -66,11 +66,16 @@ def os9code : Operand<i32> {
 }
 
 
+// A PC-relative displacement is signed: the disassembler sign-extends it, so
+// the MCInst holds the same value the assembler put there, and anything that
+// adds it to an address (the printer, MCInstrAnalysis::evaluateBranch) gets
+// the target rather than a point 256 or 64K bytes past it.
 def pcrel8 : Operand<i32> {
   let ParserMatchClass = PCRelativeOperand<"PCRel8">;
   let EncoderMethod = "encodeImm<MC6809::PCRel8, 1>";
   let PrintMethod = "printBranchOperand8";
   let OperandType = "OPERAND_PCREL";
+  let DecoderMethod = "DecodeSImm<8>";
 }
 
 // PC-relative operands for indexed addressing modes (opcode + postbyte + offset).
@@ -90,6 +95,7 @@ def pcrel8_idx : Operand<i32> {
   let EncoderMethod = "encodeImm<MC6809::PCRel8, 2>";
   let PrintMethod = "printBranchOperand8";
   let OperandType = "OPERAND_PCREL";
+  let DecoderMethod = "DecodeSImm<8>";
 }
 
 def pcrel16 : Operand<i32> {
@@ -97,6 +103,7 @@ def pcrel16 : Operand<i32> {
   let EncoderMethod = "encodeImm<MC6809::PCRel16, 1>";
   let PrintMethod = "printBranchOperand16";
   let OperandType = "OPERAND_PCREL";
+  let DecoderMethod = "DecodeSImm<16>";
 }
 
 def pcrel16_idx : Operand<i32> {
@@ -104,6 +111,7 @@ def pcrel16_idx : Operand<i32> {
   let EncoderMethod = "encodeImm<MC6809::PCRel16, 2>";
   let PrintMethod = "printBranchOperand16";
   let OperandType = "OPERAND_PCREL";
+  let DecoderMethod = "DecodeSImm<16>";
 }
 
 // PC-relative operands for immediate-indexed addressing (opcode + imm + postbyte + offset).
@@ -114,6 +122,7 @@ def pcrel8_imm_idx : Operand<i32> {
   let EncoderMethod = "encodeImm<MC6809::PCRel8, 3>";
   let PrintMethod = "printBranchOperand8";
   let OperandType = "OPERAND_PCREL";
+  let DecoderMethod = "DecodeSImm<8>";
 }
 
 def pcrel16_imm_idx : Operand<i32> {
@@ -121,6 +130,7 @@ def pcrel16_imm_idx : Operand<i32> {
   let EncoderMethod = "encodeImm<MC6809::PCRel16, 3>";
   let PrintMethod = "printBranchOperand16";
   let OperandType = "OPERAND_PCREL";
+  let DecoderMethod = "DecodeSImm<16>";
 }
 
 def offset5 : Operand<i32> {

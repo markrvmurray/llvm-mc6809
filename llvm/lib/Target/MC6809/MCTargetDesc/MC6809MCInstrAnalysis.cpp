@@ -36,7 +36,9 @@ bool MC6809MCInstrAnalysis::evaluateBranch(const MCInst &Inst, uint64_t Addr, ui
     return true;
   }
   case MCOI::OPERAND_PCREL: {
-    Target = Addr + Size + Inst.getOperand(NumDeclared - 1).getImm();
+    // The displacement is signed (the disassembler sign-extends it), and the
+    // PC wraps within its 64K bank, as the OPERAND_ADDR16 case keeps it.
+    Target = (Addr & ~0xFFFFULL) | ((Addr + Size + Inst.getOperand(NumDeclared - 1).getImm()) & 0xFFFF);
     return true;
   }
   }
