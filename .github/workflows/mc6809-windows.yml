@@ -1,0 +1,32 @@
+# Builds and checks a Windows bundle on every push to windows-bundle, through
+# the same workflow a release calls (mc6809-windows-bundle.yml).  Publishes
+# nothing: the bundle is kept as a run artifact, never attached to anything.
+#
+# This is how a change to the Windows steps is tried before it reaches a
+# release, which cannot itself be run without cutting one.  It runs only on
+# pushes to this branch, never on a tag, and may only read the repository.
+name: MC6809 Windows bundle (experiment)
+
+on:
+  push:
+    branches: [windows-bundle]
+
+concurrency:
+  group: mc6809-windows
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    if: github.repository == 'markrvmurray/llvm-mc6809'
+    uses: ./.github/workflows/mc6809-windows-bundle.yml
+    with:
+      llvm-ref: ${{ github.sha }}
+      # Pinned to a commit, as CI pins it, until a picolibc release tag
+      # carries the Windows fixes: paths through sed, a check that builds
+      # every case where there is no simulator, a test runner that loads.
+      picolibc-ref: bb417659c21a244cdc12f809364447e3fe34ace9
+      # A release builds clean; the experiment carries its compiles over.
+      cache: true

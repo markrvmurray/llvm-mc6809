@@ -37,26 +37,35 @@ esac
   { [ -n "$HOST_WINDOWS" ] && MC6809_LINK_MODE=hardlink || MC6809_LINK_MODE=symlink; }
 
 # alias_file TARGET NAME -- both relative, both in the current directory.
+# A hardlink that cannot be made is an error, not a copy: a silent copy is
+# how every clang name came to be its own 87 MB file.  `copy` says it on
+# purpose.
 alias_file() {
   rm -f "$2"
   case $MC6809_LINK_MODE in
     symlink)  ln -s "$1" "$2" ;;
-    hardlink) ln "$1" "$2" 2>/dev/null || cp -p "$1" "$2" ;;
+    hardlink) ln "$1" "$2" ;;
     copy)     cp -p "$1" "$2" ;;
   esac
 }
 
-# alias_dir TARGET NAME -- a directory, which is the harder case: NTFS
-# hardlinks do not span directories, and a directory symlink wants either
-# administrator rights or developer mode.  A junction needs neither.
+# alias_dir TARGET NAME -- a directory, which is the harder case: a
+# directory symlink on Windows wants administrator rights or developer mode,
+# git-bash's `ln -s` quietly makes a copy instead, and a junction is
+# followed by every archiver, which stores the copy anyway.  So the
+# directory is made afresh, and each file in it is a hardlink to its
+# original -- which an archive does keep.
 alias_dir() {
   [ -e "$2" ] && return 0
   case $MC6809_LINK_MODE in
-    symlink) ln -s "$1" "$2" ;;
-    *)       ln -s "$1" "$2" 2>/dev/null \
-               || cmd //c mklink //J "$(basename "$2")" "$(basename "$1")" \
-                    >/dev/null 2>&1 \
-               || cp -R "$1" "$2" ;;
+    symlink)  ln -s "$1" "$2" ;;
+    hardlink) ( cd "$1" && find . -type d ) | while read -r d; do
+                mkdir -p "$2/$d"
+              done
+              ( cd "$1" && find . ! -type d ) | while read -r f; do
+                ln "$1/$f" "$2/$f"
+              done ;;
+    copy)     cp -R "$1" "$2" ;;
   esac
 }
 
@@ -88,6 +97,13 @@ while [ $# -gt 0 ]; do
   esac
 done
 [ -n "$PREFIX" ] || { echo "$0: --prefix is required" >&2; exit 2; }
+# One spelling for a Windows path.  The same directory arrives as
+# D:\a\_temp, /d/a/_temp or D:/a/_temp depending on who names it -- the
+# runner's environment, git-bash, or a native program such as clang -- and
+# the checks below compare paths as strings.  The forward-slash Windows form
+# is the one every party accepts, meson's cross files included.
+winpath() { if [ -n "$HOST_WINDOWS" ]; then cygpath -m "$1"; else printf '%s\n' "$1"; fi; }
+PREFIX=$(winpath "$PREFIX")
 [ -x "$LLVM_BUILD/bin/clang" ] || { echo "$0: no clang in $LLVM_BUILD/bin" >&2; exit 2; }
 [ -f "$PICOLIBC/meson.build" ] || { echo "$0: no picolibc at $PICOLIBC" >&2; exit 2; }
 
@@ -100,6 +116,7 @@ say() { echo "==[ $(date '+%H:%M:%S') $* ]=="; }
 say "staging tools from $LLVM_BUILD"
 deferred=$(mktemp "${TMPDIR:-/tmp}/mc6809-roll.XXXXXX")
 mkdir -p "$PREFIX/bin" "$PREFIX/lib"
+staged_bins=
 # Named, not globbed.  `bin/clang-*` sweeps up clang-repl, clang-check,
 # clang-import-test, clang-installapi, clang-refactor, the offload wrappers
 # and clang-tblgen -- three quarters of a gigabyte of programs nobody
@@ -115,7 +132,18 @@ for f in "$LLVM_BUILD"/bin/clang$EXE "$LLVM_BUILD"/bin/clang-[0-9]* \
          "$LLVM_BUILD"/bin/llvm-strip$EXE; do
   [ -e "$f" ] || continue
   base=$(basename "$f")
-  if [ -L "$f" ]; then
+  # Where the build has no symlinks -- Windows -- those links arrive as
+  # copies, identical byte for byte to a binary already staged.  Treat them
+  # as the links they stand for.
+  same=
+  if [ ! -L "$f" ]; then
+    for r in $staged_bins; do
+      cmp -s "$f" "$PREFIX/bin/$r" && { same=$r; break; }
+    done
+  fi
+  if [ -n "$same" ]; then
+    echo "$base $same" >> "$deferred"
+  elif [ -L "$f" ]; then
     # Upstream ships several of these as links to one binary -- ranlib is
     # llvm-ar, strip is llvm-objcopy, readelf is llvm-readobj -- and they
     # behave differently depending on the name they were called by.  Keep
@@ -128,6 +156,7 @@ for f in "$LLVM_BUILD"/bin/clang$EXE "$LLVM_BUILD"/bin/clang-[0-9]* \
     echo "$base $(basename "$(readlink "$f")")" >> "$deferred"
   else
     cp -p "$f" "$PREFIX/bin/"
+    staged_bins="$staged_bins $base"
   fi
 done
 # Second pass, now that every real binary is in place.
@@ -247,7 +276,7 @@ cp -R "$resdir" "$PREFIX/lib/clang/"
 
 # The staged compiler has to be the one that finds it, or the bundle is not
 # self-contained and every later step would be testing the build tree.
-staged_res=$("$PREFIX/bin/clang" -print-resource-dir)
+staged_res=$(winpath "$("$PREFIX/bin/clang" -print-resource-dir)")
 case "$staged_res" in
   "$PREFIX"/*|/private"$PREFIX"/*) : ;;
   *) echo "$0: the staged clang looks outside the prefix ($staged_res)" >&2
@@ -265,7 +294,13 @@ esac
 say "this is $(cat "$PREFIX/VERSION")"
 
 say "generating cross files against $PREFIX"
-MC6809_TOOLCHAIN=$PREFIX "$PICOLIBC/scripts/gen-mc6809-cross.sh" >/dev/null
+# Traced into a log: the generator runs under `set -eu`, so a command that
+# fails in it ends it at once and says nothing, and its own output says only
+# what it wrote.  The trace names the line that stopped it.
+gen_log=$PREFIX/.gen-cross.log
+MC6809_TOOLCHAIN=$PREFIX sh -x "$PICOLIBC/scripts/gen-mc6809-cross.sh" >"$gen_log" 2>&1 \
+  || { echo "$0: generating the cross files failed; the end of $gen_log:" >&2
+       tail -20 "$gen_log" >&2; exit 1; }
 trap '"$PICOLIBC/scripts/gen-mc6809-cross.sh" >/dev/null 2>&1 || true' EXIT
 
 COMMON="-Dformat-default=integer -Dprintf-aliases=false -Dstdio-float=false
@@ -287,11 +322,24 @@ build_variant() {
   rm -rf "$build" "$sysroot"
   # shellcheck disable=SC2086
   libdir=lib; [ -n "$subdir" ] && libdir=.
+  # meson judges the prefix by the host machine's rules, and the host is a
+  # bare 6809, so on Windows `D:/...` is not an absolute path to it.  There
+  # the library is configured for prefix / and installed into the sysroot
+  # through DESTDIR, which comes to the same files.  Elsewhere the prefix is
+  # the sysroot itself, as picolibc's installed files expect.
+  #
+  # Git-for-Windows' shell rewrites an argument that looks like a POSIX path
+  # into a Windows one before a native program sees it, and `-Dprefix=/`
+  # arrived at meson as `-Dprefix=C:/Program Files/Git/`.  MSYS2_ARG_CONV_EXCL
+  # exempts that one argument; the cross file's path still needs converting.
+  prefix=$sysroot destdir=
+  [ -n "$HOST_WINDOWS" ] && { prefix=/; destdir=$sysroot; }
+  MSYS2_ARG_CONV_EXCL=-Dprefix= \
   meson setup "$build" "$PICOLIBC" --cross-file "$PICOLIBC/scripts/$cross" \
-      -Dprefix="$sysroot" --libdir="$libdir" --includedir=include \
+      -Dprefix="$prefix" --libdir="$libdir" --includedir=include \
       $COMMON "$@" >"$build.log" 2>&1 \
     || { echo "$0: meson setup failed for $triple; see $build.log" >&2; exit 1; }
-  meson install -C "$build" --quiet >>"$build.log" 2>&1 \
+  meson install -C "$build" --quiet ${destdir:+--destdir "$destdir"} >>"$build.log" 2>&1 \
     || { echo "$0: install failed for $triple; see $build.log" >&2; exit 1; }
   # A variant keeps its headers only when they differ.  The 6309 library is
   # the same C library built for another processor, so its headers are
@@ -514,20 +562,27 @@ if [ -n "$TARBALL" ]; then
 
   # The archive unpacks into a directory named for what it is, whatever the
   # prefix happened to be called while it was built.
-  # A .zip where a .zip is expected, and where the tools to unpack one are
-  # already there; xz everywhere else.
-  if [ -n "$HOST_WINDOWS" ]; then archive=$name.zip; else archive=$name.tar.xz; fi
+  # A tar everywhere, because a tar records a hardlink and a .zip cannot:
+  # every name for clang, and every alias directory, would be its own copy,
+  # and the Windows bundle unpacked to 1.1 GB of which 0.9 GB was repeats.
+  # Windows gets gzip, the one compression the tar.exe that comes with
+  # Windows 10 can unpack; xz everywhere else.
+  if [ -n "$HOST_WINDOWS" ]; then archive=$name.tar.gz; else archive=$name.tar.xz; fi
   say "packing $archive"
+  # Renamed rather than copied, and put back afterwards: a copy would turn
+  # every hardlink back into a file of its own before tar saw it.
   staged=$parent/$name
-  [ "$staged" = "$PREFIX" ] || { rm -rf "$staged"; cp -R "$PREFIX" "$staged"; }
+  if [ "$staged" != "$PREFIX" ]; then rm -rf "$staged"; mv "$PREFIX" "$staged"; fi
+  packed=0
   if [ -n "$HOST_WINDOWS" ]; then
-    ( cd "$parent" && rm -f "$TARDIR/$archive" && zip -q -r -9 "$TARDIR/$archive" "$name" )
+    ( cd "$parent" && tar -cf - "$name" | gzip -9 > "$TARDIR/$archive" ) || packed=$?
   else
     # xz -T0 uses every core; the single-threaded default takes many minutes
     # over a toolchain.
-    ( cd "$parent" && tar -cf - "$name" | xz -T0 -6 > "$TARDIR/$archive" )
+    ( cd "$parent" && tar -cf - "$name" | xz -T0 -6 > "$TARDIR/$archive" ) || packed=$?
   fi
-  [ "$staged" = "$PREFIX" ] || rm -rf "$staged"
+  [ "$staged" = "$PREFIX" ] || mv "$staged" "$PREFIX"
+  [ "$packed" -eq 0 ] || { echo "$0: packing $archive failed" >&2; exit 1; }
 
   ( cd "$TARDIR" && sha256_of "$archive" > "$archive.sha256" )
   say "packed: $TARDIR/$archive ($(du -h "$TARDIR/$archive" | cut -f1))"

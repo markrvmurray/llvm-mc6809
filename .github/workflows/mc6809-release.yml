@@ -20,10 +20,6 @@ on:
       tag:
         description: 'Tag to build (must exist in both repositories)'
         required: true
-      include_windows:
-        description: 'Also try a Windows bundle (unproven -- see bug #458)'
-        type: boolean
-        default: false
 
 concurrency:
   group: mc6809-release-${{ github.event.inputs.tag || github.ref }}
@@ -38,16 +34,10 @@ jobs:
     if: github.repository == 'markrvmurray/llvm-mc6809'
     runs-on: ${{ matrix.os }}
     timeout-minutes: 360
-    continue-on-error: ${{ matrix.experimental }}
     strategy:
       fail-fast: false      # one host failing must not cancel the others
-      # Three hosts always; Windows only when asked for, because no Windows
-      # bundle has ever been produced (bug #458) and a release must not wait
-      # on an experiment.  When it is asked for it is experimental, so its
-      # failure cannot stop the other three -- and its log is the cheapest
-      # way to answer what #458 is waiting on: whether picolibc builds
-      # there, whether meson takes the cross files, and whether the check
-      # runs under git-bash.
+      # Windows is not here: it is the `windows` job below, built by the
+      # workflow the Windows experiment also runs.
       #
       # ubuntu-22.04, not latest: built against the oldest glibc we support,
       # so the binaries do not exclude older distributions.  The arm64 image
@@ -67,9 +57,10 @@ jobs:
       # deprecated, and a release should not be built on an image that is
       # being withdrawn.
       matrix:
-        include: ${{ fromJSON(github.event.inputs.include_windows == 'true'
-          && '[{"os":"ubuntu-22.04","host":"linux-x86_64","experimental":false},{"os":"ubuntu-22.04-arm","host":"linux-aarch64","experimental":false},{"os":"macos-15","host":"darwin-arm64","experimental":false},{"os":"windows-latest","host":"windows-x86_64","experimental":true}]'
-          || '[{"os":"ubuntu-22.04","host":"linux-x86_64","experimental":false},{"os":"ubuntu-22.04-arm","host":"linux-aarch64","experimental":false},{"os":"macos-15","host":"darwin-arm64","experimental":false}]') }}
+        include:
+          - { os: ubuntu-22.04,     host: linux-x86_64 }
+          - { os: ubuntu-22.04-arm, host: linux-aarch64 }
+          - { os: macos-15,         host: darwin-arm64 }
 
     env:
       # Every case that needs a machine -- a NitrOS-9 image, a CoCo's ROMs --
@@ -139,7 +130,7 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y --no-install-recommends \
-              ninja-build clang lld meson xz-utils zip
+              ninja-build clang lld meson xz-utils
 
       - name: Install build tools (macOS)
         if: runner.os == 'macOS'
@@ -189,22 +180,16 @@ jobs:
         run: |
           set -o pipefail
           cd "$RUNNER_TEMP/dist"
-          # find, not `ls a b`: GitHub runs `shell: bash` as `bash -eo
-          # pipefail`, and `ls ./*.tar.xz ./*.zip` exits 1 the moment one of
-          # those patterns matches nothing -- which is always, since a host
-          # produces one or the other.  The step then dies before printing
-          # anything.  find reports what exists and says nothing about what
-          # does not, and -print -quit avoids a pipe that could SIGPIPE.
-          archive=$(find . -maxdepth 1 \
-                      \( -name '*.tar.xz' -o -name '*.zip' \) -print -quit)
+          # find, not ls: GitHub runs `shell: bash` as `bash -eo
+          # pipefail`, and an ls of a pattern that matches nothing exits 1,
+          # killing the step before it prints anything.  -print -quit
+          # avoids a pipe that could SIGPIPE.
+          archive=$(find . -maxdepth 1 -name '*.tar.xz' -print -quit)
           [ -n "$archive" ] || { echo "::error::the roll produced no archive"; exit 1; }
           shasum -a 256 -c "$(basename "$archive").sha256" 2>/dev/null \
             || sha256sum -c "$(basename "$archive").sha256"
           mkdir -p "$RUNNER_TEMP/unpacked"
-          case "$archive" in
-            *.zip) unzip -q "$archive" -d "$RUNNER_TEMP/unpacked" ;;
-            *)     tar -xf "$archive" -C "$RUNNER_TEMP/unpacked" ;;
-          esac
+          tar -xf "$archive" -C "$RUNNER_TEMP/unpacked"
           bundle=$(basename "$(find "$RUNNER_TEMP/unpacked" -maxdepth 1 \
                       -mindepth 1 -type d -print -quit)")
           "$GITHUB_WORKSPACE/_deps/picolibc/scripts/check-mc6809-toolchain" \
@@ -236,15 +221,26 @@ jobs:
           path: |
             ${{ runner.temp }}/dist/*.tar.xz
             ${{ runner.temp }}/dist/*.tar.xz.sha256
-            ${{ runner.temp }}/dist/*.zip
-            ${{ runner.temp }}/dist/*.zip.sha256
             ${{ runner.temp }}/dist/verified-*.txt
           if-no-files-found: error
           retention-days: 30
 
+  # Windows, from the workflow the Windows experiment runs on every push to
+  # windows-bundle, so these steps have been tried before a release takes
+  # them.  It does not hold the release up: publish below runs whatever
+  # happened here, and a Windows bundle that failed its check is never kept
+  # under the name publish attaches from -- the release goes out with the
+  # other three, and its notes list only the hosts that delivered.
+  windows:
+    if: github.repository == 'markrvmurray/llvm-mc6809'
+    uses: ./.github/workflows/mc6809-windows-bundle.yml
+    with:
+      llvm-ref: ${{ github.event.inputs.tag || github.ref_name }}
+      picolibc-ref: ${{ github.event.inputs.tag || github.ref_name }}
+
   publish:
     name: Attach the bundles to the release
-    needs: build
+    needs: [build, windows]
     # always(), not the default: `needs: build` on a matrix means "every leg
     # succeeded", so one host failing would skip this job entirely -- and
     # with it the whole point of writing the notes from the tallies that
@@ -301,6 +297,16 @@ jobs:
             echo "\"Not run\" are the cases needing a machine no runner has:"
             echo "the OS-9 cases want a NitrOS-9 image and the DECB ones want"
             echo "MAME with Tandy's ROMs. They are counted, never dropped."
+            if [ -f bundle-windows-x86_64/verified-windows-x86_64.txt ]; then
+              echo
+              echo "There is no simulator for Windows, so on Windows every case"
+              echo "that runs a program is not run: that bundle was checked to"
+              echo "compile and link every program, not to run them."
+              echo "Unpack it with the tar that comes with Windows 10 and later,"
+              echo "\`tar -xf mc6809-toolchain-$version-windows-x86_64.tar.gz\`."
+              echo "Its tools' other names are hardlinks, which tar keeps;"
+              echo "an unpacker that makes them copies needs about a gigabyte."
+            fi
             echo
             echo "Each bundle was checked after being unpacked from its own"
             echo "archive, somewhere it was never built."
@@ -317,7 +323,7 @@ jobs:
         shell: bash
         run: |
           cd assets
-          files=$(find . -name '*.tar.xz' -o -name '*.zip' -o -name '*.sha256')
+          files=$(find . -name '*.tar.xz' -o -name '*.tar.gz' -o -name '*.sha256')
           [ -n "$files" ] || { echo "::error::no archives to attach"; exit 1; }
           # RELEASE_1.0_rc1 -> "1.0-rc1".  The tag separates with
           # underscores; a title should not.

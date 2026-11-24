@@ -1,0 +1,272 @@
+# Builds and checks a Windows bundle.  Called, never run on its own: by the
+# release workflow, which attaches what it makes, and by the experiment on
+# windows-bundle, which only keeps it.  One file for both, so that every
+# experiment run proves the very steps a release will take -- a release
+# workflow cannot otherwise be tried without cutting a release.
+#
+# There is no usim for Windows, so no case that runs a program can run here.
+# Those are counted as not run, never passed: the bundle is checked for what
+# can be checked without a 6809 -- that every program in the corpus compiles
+# and links against it, with the right library variant and the right tool
+# names -- after being unpacked from its own archive by the tar.exe that
+# comes with Windows.
+name: MC6809 Windows bundle
+
+on:
+  workflow_call:
+    inputs:
+      llvm-ref:
+        description: 'The llvm-mc6809 commit or tag to build'
+        type: string
+        required: true
+      picolibc-ref:
+        description: 'The picolibc commit or tag to build against'
+        type: string
+        required: true
+      cache:
+        description: 'Carry compiles between runs with sccache (never for a release)'
+        type: boolean
+        default: false
+
+jobs:
+  build:
+    name: windows-x86_64
+    # windows-2022: what llvm-mos builds its Windows packages on.
+    runs-on: windows-2022
+    timeout-minutes: 360
+    permissions:
+      contents: read
+
+    env:
+      MC6809_CHECK_ALLOW_UNRUNNABLE: 1
+      # What the check gives on Windows: every case that compiles and links
+      # passes, and every case that would run a program is not run.  Held
+      # like the other hosts' numbers, so cases cannot quietly disappear.
+      CHECK_MIN_PASS: 15
+      CHECK_EXPECT_NOTRUN: 41
+      # Short and on C:, away from the workspace on D:.  LLVM's deepest
+      # build paths come close to MAX_PATH from a long prefix, and D: is the
+      # smaller of the two disks.
+      BUILD_DIR: C:/b
+      # sccache, not ccache: it is the cache that understands cl.  Kept on
+      # local disk and carried between runs by actions/cache, as CI carries
+      # its ccache, rather than sccache's own GitHub cache backend, which
+      # makes one cache request per object file.
+      SCCACHE_DIR: C:/sccache
+      SCCACHE_CACHE_SIZE: 4G
+      # Pinned, and part of the cache key.  sccache puts its own version
+      # into every entry's hash, so a new release misses on everything the
+      # old one stored: left to the action's "latest", the release of
+      # 0.20.0 turned a ten-minute build into a two-hour one.  Bumping
+      # this starts a fresh cache rather than restoring a useless one.
+      SCCACHE_VERSION: v0.20.0
+
+    steps:
+      # Before any checkout.  The runner's git converts line endings by
+      # default, and a shell script with CRs in it does not run under bash;
+      # LLVM's tree also has paths longer than Windows allows by default.
+      - name: Configure git for the checkouts
+        shell: bash
+        run: |
+          git config --global core.autocrlf false
+          git config --global core.eol lf
+          git config --global core.longpaths true
+
+      - name: Check out llvm-mc6809
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.llvm-ref }}
+          fetch-depth: 1
+
+      - name: Check out picolibc
+        uses: actions/checkout@v4
+        with:
+          repository: markrvmurray/picolibc
+          ref: ${{ inputs.picolibc-ref }}
+          path: _deps/picolibc
+
+      # Pinned first: from win19/20220814.1 cmake can pick the 32-bit
+      # python3.10 libraries over the 64-bit ones (llvm-mos hit it building
+      # lldb, which this does not build -- but it costs nothing to rule out).
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install build tools
+        shell: bash
+        run: |
+          python -m pip install --upgrade meson ninja
+          for t in meson ninja tar gzip cmake; do
+            printf '%-6s ' "$t"; command -v "$t" || echo "MISSING"
+          done
+
+      - name: Install sccache
+        if: inputs.cache
+        uses: mozilla-actions/sccache-action@v0.0.11
+        with:
+          version: ${{ env.SCCACHE_VERSION }}
+
+      # The newest cache any earlier run saved.  The first run finds none
+      # and builds everything; later ones recompile only what changed.
+      - name: Restore the compiler cache
+        if: inputs.cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ env.SCCACHE_DIR }}
+          key: sccache-windows-${{ env.SCCACHE_VERSION }}-${{ github.sha }}
+          restore-keys: sccache-windows-${{ env.SCCACHE_VERSION }}-
+
+      # LLVM's own action: puts the MSVC compiler and linker on the PATH
+      # for every later step.
+      - name: Set up MSVC
+        uses: llvm/actions/setup-windows@main
+        with:
+          arch: amd64
+
+      # PowerShell, not bash: git-bash has its own /usr/bin/link, which
+      # shadows MSVC's link.exe for anything that looks it up by name.
+      - name: Configure
+        shell: pwsh
+        run: |
+          $launcher = @()
+          if ('${{ inputs.cache }}' -eq 'true') {
+            $launcher = @('-DCMAKE_C_COMPILER_LAUNCHER=sccache',
+                          '-DCMAKE_CXX_COMPILER_LAUNCHER=sccache')
+          }
+          cmake -C clang/cmake/caches/MC6809-Release.cmake `
+              -DLLVM_ENABLE_PROJECTS="clang;lld" `
+              -DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl `
+              @launcher `
+              -DLLVM_PARALLEL_LINK_JOBS=2 `
+              -G Ninja -S llvm -B $env:BUILD_DIR
+          Select-String -Path "$env:BUILD_DIR/CMakeCache.txt" `
+              -Pattern '^(CMAKE_BUILD_TYPE|LLVM_ENABLE_ASSERTIONS|CLANG_REPOSITORY_STRING|CMAKE_CXX_COMPILER(_LAUNCHER)?):'
+
+      - name: Build
+        shell: pwsh
+        run: |
+          $cached = '${{ inputs.cache }}' -eq 'true'
+          if ($cached) { sccache --zero-stats | Out-Null }
+          cmake --build $env:BUILD_DIR --target all
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if ($cached) { sccache --show-stats }
+
+      # Saved here, straight after the build, not by a post-job step: a
+      # later step failing would otherwise throw away two hours of
+      # compiling.
+      - name: Save the compiler cache
+        if: inputs.cache
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ env.SCCACHE_DIR }}
+          key: sccache-windows-${{ env.SCCACHE_VERSION }}-${{ github.sha }}
+
+      - name: Roll a bundle
+        shell: bash
+        run: |
+          scripts/roll-toolchain.sh \
+              --prefix "$RUNNER_TEMP/mc6809" \
+              --llvm-build "$BUILD_DIR" \
+              --picolibc "$GITHUB_WORKSPACE/_deps/picolibc" \
+              --tarball "$RUNNER_TEMP/dist"
+
+      - name: Check the archive, not the prefix it came from
+        shell: bash
+        run: |
+          set -o pipefail
+          cd "$RUNNER_TEMP/dist"
+          archive=$(find . -maxdepth 1 -name '*.tar.gz' -print -quit)
+          [ -n "$archive" ] || { echo "::error::the roll produced no .tar.gz"; exit 1; }
+          sha256sum -c "$(basename "$archive").sha256"
+          mkdir -p "$RUNNER_TEMP/unpacked"
+          # Unpacked by the tar.exe that comes with Windows, not git-bash's:
+          # it is what somebody without git-bash has.
+          "$SYSTEMROOT/System32/tar.exe" -xf "$(cygpath -w "$archive")" \
+              -C "$(cygpath -w "$RUNNER_TEMP/unpacked")"
+          bundle=$(basename "$(find "$RUNNER_TEMP/unpacked" -maxdepth 1 \
+                      -mindepth 1 -type d -print -quit)")
+          # The archive is small only because each tool's other names are
+          # hardlinks to it; a tar.exe that unpacked them as copies would
+          # bring the gigabyte back.  -ef compares the files' identities.
+          b=$RUNNER_TEMP/unpacked/$bundle
+          unlinked=0
+          for pair in bin/clang.exe:bin/mc6809-os9-clang.exe \
+                      bin/clang.exe:bin/clang++.exe \
+                      bin/lld.exe:bin/mc6809-ld.exe \
+                      lib/clang-runtimes/mc6809-unknown-unknown/lib/crt0-hosted.o:lib/clang-runtimes/mc6809/lib/crt0-hosted.o; do
+            if [ "$b/${pair%%:*}" -ef "$b/${pair#*:}" ]; then echo "linked:   $pair"
+            else echo "::error::not one file after unpacking: $pair"; unlinked=1; fi
+          done
+          echo "unpacked: $(du -sh "$b" | cut -f1)"
+          [ "$unlinked" -eq 0 ]
+          "$GITHUB_WORKSPACE/_deps/picolibc/scripts/check-mc6809-toolchain" \
+              --corpus "$b" 2>&1 | tee check.log
+
+      # The same gate, and the same record for the release notes, as the
+      # release workflow's other hosts.
+      - name: Hold the numbers, and record them for the release notes
+        shell: bash
+        run: |
+          log=$RUNNER_TEMP/dist/check.log
+          read -r p f n <<EOF
+          $(sed -n 's/^pass=\([0-9]*\) fail=\([0-9]*\) not-run=\([0-9]*\).*/\1 \2 \3/p' "$log" | tail -1)
+          EOF
+          p=${p:-0}; f=${f:-0}; n=${n:-0}
+          if [ "$f" -ne 0 ]; then echo "::error::$f check(s) failed"; exit 1; fi
+          if [ "$p" -lt "$CHECK_MIN_PASS" ]; then
+            echo "::error::only $p passed, expected at least $CHECK_MIN_PASS -- cases are disappearing rather than failing"; exit 1
+          fi
+          if [ "$n" -gt "$CHECK_EXPECT_NOTRUN" ]; then
+            echo "::error::$n cases were not run, expected $CHECK_EXPECT_NOTRUN"; exit 1
+          fi
+          printf '%s|%s|%s|%s\n' windows-x86_64 "$p" "$f" "$n" \
+              > "$RUNNER_TEMP/dist/verified-windows-x86_64.txt"
+          echo "windows-x86_64: $p passed, $f failed, $n not run"
+
+      # Only a bundle that passed is kept under the name the release
+      # attaches from; a failed one leaves nothing there, and the release
+      # goes out without it.
+      - name: Keep the bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: bundle-windows-x86_64
+          path: |
+            ${{ runner.temp }}/dist/*.tar.gz
+            ${{ runner.temp }}/dist/*.tar.gz.sha256
+            ${{ runner.temp }}/dist/verified-*.txt
+          if-no-files-found: error
+          retention-days: 30
+
+      # upload-artifact roots an artifact at the deepest directory common to
+      # every file, and a file on C: (the build) and one on D: (the
+      # workspace and the temporary directory) have none -- the upload then
+      # refuses outright.  So gather the logs into one directory first.
+      # Each copy may find nothing: a run that stops early has not made the
+      # later files.
+      - name: Gather the logs
+        if: always()
+        shell: bash
+        run: |
+          keep=$RUNNER_TEMP/keep
+          mkdir -p "$keep/picolibc"
+          cp "$RUNNER_TEMP"/dist/*.log "$keep/" 2>/dev/null || true
+          for log in "$RUNNER_TEMP"/mc6809/.build-*.log; do
+            [ -f "$log" ] || continue
+            name=$(basename "$log"); name=${name#.}
+            cp "$log" "$keep/picolibc/$name"
+            meson=${log%.log}/meson-logs/meson-log.txt
+            [ -f "$meson" ] && cp "$meson" "$keep/picolibc/${name%.log}.meson-log.txt"
+          done
+          cp "$RUNNER_TEMP/mc6809/.gen-cross.log" "$keep/picolibc/gen-cross.log" 2>/dev/null || true
+          cp "$BUILD_DIR/CMakeCache.txt" "$BUILD_DIR/CMakeFiles/CMakeConfigureLog.yaml" \
+             "$keep/" 2>/dev/null || true
+          find "$keep" -type f | sed "s|^$keep/|  kept: |"
+
+      - name: Keep the logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: logs-windows-x86_64
+          path: ${{ runner.temp }}/keep
+          if-no-files-found: warn
+          retention-days: 14
