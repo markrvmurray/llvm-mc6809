@@ -530,6 +530,26 @@ This is \`$banner\`, built from
 $(cd "$REPO" && git rev-parse HEAD 2>/dev/null || echo "an unknown revision").
 README
 
+# The CFI a debugger unwinds by, in every library and start-up object here:
+# each routine's CFI must say where its frame is at every instruction, and
+# every hand-written routine must have some.  Wrong CFI shows somebody else's
+# frame to whoever stops in the wrong place, and nothing else would notice.
+# The build's own tools read it: the bundle ships no llvm-dwarfdump.
+say "checking the CFI"
+cfi_python=$(command -v python3 || command -v python) || {
+  echo "$0: no python to check the CFI with" >&2; exit 1; }
+find "$PREFIX/lib" -type f \( -name '*.a' -o -name 'crt*.o' \) | sort > "$PREFIX/.cfi-objects"
+# shellcheck disable=SC2046 # the list is paths this script made, without spaces
+if ! "$cfi_python" "$REPO/scripts/mc6809-cfi" check --bindir "$LLVM_BUILD/bin" --require \
+       $(cat "$PREFIX/.cfi-objects") > "$PREFIX/.cfi-check.log" 2>&1; then
+  grep -v '^mc6809-cfi:' "$PREFIX/.cfi-check.log" | head -20 >&2
+  tail -1 "$PREFIX/.cfi-check.log" >&2
+  echo "$0: the bundle's CFI is wrong -- see $PREFIX/.cfi-check.log" >&2
+  exit 1
+fi
+tail -1 "$PREFIX/.cfi-check.log"
+rm -f "$PREFIX/.cfi-objects" "$PREFIX/.cfi-check.log"
+
 say "checking the result"
 "$PICOLIBC/scripts/check-mc6809-toolchain" "$PREFIX"
 case $? in
