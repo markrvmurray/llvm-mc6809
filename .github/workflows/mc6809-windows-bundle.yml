@@ -4,6 +4,7 @@
 # experiment run proves the very steps a release will take -- a release
 # workflow cannot otherwise be tried without cutting a release.
 #
+# The MC6809 lit tests that need no simulator run here as on every host.
 # There is no usim for Windows, so no case that runs a program can run here.
 # Those are counted as not run, never passed: the bundle is checked for what
 # can be checked without a 6809 -- that every program in the corpus compiles
@@ -161,6 +162,15 @@ jobs:
           path: ${{ env.SCCACHE_DIR }}
           key: sccache-windows-${{ env.SCCACHE_VERSION }}-${{ github.sha }}
 
+      # Every MC6809 lit test that needs no simulator, as on the other
+      # hosts.  bash, for the script; the build has llvm-lit.py, run with
+      # the Python set up above.
+      - name: MC6809 lit tests
+        shell: bash
+        run: |
+          LIT_LOG="$RUNNER_TEMP/lit.log" PYTHON=python \
+            scripts/check-mc6809-lit.sh "$BUILD_DIR"
+
       - name: Roll a bundle
         shell: bash
         run: |
@@ -250,6 +260,7 @@ jobs:
           keep=$RUNNER_TEMP/keep
           mkdir -p "$keep/picolibc"
           cp "$RUNNER_TEMP"/dist/*.log "$keep/" 2>/dev/null || true
+          cp "$RUNNER_TEMP/lit.log" "$keep/" 2>/dev/null || true
           for log in "$RUNNER_TEMP"/mc6809/.build-*.log; do
             [ -f "$log" ] || continue
             name=$(basename "$log"); name=${name#.}

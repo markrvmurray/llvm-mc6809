@@ -392,20 +392,28 @@ three times what an eighteen-core Mac takes, with a cold compiler cache.
 The cache saved cleanly, so later runs should be a fraction of that, and
 the job's cap allows for a cold one plus the bundle roll.
 
-Then it runs every MC6809 test that does not need a machine to run on:
-`llvm/test/CodeGen/MC6809`, `llvm/test/MC/MC6809`,
-`clang/test/CodeGen/MC6809`, the `mc6809-*` Sema cases and the driver cases.
-On 2026-08-22 that is **240 passed, 56 unsupported, 0 failed** — the same
-figures the suite gives on macOS, which is the answer to the question the
-whole job exists to ask.
+Then it runs every MC6809 lit test that needs no simulator, through
+`scripts/check-mc6809-lit.sh BUILD_DIR`, which holds the one list of the
+fork's own tests wherever they live in llvm, clang and lld.  Each release
+host and the Windows build run the same script on their own build, so the
+same set is checked on every platform a bundle comes from.  On 2026-11-24
+that is **313 passed, 72 unsupported, 0 failed** in a tree without lldb (two
+more pass with lldb).
 
-The 56 are the emulator-driven suites, and they are why the job does not
-simply trust lit's exit status.  **A suite that stops running reports
-success**: `lit` exits 0 when every test is UNSUPPORTED, which is what a
-`lit.local.cfg` that no longer recognises the target, or a clang that no
-longer knows the triple, would produce.  So the job also requires at least
-`MIN_PASS` passes — 240, raise it as the suite grows — and says in its
-summary how many tests were skipped rather than burying it.
+The tests that run programs — `llvm/test/MC/MC6809/Execution`, and the lldb
+test that debugs one under usim — run **only when asked for**:
+`USIM09BATCH=/path/to/usim09batch` in the environment (and `MAMELLVM6309`
+for the 6309 on MAME).  A simulator that merely happens to be on the `PATH`
+is not used, so a plain `check-all`, or anybody else's CI, never depends on
+what simulator a machine has lying about or which version of it.  The bench
+sets `USIM09BATCH` itself.
+
+**A suite that stops running reports success**: `lit` exits 0 when every
+test is UNSUPPORTED, which is what a `lit.local.cfg` that no longer
+recognises the target, or a clang that no longer knows the triple, would
+produce.  So the script also requires a minimum number of passes — 313,
+raise it as the suite grows — and says how many tests were skipped rather
+than burying it.
 
 It then builds a bundle and checks it.  picolibc and usim are checked out
 **at pinned commits** — `PICOLIBC_SHA` and `USIM_SHA` in the workflow, bumped

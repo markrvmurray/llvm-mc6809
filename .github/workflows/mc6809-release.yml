@@ -166,6 +166,12 @@ jobs:
         shell: bash
         run: cmake --build build-release --target all
 
+      # Every MC6809 lit test that needs no simulator, on this host's own
+      # build: a host whose compiler fails them ships no bundle.
+      - name: MC6809 lit tests
+        shell: bash
+        run: LIT_LOG="$RUNNER_TEMP/lit.log" scripts/check-mc6809-lit.sh build-release
+
       - name: Roll and check a bundle
         shell: bash
         run: |
@@ -223,6 +229,17 @@ jobs:
             ${{ runner.temp }}/dist/*.tar.xz.sha256
             ${{ runner.temp }}/dist/verified-*.txt
           if-no-files-found: error
+          retention-days: 30
+
+      - name: Keep the logs when something broke
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: logs-${{ matrix.host }}
+          path: |
+            ${{ runner.temp }}/lit.log
+            ${{ runner.temp }}/dist/check.log
+          if-no-files-found: ignore
           retention-days: 30
 
   # Windows, from the workflow the Windows experiment runs on every push to

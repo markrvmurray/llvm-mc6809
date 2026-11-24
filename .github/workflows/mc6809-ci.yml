@@ -42,13 +42,6 @@ jobs:
     # to fit, and a run killed by the cap wastes the whole two hours.
     timeout-minutes: 300
     env:
-      # Raise this when the suite grows.  It exists because the failure that
-      # matters here is not a red test -- it is the whole suite quietly
-      # becoming UNSUPPORTED (a lit.local.cfg that stops seeing the target,
-      # a clang that no longer knows the triple) and lit then reporting
-      # success over nothing.  Measured on 2026-08-22: 240 passed, 56
-      # unsupported, 0 failed.
-      MIN_PASS: 240
       CCACHE_MAXSIZE: 2G
 
       # Pinned to a commit, never to a branch: an old tag has to rebuild to
@@ -124,52 +117,13 @@ jobs:
           cmake --build build-ci --target all
           ccache --show-stats | head -8
 
-      - name: MC6809 test suite
-        id: lit
-        run: |
-          set -o pipefail
-          # Every MC6809 test that does not need a machine to run on.  The
-          # emulator-driven suites (llvm/test/MC/MC6809/Execution, and the
-          # OS-9 runtime cases under compiler-rt) report UNSUPPORTED here
-          # because USIM09BATCH and friends are unset -- deliberately, and
-          # the count below is what stops that reading as success.
-          build-ci/bin/llvm-lit --no-progress-bar -v \
-              llvm/test/CodeGen/MC6809 \
-              llvm/test/MC/MC6809 \
-              clang/test/CodeGen/MC6809 \
-              clang/test/Sema/asm-mc6809-*.c \
-              clang/test/Sema/mc6809-*.c \
-              clang/test/Driver/mc6809*.c \
-              2>&1 | tee lit.log
-
-      - name: Check the suite actually ran
-        if: always() && steps.lit.outcome != 'skipped'
-        run: |
-          passed=$(sed -n 's/^ *Passed *: *\([0-9]*\).*/\1/p'      lit.log | tail -1)
-          failed=$(sed -n 's/^ *Failed *: *\([0-9]*\).*/\1/p'      lit.log | tail -1)
-          unsupp=$(sed -n 's/^ *Unsupported *: *\([0-9]*\).*/\1/p' lit.log | tail -1)
-          passed=${passed:-0}; failed=${failed:-0}; unsupp=${unsupp:-0}
-          {
-            echo "### MC6809 test suite"
-            echo
-            echo "| | |"
-            echo "|---|---|"
-            echo "| passed | $passed |"
-            echo "| failed | $failed |"
-            echo "| unsupported (needs an emulator) | $unsupp |"
-            echo
-            echo "Not covered here: the picolibc build, the rolled bundle,"
-            echo "and everything that needs usim, a NitrOS-9 image or MAME"
-            echo "with Tandy's ROMs.  Those remain a local gate."
-          } >> "$GITHUB_STEP_SUMMARY"
-          if [ "$failed" -ne 0 ]; then
-            echo "::error::$failed test(s) failed"; exit 1
-          fi
-          if [ "$passed" -lt "$MIN_PASS" ]; then
-            echo "::error::only $passed tests passed, expected at least $MIN_PASS -- the suite is not running, which is worse than a failure"
-            exit 1
-          fi
-          echo "$passed passed, $unsupp unsupported, 0 failed"
+      # Every MC6809 lit test that needs no simulator; the script holds the
+      # list and the gate (no failures, and a floor on passes so the suite
+      # cannot quietly turn UNSUPPORTED).  usim is built further down, and
+      # the simulator tests run only when USIM09BATCH asks for them, so here
+      # they report UNSUPPORTED.
+      - name: MC6809 lit tests
+        run: scripts/check-mc6809-lit.sh build-ci
 
       # ------------------------------------------------------------------
       # Everything below builds an actual bundle and checks it, which is the
