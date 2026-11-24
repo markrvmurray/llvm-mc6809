@@ -87,6 +87,8 @@ bool MC6809FrameLowering::enableShrinkWrapping(const MachineFunction &MF) const 
   return false;
 }
 
+static void buildCFI(MachineBasicBlock &MBB, MachineBasicBlock::iterator I, const DebugLoc &DL, const MCCFIInstruction &CFIInst, MachineInstr::MIFlag Flag = MachineInstr::FrameSetup);
+
 bool MC6809FrameLowering::spillCalleeSavedRegisters(MachineBasicBlock &MBB, MachineBasicBlock::iterator MI, ArrayRef<CalleeSavedInfo> CSI, const TargetRegisterInfo *TRI) const {
   MachineIRBuilder Builder(MBB, MI);
   MachineInstrSpan MIS(MI, &MBB);
@@ -171,31 +173,55 @@ bool MC6809FrameLowering::spillCalleeSavedRegisters(MachineBasicBlock &MBB, Mach
   };
   llvm::sort(Fusible, [&](Register A, Register B) { return PshsMask(A) > PshsMask(B); });
 
+  // Say where each register went, so that a debugger finds the caller's
+  // value rather than taking this function's.  The CFA is S as it was before
+  // the call pushed the return address (S + 2 at entry), and the pushes here
+  // are the first thing the function does: a register pushed when Pushed
+  // bytes are already on the stack below the return address lies at
+  // CFA - 2 - Pushed - its size.  A push stores the highest mask bit first,
+  // so in a fused push the registers are taken in Fusible's order.
+  const MCRegisterInfo *MRI = MBB.getParent()->getContext().getRegisterInfo();
+  int64_t Pushed = 0;
+  auto Saved = [&](Register R, unsigned Bytes) {
+    Pushed += Bytes;
+    int DwarfReg = MRI->getDwarfRegNum(R, /*isEH=*/true);
+    if (DwarfReg >= 0)
+      buildCFI(MBB, Builder.getInsertPt(), {}, MCCFIInstruction::createOffset(nullptr, DwarfReg, -2 - Pushed));
+  };
+
   if (!Fusible.empty()) {
     auto MIB = Builder.buildInstr(MC6809::PSHSs);
     for (Register R : Fusible)
       MIB.addUse(R);
+    for (Register R : Fusible)
+      Saved(R, 2);
   }
   for (Register R : Imag16) {
     Builder.buildCopy(Register(MC6809::AD), R);
     Builder.buildInstr(MC6809::PSHSs, {}, {Register(MC6809::AD)});
+    Saved(R, 2);
   }
   // Loaded with the direct-page instruction itself: a COPY from one of these
-  // to A is expanded by way of B.
+  // to A is expanded by way of B.  A push of D stores B, then A.
   for (unsigned I = 0, E = Imag8.size(); I < E; I += 2) {
     Builder.buildInstr(MC6809::LDAd).addReg(Imag8[I]);
     if (I + 1 == E) {
       Builder.buildInstr(MC6809::PSHSs, {}, {Register(MC6809::AA)});
+      Saved(Imag8[I], 1);
       break;
     }
     Builder.buildInstr(MC6809::LDBd).addReg(Imag8[I + 1]);
     Builder.buildInstr(MC6809::PSHSs, {}, {Register(MC6809::AD)});
+    Saved(Imag8[I + 1], 1);
+    Saved(Imag8[I], 1);
   }
   // PSHSW and PULSW name no register operand; say here that this push reads
   // W and the pull below writes it, or the return that reads the restored W
   // reads a register nothing defined.
-  if (HaveAW)
+  if (HaveAW) {
     Builder.buildInstr(MC6809::PSHSWx, {}, {}).addReg(MC6809::AW, RegState::Implicit);
+    Saved(MC6809::AW, 2);
+  }
 
   // Record that the frame pointer is killed by these instructions.
   for (auto &InsertedMI : make_range(MIS.begin(), MI))
@@ -475,7 +501,7 @@ MachineBasicBlock::iterator MC6809FrameLowering::eliminateCallFramePseudoInstr(M
 // carries the index.  The base-class AsmPrinter::emitFunctionBody switch
 // dispatches CFI_INSTRUCTION to AsmPrinter::emitCFIInstruction which
 // calls OutStreamer->emitCFI*(…).
-static void buildCFI(MachineBasicBlock &MBB, MachineBasicBlock::iterator I, const DebugLoc &DL, const MCCFIInstruction &CFIInst, MachineInstr::MIFlag Flag = MachineInstr::FrameSetup) {
+static void buildCFI(MachineBasicBlock &MBB, MachineBasicBlock::iterator I, const DebugLoc &DL, const MCCFIInstruction &CFIInst, MachineInstr::MIFlag Flag) {
   MachineFunction &MF = *MBB.getParent();
   unsigned CFIIndex = MF.addFrameInst(CFIInst);
   BuildMI(MBB, I, DL, MF.getSubtarget().getInstrInfo()->get(TargetOpcode::CFI_INSTRUCTION)).addCFIIndex(CFIIndex).setMIFlag(Flag);

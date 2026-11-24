@@ -53,13 +53,15 @@ define void @asked(i16 %n) "frame-pointer"="all" {
   ret void
 }
 
-; Without a frame pointer the CFA stays S-relative; the prologue says how far
-; S has moved after the pushes and after the frame is allocated, and the
-; epilogue follows it back down. The return is folded into the last pull,
-; so nothing follows that.
+; Without a frame pointer the CFA stays S-relative; the prologue says where
+; it saved U and Y, how far S has moved after the pushes and after the frame
+; is allocated, and the epilogue follows it back down. The return is folded
+; into the last pull, so nothing follows that.
 ; CHECK-LABEL: unwinds:
 ; CHECK:       .cfi_def_cfa s, 2
 ; CHECK:       pshs u,y
+; CHECK-NEXT:  .cfi_offset u, -4
+; CHECK-NEXT:  .cfi_offset y, -6
 ; CHECK-NEXT:  .cfi_def_cfa_offset 6
 ; CHECK-NEXT:  leas -10,s
 ; CHECK-NEXT:  .cfi_def_cfa_offset 16
