@@ -26,6 +26,11 @@ public:
 
   bool enableShrinkWrapping(const MachineFunction &MF) const override;
 
+  // At entry the caller's call has pushed only the return address: the CFA
+  // is S + 2.  CFIInstrInserter starts every function from this.
+  int getInitialCFAOffset(const MachineFunction &MF) const override { return 2; }
+  Register getInitialCFARegister(const MachineFunction &MF) const override;
+
   bool spillCalleeSavedRegisters(MachineBasicBlock &MBB, MachineBasicBlock::iterator MI, ArrayRef<CalleeSavedInfo> CSI, const TargetRegisterInfo *TRI) const override;
 
   bool restoreCalleeSavedRegisters(MachineBasicBlock &MBB, MachineBasicBlock::iterator MI, MutableArrayRef<CalleeSavedInfo> CSI, const TargetRegisterInfo *TRI) const override;
@@ -82,7 +87,8 @@ public:
 private:
   bool hasFPImpl(const MachineFunction &MF) const override;
 
-  void offsetSP(MachineIRBuilder &Builder, int64_t Offset) const;
+  // Move S by Offset; Flag marks a prologue's or epilogue's move as such.
+  void offsetSP(MachineIRBuilder &Builder, int64_t Offset, MachineInstr::MIFlag Flag = MachineInstr::NoFlags) const;
 };
 
 } // namespace llvm

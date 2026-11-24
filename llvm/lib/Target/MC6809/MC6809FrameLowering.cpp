@@ -78,6 +78,8 @@ uint64_t MC6809FrameLowering::getHardStackCalleeSavedSize(const MachineFunction 
   return Size;
 }
 
+Register MC6809FrameLowering::getInitialCFARegister(const MachineFunction &MF) const { return MC6809::SS; }
+
 bool MC6809FrameLowering::enableShrinkWrapping(const MachineFunction &MF) const {
   // Shrink-wrapping moves the prologue (LEAS -n,S; PSHS U; TFR S,U) past
   // early-exit blocks. On the MC6809, frame-relative accesses (n,U) require
@@ -549,12 +551,12 @@ void MC6809FrameLowering::emitPrologue(MachineFunction &MF, MachineBasicBlock &M
     Builder.setInsertPt(MBB, AfterPushes);
     // The CFA stays S-relative; say how far S has moved from it once the
     // registers are pushed and again once the frame is allocated. (A push in
-    // the middle of the body moves S for a few instructions without a note.)
+    // the body is noted by MC6809StackCFI, last of all.)
     int64_t CSRBytes = getHardStackCalleeSavedSize(MF);
     if (CSRBytes)
       buildCFI(MBB, Builder.getInsertPt(), {}, MCCFIInstruction::cfiDefCfaOffset(nullptr, CSRBytes + 2));
     if (StackSize) {
-      offsetSP(Builder, -StackSize);
+      offsetSP(Builder, -StackSize, MachineInstr::FrameSetup);
       buildCFI(MBB, Builder.getInsertPt(), {}, MCCFIInstruction::cfiDefCfaOffset(nullptr, CSRBytes + StackSize + 2));
     }
     return;
@@ -564,7 +566,7 @@ void MC6809FrameLowering::emitPrologue(MachineFunction &MF, MachineBasicBlock &M
   // (below), so that S can be rounded down beneath them.
   const bool Realign = realignsStack(MF);
   if (StackSize && !Realign)
-    offsetSP(Builder, -StackSize);
+    offsetSP(Builder, -StackSize, MachineInstr::FrameSetup);
 
   // Skip the callee-saved push instructions.
   auto MBBI = std::find_if_not(Builder.getInsertPt(), MBB.end(), [](const MachineInstr &MI) { return MI.getFlag(MachineInstr::FrameSetup); });
@@ -610,7 +612,7 @@ void MC6809FrameLowering::emitPrologue(MachineFunction &MF, MachineBasicBlock &M
     if (SaveD)
       Builder.buildInstr(MC6809::PSHSs, {}, {Register(MC6809::AD)}).setMIFlag(MachineInstr::FrameSetup);
     if (StackSize)
-      offsetSP(Builder, -StackSize);
+      offsetSP(Builder, -StackSize, MachineInstr::FrameSetup);
     uint16_t Mask = -uint16_t(MFI.getMaxAlign().value());
     Builder.buildInstr(MC6809::TFRp).addDef(MC6809::AD).addUse(MC6809::SS).setMIFlag(MachineInstr::FrameSetup);
     Builder.buildInstr(MC6809::ANDBi8).addDef(MC6809::AB, RegState::Implicit).addImm(Mask & 0xff).setMIFlag(MachineInstr::FrameSetup);
@@ -709,7 +711,7 @@ void MC6809FrameLowering::emitEpilogue(MachineFunction &MF, MachineBasicBlock &M
   // If soft stack is used, increase the soft stack pointer SP. A realigned
   // frame's locals lie below the frame pointer, so `tfr u,s` released them.
   if (StackSize && !realignsStack(MF)) {
-    offsetSP(Builder, StackSize);
+    offsetSP(Builder, StackSize, MachineInstr::FrameDestroy);
     // Without a frame pointer the saved registers are still to be pulled:
     // say where the CFA is until they are.
     int64_t CSRBytes = getHardStackCalleeSavedSize(MF);
@@ -816,14 +818,14 @@ bool MC6809FrameLowering::isSupportedStackID(TargetStackID::Value ID) const {
 
 bool MC6809FrameLowering::hasFPImpl(const MachineFunction &MF) const { return hasFP(MF); }
 
-void MC6809FrameLowering::offsetSP(MachineIRBuilder &Builder, int64_t Offset) const {
+void MC6809FrameLowering::offsetSP(MachineIRBuilder &Builder, int64_t Offset, MachineInstr::MIFlag Flag) const {
   assert(Offset);
   if (Offset < SHRT_MIN)
     report_fatal_error("Stack pointer decrement too large: " + Twine(-Offset));
   if (Offset > SHRT_MAX)
     report_fatal_error("Stack pointer increment too large: " + Twine(Offset));
 
-  Builder.buildInstr(MC6809::LEAPtrAdd_Imm).addDef(MC6809::SS).addUse(MC6809::SS).addImm(Offset);
+  Builder.buildInstr(MC6809::LEAPtrAdd_Imm).addDef(MC6809::SS).addUse(MC6809::SS).addImm(Offset).setMIFlag(Flag);
 }
 
 bool MC6809FrameLowering::isFIRQ(const MachineFunction &MF) const { return isISR(MF) && MF.getFunction().getFnAttribute("interrupt").getValueAsString() == "firq"; }

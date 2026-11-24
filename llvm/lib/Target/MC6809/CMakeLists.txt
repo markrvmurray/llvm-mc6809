@@ -67,6 +67,7 @@ add_llvm_target(MC6809CodeGen
   MC6809DirectPageAlloc.cpp
   MC6809StaticStackAlloc.cpp
   MC6809FoldLongBranch.cpp
+  MC6809StackCFI.cpp
 
   DEPENDS
   intrinsics_gen

@@ -68,6 +68,7 @@ void initializeMC6809SinkCallArgsPass(PassRegistry &);
 void initializeMC6809FoldBankCrossPass(PassRegistry &);
 void initializeMC6809StaticStackAllocPass(PassRegistry &);
 void initializeMC6809FoldLongBranchPass(PassRegistry &);
+void initializeMC6809StackCFIPass(PassRegistry &);
 
 FunctionPass *createMC6809PhantomCarryGuardPass();
 MachineFunctionPass *createMC6809FoldAddSub16Pass();
@@ -77,6 +78,7 @@ MachineFunctionPass *createMC6809FoldCallThroughMemPass();
 MachineFunctionPass *createMC6809SinkCallArgsPass();
 MachineFunctionPass *createMC6809FoldBankCrossPass();
 MachineFunctionPass *createMC6809FoldLongBranchPass();
+MachineFunctionPass *createMC6809StackCFIPass();
 
 // Enums corresponding to MC6809 condition codes
 namespace MC6809CC {

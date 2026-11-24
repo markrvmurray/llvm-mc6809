@@ -93,6 +93,7 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeMC6809Target() {
   initializeMC6809DirectPageAllocPass(PR);
   initializeMC6809StaticStackAllocPass(PR);
   initializeMC6809FoldLongBranchPass(PR);
+  initializeMC6809StackCFIPass(PR);
   initializeMC6809FoldAddSub16Pass(PR);
   initializeMC6809FoldLoadIntoConsumerPass(PR);
   initializeMC6809PostIncExitUsesPass(PR);
@@ -215,6 +216,7 @@ public:
   void addPrePEI() override;
   void addPreSched2() override;
   void addPreEmitPass() override;
+  void addPreEmitPass2() override;
 
   std::unique_ptr<CSEConfigBase> getCSEConfig() const override;
 };
@@ -445,6 +447,16 @@ void MC6809PassConfig::addPreEmitPass() {
   // or if any pass inserts a $c-clobbering MI between a carry-chain
   // producer and its consumer.  See MC6809PhantomCarryGuard.cpp.
   addPass(createMC6809PhantomCarryGuardPass());
+}
+
+void MC6809PassConfig::addPreEmitPass2() {
+  // Last of all, once no pass will create, move or merge another instruction:
+  // note how S moves in the body of a function whose CFA is S-relative, then
+  // let CFIInstrInserter restate the CFA wherever the layout puts a block
+  // after one that left it otherwise (after a return, say).  Both add only
+  // CFI, which emits no code.
+  addPass(createMC6809StackCFIPass());
+  addPass(createCFIInstrInserterLegacy());
 }
 
 ScheduleDAGInstrs *MC6809TargetMachine::createMachineScheduler(MachineSchedContext *C) const { return new ScheduleDAGMILive(C, std::make_unique<MC6809SchedStrategy>(C)); }
