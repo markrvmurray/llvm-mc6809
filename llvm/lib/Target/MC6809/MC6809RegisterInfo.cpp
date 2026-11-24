@@ -79,14 +79,14 @@ static void initImag8SymbolNames(const MC6809RegisterInfo &TRI, std::unique_ptr<
 }
 
 MC6809RegisterInfo::MC6809RegisterInfo()
-    : MC6809GenRegisterInfo(/*RA=*/0, /*DwarfFlavor=*/0, /*EHFlavor=*/0,
-                            /*PC=*/0, /*HwMode=*/0) {
+    : MC6809GenRegisterInfo(/*RA=*/MC6809::PC, /*DwarfFlavor=*/0, /*EHFlavor=*/0,
+                            /*PC=*/MC6809::PC, /*HwMode=*/0) {
   initImag8SymbolNames(*this, Imag8SymbolNames);
 }
 
 MC6809RegisterInfo::MC6809RegisterInfo(const Triple &TT)
-    : MC6809GenRegisterInfo(/*RA=*/0, /*DwarfFlavor=*/0, /*EHFlavor=*/0,
-                            /*PC=*/0, /*HwMode=*/0) {
+    : MC6809GenRegisterInfo(/*RA=*/MC6809::PC, /*DwarfFlavor=*/0, /*EHFlavor=*/0,
+                            /*PC=*/MC6809::PC, /*HwMode=*/0) {
   initImag8SymbolNames(*this, Imag8SymbolNames);
 }
 

@@ -48,7 +48,8 @@ MCInstrInfo *llvm::createMC6809MCInstrInfo() {
 
 static MCRegisterInfo *createMC6809MCRegisterInfo(const Triple &TT) {
   MCRegisterInfo *X = new MCRegisterInfo();
-  InitMC6809MCRegisterInfo(X, 0);
+  // The return address is the PC a call pushed: CFI and every CIE name it.
+  InitMC6809MCRegisterInfo(X, /*RA=*/MC6809::PC, /*DwarfFlavour=*/0, /*EHFlavour=*/0, /*PC=*/MC6809::PC);
 
   return X;
 }
