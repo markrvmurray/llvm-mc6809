@@ -27,6 +27,6 @@ jobs:
       # Pinned to a commit, as CI pins it, until a picolibc release tag
       # carries the Windows fixes: paths through sed, a check that builds
       # every case where there is no simulator, a test runner that loads.
-      picolibc-ref: bb417659c21a244cdc12f809364447e3fe34ace9
+      picolibc-ref: 41e0780b80dab66d9c3a774ad92748a075866b32
       # A release builds clean; the experiment carries its compiles over.
       cache: true
