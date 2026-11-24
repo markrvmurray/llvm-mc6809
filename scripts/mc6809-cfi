@@ -321,11 +321,10 @@ def step(insn, ks, ku):
     return ks, ku
 
 
-COUNTS = {'fdes': 0, 'insns': 0}
-
-
 def check_object(tools, obj, label, require):
+    """(problems, FDEs checked, instructions followed) for one object."""
     problems = []
+    counts = {'fdes': 0, 'insns': 0}
     secs = sections(tools, obj)
     syms = symbols(tools, obj)
     fdes = frames(tools, obj, secs, syms)
@@ -375,7 +374,7 @@ def check_object(tools, obj, label, require):
                     r = row
             return r
 
-        COUNTS['fdes'] += 1
+        counts['fdes'] += 1
         reg0, off0 = rows[0][1], rows[0][2]
         state0 = (off0 if reg0 == 'SS' else None, off0 if reg0 == 'SU' else None)
         seen = {}
@@ -400,7 +399,7 @@ def check_object(tools, obj, label, require):
                 # pointer it is an ordinary register.  Follow on with it unknown.
                 ku = None
             seen[addr] = (ks, ku)
-            COUNTS['insns'] += 1
+            counts['insns'] += 1
             insn = ensure(tools, obj, sec, here, addr)
             if insn is None or insn.mnem.startswith('<'):
                 problems.append('%s: %s: no instruction starts there' % (label, where(addr)))
@@ -465,7 +464,7 @@ def check_object(tools, obj, label, require):
                 leave(addr, ks2, 'fall into the next routine', firsts[(sec, end)])
             elif nxt is not None:
                 work.append((nxt, (ks2, ku2)))
-    return problems
+    return problems, counts['fdes'], counts['insns']
 
 
 # --------------------------------------------------------------- annotate
@@ -788,6 +787,7 @@ def main():
     c = sub.add_parser('check')
     c.add_argument('--bindir', help='where llvm-objdump, llvm-dwarfdump, llvm-readelf and llvm-ar are')
     c.add_argument('--require', action='store_true', help='fail a function that has no CFI at all')
+    c.add_argument('--jobs', type=int, default=0, help='objects checked at once (default: one per CPU)')
     c.add_argument('files', nargs='+')
     an = sub.add_parser('annotate', help='write CFI into hand-written assembly sources')
     an.add_argument('--bindir')
@@ -804,19 +804,29 @@ def main():
         for p in problems:
             print(p)
         return 1 if problems else 0
-    problems, checked = [], 0
+    # Each object is checked on its own, so they are checked side by side:
+    # the work is a few tool runs apiece, and a bundle has a few thousand.
+    from concurrent.futures import ThreadPoolExecutor
+
+    def one(item):
+        obj, label = item
+        try:
+            return check_object(tools, obj, label, args.require)
+        except Problem as e:
+            return ['%s: %s' % (label, e)], 0, 0
+
+    problems, fdes, followed = [], 0, 0
     with tempfile.TemporaryDirectory(prefix='mc6809-cfi.') as tmp:
-        for path in args.files:
-            for obj, label in objects(tools, path, tmp):
-                checked += 1
-                try:
-                    problems += check_object(tools, obj, label, args.require)
-                except Problem as e:
-                    problems.append('%s: %s' % (label, e))
+        items = [it for path in args.files for it in objects(tools, path, tmp)]
+        with ThreadPoolExecutor(max_workers=args.jobs or os.cpu_count() or 1) as pool:
+            for p, f, n in pool.map(one, items):
+                problems += p
+                fdes += f
+                followed += n
     for p in problems:
         print(p)
     print('mc6809-cfi: %d object(s), %d FDE(s), %d instruction(s) followed, %d problem(s)' % (
-        checked, COUNTS['fdes'], COUNTS['insns'], len(problems)))
+        len(items), fdes, followed, len(problems)))
     return 1 if problems else 0
 
 
