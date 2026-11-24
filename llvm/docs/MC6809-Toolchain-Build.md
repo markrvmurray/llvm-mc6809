@@ -450,9 +450,13 @@ else can reproduce and which exists for exactly one host.
 Three hosts always: **ubuntu-22.04** (not latest — built against the oldest
 glibc we support, so the binaries do not exclude older distributions),
 **ubuntu-22.04-arm** for a Linux bundle that runs on a Pi or an arm server,
-and **macos-15** for arm64.  Windows joins only when asked for, and as an
-experiment — no Windows bundle has ever been produced, and a release must
-not wait on one.
+and **macos-15** for arm64.  **Windows x86_64** is built too, by the
+reusable `mc6809-windows-bundle.yml`, but a release does not wait on it:
+publishing goes ahead with whichever bundles passed, and the notes list only
+those.  It is checked to build and link every case, not to run them — there
+is no simulator for Windows.  To try it outside a release, run
+`mc6809-windows.yml` on demand from `MC6809` (Actions, or
+`gh workflow run mc6809-windows.yml --ref MC6809`).
 
 **There is no Intel Mac bundle**, and that is not an oversight.  `macos-13`
 was in this matrix until a release run sat queued on it for hours: the

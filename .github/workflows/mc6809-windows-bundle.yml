@@ -1,7 +1,7 @@
 # Builds and checks a Windows bundle.  Called, never run on its own: by the
-# release workflow, which attaches what it makes, and by the experiment on
-# windows-bundle, which only keeps it.  One file for both, so that every
-# experiment run proves the very steps a release will take -- a release
+# release workflow, which attaches what it makes, and by mc6809-windows.yml,
+# run on demand, which only keeps it.  One file for both, so that every
+# on-demand run proves the very steps a release will take -- a release
 # workflow cannot otherwise be tried without cutting a release.
 #
 # The MC6809 lit tests that need no simulator run here as on every host.

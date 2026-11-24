@@ -1,18 +1,19 @@
-# Builds and checks a Windows bundle on every push to windows-bundle, through
-# the same workflow a release calls (mc6809-windows-bundle.yml).  Publishes
-# nothing: the bundle is kept as a run artifact, never attached to anything.
+# Builds and checks a Windows bundle on demand, through the same workflow a
+# release calls (mc6809-windows-bundle.yml).  Publishes nothing: the bundle is
+# kept as a run artifact, never attached to anything.
 #
-# This is how a change to the Windows steps is tried before it reaches a
-# release, which cannot itself be run without cutting one.  It runs only on
-# pushes to this branch, never on a tag, and may only read the repository.
-name: MC6809 Windows bundle (experiment)
+# This is how the Windows build is tried outside a release -- before tagging,
+# or after a change to the Windows steps -- since a release cannot itself be
+# run without cutting one.  Start it from MC6809 (Actions, or
+# `gh workflow run mc6809-windows.yml --ref MC6809`); it builds the commit it
+# is started on, and may only read the repository.
+name: MC6809 Windows bundle (on demand)
 
 on:
-  push:
-    branches: [windows-bundle]
+  workflow_dispatch:
 
 concurrency:
-  group: mc6809-windows
+  group: mc6809-windows-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
@@ -25,8 +26,9 @@ jobs:
     with:
       llvm-ref: ${{ github.sha }}
       # Pinned to a commit, as CI pins it, until a picolibc release tag
-      # carries the Windows fixes: paths through sed, a check that builds
-      # every case where there is no simulator, a test runner that loads.
+      # carries the Windows fixes and the start-up check.
       picolibc-ref: 41e0780b80dab66d9c3a774ad92748a075866b32
-      # A release builds clean; the experiment carries its compiles over.
+      # A release builds clean; an on-demand run carries its compiles over.
+      # Its cache is saved on the branch it ran from -- on MC6809, the
+      # default branch, where every later run can read it.
       cache: true

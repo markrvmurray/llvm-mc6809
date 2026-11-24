@@ -242,9 +242,8 @@ jobs:
           if-no-files-found: ignore
           retention-days: 30
 
-  # Windows, from the workflow the Windows experiment runs on every push to
-  # windows-bundle, so these steps have been tried before a release takes
-  # them.  It does not hold the release up: publish below runs whatever
+  # Windows, from the workflow mc6809-windows.yml runs on demand, so these
+  # steps can be tried before a release takes them.  It does not hold the release up: publish below runs whatever
   # happened here, and a Windows bundle that failed its check is never kept
   # under the name publish attaches from -- the release goes out with the
   # other three, and its notes list only the hosts that delivered.
