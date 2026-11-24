@@ -4,6 +4,32 @@ Each release has a section headed `## <version>`, which the release workflow
 publishes on that release's GitHub page above the table of test results.  A
 tag with no section here is not published.
 
+## 1.1.0-rc2
+
+The second candidate for llvm-mc6809 1.1.0.
+
+### Windows
+
+There is now a bundle for Windows on x86_64 as well as for Linux and macOS.
+It holds the same compiler, tools and libraries, and is checked the same way,
+except that no program is run, since there is no simulator for Windows yet:
+it compiles and links every test program. A release does not wait for it, so
+if the Windows bundle fails its checks, the release is published without it.
+
+### Known issues
+
+* NitrOS-9 up to its current release, v3.3.0, cuts a file name short at the
+  first character it does not accept, without an error, so a program can open
+  or delete the wrong file. Names made of letters, digits, `_` and `.` are
+  safe on every version.
+* On NitrOS-9 Level 1, a file open twice does not show what one path wrote
+  to the other: the second path sees only what has reached the disk, and the
+  file's size as it was when that path opened. `fflush` does not change
+  this. Level 1's file manager keeps no common view of a file's open paths;
+  Level 2's does, and behaves as POSIX expects.
+* Programs built on Windows have to be run somewhere else: on a simulator on
+  another host, or on real hardware.
+
 ## 1.1.0-rc1
 
 The first candidate for llvm-mc6809 1.1.0: faster and smaller code, a good
