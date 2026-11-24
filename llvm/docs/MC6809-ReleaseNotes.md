@@ -4,6 +4,33 @@ Each release has a section headed `## <version>`, which the release workflow
 publishes on that release's GitHub page above the table of test results.  A
 tag with no section here is not published.
 
+## Next release
+
+<!-- For 1.1.0-rc3 or 1.1.0, whichever comes first: rename this heading to
+     that version, which is what the release workflow looks for. -->
+
+### Against 1.0, like for like
+
+Measured on the rc2 compiler and C library, against 1.0's, on the test
+programs whose own sources are unchanged since 1.0 (82 to 86 at each level,
+counting those that pass in both). The C library's own changes are part of
+what is measured. Both are measured on USim, the 6309 included.
+
+| | Cycles in all | A typical program |
+|---|---|---|
+| 6809, `-O0` to `-Oz` | 12-20% fewer | 16-24% fewer |
+| 6309, `-O2`, `-Og` and `-Os` | 8-13% fewer | 15-22% fewer |
+
+"A typical program" is the geometric mean of each program's change, which a
+few long-running tests do not dominate.
+
+At every level at most three of those programs are slower, and at `-O0`,
+`-Os` and `-Oz` on the 6809 none is. The one that is slower at most levels
+is the test of the MC6839 floating-point calls, by 1-3% on the 6809 and 4-8%
+on the 6309: those calls now find the ROM at run time, so they work wherever
+the program is loaded. The others are slower by less than 3%, and only on
+the 6309.
+
 ## 1.1.0-rc2
 
 The second candidate for llvm-mc6809 1.1.0: a debugger can now follow the
