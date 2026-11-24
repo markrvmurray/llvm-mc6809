@@ -22,11 +22,13 @@ if the Windows bundle fails its checks, the release is published without it.
   first character it does not accept, without an error, so a program can open
   or delete the wrong file. Names made of letters, digits, `_` and `.` are
   safe on every version.
-* On NitrOS-9 Level 1, a file open twice does not show what one path wrote
-  to the other: the second path sees only what has reached the disk, and the
-  file's size as it was when that path opened. `fflush` does not change
-  this. Level 1's file manager keeps no common view of a file's open paths;
-  Level 2's does, and behaves as POSIX expects.
+* On NitrOS-9 up to v3.3.0, a file open twice can hide what one path wrote
+  from the other. On Level 1 the second path sees only what has reached the
+  disk, and the file's size as it was when that path opened, and `fflush`
+  does not change this; on Level 2 the same happens after a write of a whole
+  sector. NitrOS-9's file manager is fixed on its `main` branch, after
+  v3.3.0, and a system built from that behaves as POSIX expects on both
+  levels.
 * Programs built on Windows have to be run somewhere else: on a simulator on
   another host, or on real hardware.
 
