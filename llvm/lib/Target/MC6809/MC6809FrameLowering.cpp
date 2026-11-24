@@ -179,11 +179,16 @@ bool MC6809FrameLowering::spillCalleeSavedRegisters(MachineBasicBlock &MBB, Mach
   // are the first thing the function does: a register pushed when Pushed
   // bytes are already on the stack below the return address lies at
   // CFA - 2 - Pushed - its size.  A push stores the highest mask bit first,
-  // so in a fused push the registers are taken in Fusible's order.
+  // so in a fused push the registers are taken in Fusible's order.  Only the
+  // processor's own registers are described: the direct-page ones an
+  // interrupt handler saves are memory, under DWARF numbers no debugger knows
+  // (and beyond the register count CFIInstrInserter sizes its tables by).
   const MCRegisterInfo *MRI = MBB.getParent()->getContext().getRegisterInfo();
   int64_t Pushed = 0;
   auto Saved = [&](Register R, unsigned Bytes) {
     Pushed += Bytes;
+    if (MC6809::Imag8RegClass.contains(R) || MC6809::Imag16RegClass.contains(R))
+      return;
     int DwarfReg = MRI->getDwarfRegNum(R, /*isEH=*/true);
     if (DwarfReg >= 0)
       buildCFI(MBB, Builder.getInsertPt(), {}, MCCFIInstruction::createOffset(nullptr, DwarfReg, -2 - Pushed));

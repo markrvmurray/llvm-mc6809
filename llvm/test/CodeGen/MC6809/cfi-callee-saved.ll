@@ -3,8 +3,9 @@
 ; than carrying this function's values up the stack.  The CFA is S before the
 ; call pushed the return address (S + 2 at entry), and a push stores its
 ; highest register first: `pshs u,y` leaves U at CFA-4 and Y at CFA-6.
-; An interrupt handler saves its direct-page registers through D, which
-; stores B (the second of a pair) above A.
+; The direct-page registers an interrupt handler saves are memory, under
+; DWARF numbers no debugger knows: their pushes move the CFA offset but are
+; not described as saves.
 ;
 ; RUN: llc -mtriple=mc6809 -O2 < %s | FileCheck %s
 ; RUN: llc -mtriple=mc6809 -O2 -filetype=obj < %s | llvm-dwarfdump --debug-frame - | FileCheck %s --check-prefix=ROWS
@@ -42,12 +43,8 @@ define i16 @save_u(i16 %a) uwtable {
 
 ; CHECK-LABEL: irq:
 ; CHECK:       pshs d
-; CHECK-NEXT:  .cfi_offset rs0, -4
-; CHECK:       lda <__rc0
-; CHECK-NEXT:  ldb <__rc1
-; CHECK-NEXT:  pshs d
-; CHECK-NEXT:  .cfi_offset rc1, -11
-; CHECK-NEXT:  .cfi_offset rc0, -12
+; CHECK-NOT:   .cfi_offset r{{[sc][0-9]}}
+; CHECK:       .cfi_endproc
 define void @irq() uwtable "interrupt" {
   %v = load volatile i16, ptr @n
   %w = add i16 %v, 1
