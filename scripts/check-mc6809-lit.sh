@@ -1,11 +1,13 @@
 #!/bin/sh
 # check-mc6809-lit.sh — run every MC6809 lit test a built tree can run.
 #
-#   scripts/check-mc6809-lit.sh BUILD_DIR [MIN_PASS]
+#   scripts/check-mc6809-lit.sh BUILD_DIR [MIN_PASS [EXTRA_TEST_PATH...]]
 #
 # MIN_PASS defaults to what a tree built without lldb passes with no
 # simulator asked for (313 when this was written; a tree with lldb passes
 # two more).  Raise it as tests are added; pass 0 to check a partial build.
+# EXTRA_TEST_PATHs are run with the rest: the bench adds the OS-9 runtime
+# suite, which boots NitrOS-9 and has its own opt-in.
 #
 # The one list of the fork's own lit tests, wherever they live (llvm, clang,
 # lld), so that CI, each release host and a developer run the same set.
@@ -23,10 +25,10 @@
 # to $GITHUB_STEP_SUMMARY when that is set.
 set -eu
 
-usage() { echo "usage: $0 BUILD_DIR [MIN_PASS]" >&2; exit 2; }
-[ $# -ge 1 ] && [ $# -le 2 ] || usage
-build=$1
-min_pass=${2:-313}
+usage() { echo "usage: $0 BUILD_DIR [MIN_PASS [EXTRA_TEST_PATH...]]" >&2; exit 2; }
+[ $# -ge 1 ] || usage
+build=$1; shift
+min_pass=${1:-313}; [ $# -gt 0 ] && shift
 log=${LIT_LOG:-lit.log}
 case $log in /*|[A-Za-z]:*) ;; *) log="$PWD/$log" ;; esac
 src=$(cd "$(dirname "$0")/.." && pwd)
@@ -57,6 +59,7 @@ $lit --no-progress-bar -v \
   clang/test/Misc/pragma-attribute-supported-attributes-list.test \
   lld/test/ELF/mc6809-*.s \
   lld/test/ELF/lto/mc6809-*.test \
+  "$@" \
   > "$log" 2>&1
 lit_status=$?
 set -e
@@ -98,8 +101,11 @@ if [ "$passed" -lt "$min_pass" ]; then
   echo "error: only $passed tests passed, expected at least $min_pass -- tests are disappearing rather than failing" >&2
   bad=1
 fi
+# A lit that failed for a reason not counted above (it died, or a test it
+# could not even start) passes its own status on.
 if [ "$bad" -eq 0 ] && [ "$lit_status" -ne 0 ]; then
   tail -20 "$log"
-  echo "error: lit exited $lit_status" >&2; bad=1
+  echo "error: lit exited $lit_status" >&2
+  exit "$lit_status"
 fi
 exit "$bad"
