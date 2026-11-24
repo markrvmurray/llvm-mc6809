@@ -961,6 +961,34 @@ public:
         }
       }
 
+      // MC6809: `n,pcr` is Motorola's spelling of program-counter-relative
+      // indexing, which lwasm and gcc6809's assembler share: n is an
+      // address, and the assembler encodes its distance from the next
+      // instruction.  `n,pc` here already means that when n is a symbol;
+      // when n is a plain number it is the offset itself.  So `,pcr` is
+      // `,pc` whose number, if it has one, is first made an address: a
+      // temporary symbol standing for it, which the PC-relative fixup then
+      // measures from like any other target.  That also keeps it out of the
+      // 8-bit form, which takes only a resolved offset.
+      if (getSTI().getFeatureBits()[MC6809::Feature6809] && getLexer().is(AsmToken::Identifier) &&
+          getLexer().getTok().getString().equals_insensitive("pcr")) {
+        SMLoc S = getLexer().getLoc();
+        SMLoc E = getLexer().getTok().getEndLoc();
+        auto *Offset = Operands.empty() ? nullptr : static_cast<MC6809Operand *>(Operands.back().get());
+        if (!Offset || !Offset->isImm())
+          return Error(S, "expected an address before ',pcr'");
+        if (const auto *CE = dyn_cast<MCConstantExpr>(Offset->getImm())) {
+          MCSymbol *Address = getContext().createTempSymbol("pcr", true);
+          Address->setVariableValue(CE);
+          SMLoc OS = Offset->getStartLoc(), OE = Offset->getEndLoc();
+          Operands.pop_back();
+          Operands.push_back(MC6809Operand::createImm(MCSTI, MCSymbolRefExpr::create(Address, getContext()), OS, OE));
+        }
+        Operands.push_back(MC6809Operand::createReg(MCSTI, MC6809::PC, S, E));
+        Lex();
+        continue;
+      }
+
       // We'll only ever see a register name on the third or later parameter.
       if (tryParseAsmParamRegClass(Operands).isSuccess()) {
         Parser.Lex();
