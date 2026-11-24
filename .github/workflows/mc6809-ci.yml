@@ -2,10 +2,12 @@
 # Mark's Mac?  That is the whole question this workflow answers, and it is
 # the one thing a fork of LLVM cannot find out any other way.
 #
-# What it deliberately does NOT do: roll a bundle, build picolibc, or run
-# anything on an emulator.  The acceptance check needs usim, a NitrOS-9
-# image tree, and -- for the two DECB cases -- MAME with Tandy's ROMs,
-# which cannot live in a public repository.  Those stay a local gate.  See
+# It builds the tree, runs the MC6809 lit suites, then rolls a bundle
+# (picolibc included) and runs the acceptance check against the unpacked
+# archive on usim.  What it cannot do is the part of that check which needs
+# a NitrOS-9 image tree or -- for the two DECB cases -- MAME with Tandy's
+# ROMs, which cannot live in a public repository; those cases are counted
+# as not run, and stay a local gate, as does the bench.  See
 # llvm/docs/MC6809-Toolchain-Build.md.
 name: MC6809 CI
 
@@ -53,7 +55,7 @@ jobs:
       # the bundle it named, and a branch would quietly change what it means.
       # Bump these in a commit when either dependency moves.
       PICOLIBC_REPO: markrvmurray/picolibc
-      PICOLIBC_SHA: dc36b90f7bb401a8723c5937b407df5513f1604d
+      PICOLIBC_SHA: bb417659c21a244cdc12f809364447e3fe34ace9
       USIM_REPO: markrvmurray/usim
       USIM_SHA: bf2e69d9e99ffb6dccd02854a0abcabc022ba912
 
