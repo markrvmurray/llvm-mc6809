@@ -1,0 +1,407 @@
+#!/usr/bin/env python3
+"""mc6809-cfi -- check that MC6809 code's CFI says where its frame is.
+
+  scripts/mc6809-cfi check [--bindir DIR] [--require] FILE...
+
+FILE is an object or an archive.  Each object's code is disassembled a section
+at a time, and its .debug_frame decoded, each FDE matched to its section by
+the relocation on its start address.  Then, for every FDE, every path through
+the code is followed from
+the FDE's first row, keeping CFA - S (and CFA - U, for a frame-pointer
+function) as each instruction pushes, pulls, steps or reloads S and U, and at
+each instruction the CFA rule the CFI gives is compared with it.  A return
+must leave S where the CFA says the caller's S is, and a jump out of the
+routine (a tail call) the same.
+
+It fails for:
+  * with --require, a function symbol in an executable section with no FDE
+    covering it (code compiled without -g has none, and is not wrong);
+  * an instruction whose CFA rule disagrees with where the stack is;
+  * a return or tail jump with the stack unbalanced;
+  * an instruction it cannot follow -- S loaded from memory, an undecodable
+    byte, two paths reaching one instruction with different stacks.
+
+The CFI is what a debugger unwinds by.  Wrong CFI does no harm until somebody
+stops in the wrong place and is shown somebody else's frame.
+"""
+
+import argparse
+import os
+import re
+import shutil
+import subprocess
+import sys
+import tempfile
+
+BRANCHES = {'bra', 'brn', 'bhi', 'bls', 'bhs', 'bcc', 'blo', 'bcs', 'bne', 'beq', 'bvc', 'bvs',
+            'bpl', 'bmi', 'bge', 'blt', 'bgt', 'ble'}
+CALLS = {'bsr', 'lbsr', 'jsr'}
+
+
+def regbytes(r):
+    return 2 if r in ('d', 'x', 'y', 'u', 's', 'pc', 'w', 'v') else 1
+
+
+class Problem(Exception):
+    pass
+
+
+class Tools:
+    def __init__(self, bindir):
+        self.bindir = os.path.abspath(bindir) if bindir else None
+
+    def path(self, name):
+        if self.bindir:
+            for cand in (name, name + '.exe'):
+                p = os.path.join(self.bindir, cand)
+                if os.path.isfile(p):
+                    return p
+        p = shutil.which(name)
+        if not p:
+            sys.exit('mc6809-cfi: no %s (give --bindir)' % name)
+        return p
+
+    def run(self, name, *args):
+        r = subprocess.run([self.path(name)] + list(args), capture_output=True, text=True)
+        if r.returncode:
+            raise Problem('%s failed: %s' % (name, (r.stderr or r.stdout).strip()))
+        return r.stdout
+
+
+class Insn:
+    __slots__ = ('addr', 'mnem', 'ops', 'next')
+
+    def __init__(self, addr, mnem, ops):
+        self.addr, self.mnem, self.ops, self.next = addr, mnem, ops, None
+
+
+INSN_RE = re.compile(r'^\s*([0-9a-f]+):\s+(\S+)(?:\s+([^;]*?))?\s*(?:;.*)?$')
+RELOC_RE = re.compile(r'^\s+([0-9a-f]+):\s+(R_MC6809_\S+)\s+(\S+)')
+
+
+def disassemble(tools, obj, section):
+    """{address: Insn} for one section, and the addresses of instructions
+    whose operand carries a relocation (a branch or call to elsewhere)."""
+    insns, relocated, last = {}, set(), None
+    for line in tools.run('llvm-objdump', '-dr', '--no-show-raw-insn', '--section=' + section, obj).splitlines():
+        r = RELOC_RE.match(line)
+        if r:
+            if last is not None:
+                relocated.add(last)
+            continue
+        m = INSN_RE.match(line)
+        if m and not line.rstrip().endswith(':'):
+            addr = int(m.group(1), 16)
+            insns[addr] = Insn(addr, m.group(2).lower(), (m.group(3) or '').strip())
+            last = addr
+    order = sorted(insns)
+    for x, y in zip(order, order[1:]):
+        insns[x].next = y
+    return insns, relocated
+
+
+ROW_RE = re.compile(r'^\s*0x([0-9a-f]+): CFA=([A-Za-z0-9]+)([+-]\d+)')
+FDE_RE = re.compile(r'^([0-9a-f]+) [0-9a-f]+ [0-9a-f]+ FDE cie=\S+ pc=([0-9a-f]+)\.\.\.([0-9a-f]+)')
+
+
+def sections(tools, obj):
+    """{index: (name, executable)} from the section headers."""
+    out = {}
+    for line in tools.run('llvm-readelf', '-S', '-W', obj).splitlines():
+        m = re.match(r'^\s*\[\s*(\d+)\]\s+(\S+)\s+\S+\s+[0-9a-f]+\s+[0-9a-f]+\s+[0-9a-f]+\s+[0-9a-f]+\s+(\S*)', line)
+        if m:
+            out[m.group(1)] = (m.group(2), 'X' in m.group(3))
+    return out
+
+
+def symbols(tools, obj):
+    """[(value, size, type, section index, name)]"""
+    out = []
+    for line in tools.run('llvm-readelf', '-s', '-W', obj).splitlines():
+        f = line.split()
+        if len(f) >= 8 and f[0].endswith(':') and f[0][:-1].isdigit():
+            out.append((int(f[1], 16), int(f[2]) if f[2].isdigit() else 0, f[3], f[6], f[7]))
+    return out
+
+
+def frames(tools, obj, secs, syms):
+    """[(section name, start, end, rows)] for each .debug_frame FDE.  In an
+    object the FDE's start is relocated against the code it covers: the
+    relocation 8 bytes into the FDE (after its length and CIE pointer) names
+    the section, or a symbol in it."""
+    where = {}
+    rela = tools.run('llvm-readelf', '-r', '-W', obj)
+    section = None
+    for line in rela.splitlines():
+        m = re.match(r"^Relocation section '([^']+)'", line)
+        if m:
+            section = m.group(1)
+            continue
+        if section != '.rela.debug_frame':
+            continue
+        f = line.split()
+        if len(f) >= 5 and re.match(r'^[0-9a-f]+$', f[0]) and f[2].startswith('R_MC6809'):
+            where[int(f[0], 16)] = f[4]
+    by_name = {name: secs[idx][0] for value, size, typ, idx, name in syms if idx in secs}
+    names = {n for n, _ in secs.values()}
+    fdes, cur, part = [], None, None
+    for line in tools.run('llvm-dwarfdump', '--debug-frame', obj).splitlines():
+        if line.endswith('contents:'):
+            part = line.split()[0]
+            continue
+        if part != '.debug_frame':
+            continue
+        m = FDE_RE.match(line)
+        if m:
+            target = where.get(int(m.group(1), 16) + 8, '')
+            sec = target if target in names else by_name.get(target)
+            cur = (sec, int(m.group(2), 16), int(m.group(3), 16), [])
+            fdes.append(cur)
+            continue
+        m = ROW_RE.match(line)
+        if m and cur is not None:
+            cur[3].append((int(m.group(1), 16), m.group(2).upper(), int(m.group(3))))
+    return fdes
+
+
+def number(text):
+    text = text.strip()
+    neg = text.startswith('-')
+    text = text.lstrip('+-')
+    v = int(text[1:], 16) if text.startswith('$') else int(text, 0)
+    return -v if neg else v
+
+
+def regs_of(ops):
+    return [r.strip().lower() for r in ops.split(',') if r.strip()]
+
+
+def target_of(ops):
+    m = re.match(r'^\$([0-9a-f]+)', ops)
+    return int(m.group(1), 16) if m else None
+
+
+def step(insn, ks, ku):
+    """CFA-S and CFA-U after insn (None: not known)."""
+    m, ops = insn.mnem, insn.ops.lower()
+
+    def offset_from(base_val, offset_text):
+        if base_val is None:
+            return None
+        try:
+            return base_val - (number(offset_text) if offset_text else 0)
+        except ValueError:
+            return None
+
+    if m in ('pshs', 'puls', 'pshu', 'pulu'):
+        regs = regs_of(ops)
+        n = sum(regbytes(r) for r in regs)
+        push = m.startswith('psh')
+        if m.endswith('s'):
+            ks = None if ks is None else ks + (n if push else -n)
+            if not push and 'u' in regs:
+                ku = None
+        else:
+            ku = None if ku is None else ku + (n if push else -n)
+            if not push and 's' in regs:
+                ks = None
+        return ks, ku
+    if m in ('pshsw', 'pulsw'):
+        return (None if ks is None else ks + (2 if m == 'pshsw' else -2)), ku
+    if m in ('pshuw', 'puluw'):
+        return ks, (None if ku is None else ku + (2 if m == 'pshuw' else -2))
+    if m in ('leas', 'leau'):
+        mo = re.match(r'^([^,\[]*),([su])$', ops)
+        val = None
+        if mo:
+            val = offset_from(ks if mo.group(2) == 's' else ku, mo.group(1))
+        return (val, ku) if m == 'leas' else (ks, val)
+    if m in ('tfr', 'exg'):
+        a, b = (regs_of(ops) + ['', ''])[:2]
+        known = {'s': ks, 'u': ku}
+        if m == 'tfr':
+            if b in ('s', 'u'):
+                known[b] = known.get(a) if a in ('s', 'u') else None
+        elif a in ('s', 'u') or b in ('s', 'u'):
+            va, vb = known.get(a), known.get(b)
+            if a in known:
+                known[a] = vb if b in ('s', 'u') else None
+            if b in known:
+                known[b] = va if a in ('s', 'u') else None
+        return known['s'], known['u']
+    if m == 'lds':
+        ks = None
+    if m == 'ldu':
+        ku = None
+    # An indexed operand that steps S or U.
+    for pre, reg, post in re.findall(r',(-{0,2})([su])(\+{0,2})(?![a-z])', ops):
+        d = len(post) - len(pre)
+        if reg == 's' and ks is not None:
+            ks -= d
+        if reg == 'u' and ku is not None:
+            ku -= d
+    return ks, ku
+
+
+COUNTS = {'fdes': 0, 'insns': 0}
+
+
+def check_object(tools, obj, label, require):
+    problems = []
+    secs = sections(tools, obj)
+    syms = symbols(tools, obj)
+    fdes = frames(tools, obj, secs, syms)
+    funcs = {}
+    for value, size, typ, idx, name in syms:
+        if typ == 'FUNC' and idx in secs and secs[idx][1]:
+            funcs.setdefault(secs[idx][0], []).append((value, size, name))
+
+    for sec, items in funcs.items():
+        for value, size, name in items:
+            if require and size and not any(f[0] == sec and f[1] <= value < f[2] for f in fdes):
+                problems.append('%s: %s: no CFI' % (label, name))
+
+    code = {}
+    for sec, start, end, rows in fdes:
+        if not rows:
+            continue
+        if sec is None:
+            problems.append('%s: an FDE at 0x%x whose code cannot be found' % (label, start))
+            continue
+        if sec not in code:
+            code[sec] = disassemble(tools, obj, sec)
+        insns, relocated = code[sec]
+        named = sorted(funcs.get(sec, []))
+
+        def where(addr):
+            best = None
+            for v, size, name in named:
+                if v <= addr:
+                    best = (v, name)
+            return '%s+0x%x' % (best[1], addr - best[0]) if best else '%s+0x%x' % (sec, addr)
+
+        def rule_at(addr):
+            r = None
+            for row in rows:
+                if row[0] <= addr:
+                    r = row
+            return r
+
+        COUNTS['fdes'] += 1
+        reg0, off0 = rows[0][1], rows[0][2]
+        state0 = (off0 if reg0 == 'SS' else None, off0 if reg0 == 'SU' else None)
+        seen = {}
+        work = [(start, state0)]
+
+        def leave(addr, ks, what, need):
+            if ks != need:
+                problems.append('%s: %s: %s with CFA-S = %s, not %d' % (label, where(addr), what, ks, need))
+
+        while work:
+            addr, (ks, ku) = work.pop()
+            if addr < start or addr >= end:
+                continue
+            if addr in seen:
+                old = seen[addr]
+                if old[0] != ks:
+                    problems.append('%s: %s: reached with CFA-S %s and with %s' % (label, where(addr), old[0], ks))
+                    continue
+                if old[1] == ku or old[1] is None:
+                    continue
+                # Paths disagree only about U: where U is not the frame
+                # pointer it is an ordinary register.  Follow on with it unknown.
+                ku = None
+            seen[addr] = (ks, ku)
+            COUNTS['insns'] += 1
+            insn = insns.get(addr)
+            if insn is None or insn.mnem.startswith('<'):
+                problems.append('%s: %s: no instruction starts there' % (label, where(addr)))
+                continue
+            rule = rule_at(addr)
+            if rule and rule[1] in ('SS', 'SU'):
+                have = ks if rule[1] == 'SS' else ku
+                if have != rule[2]:
+                    problems.append('%s: %s: CFI says CFA=%s%+d, the stack says %s' % (
+                        label, where(addr), rule[1], rule[2],
+                        'not known' if have is None else '%s%+d' % (rule[1], have)))
+                    continue
+            m, ops = insn.mnem, insn.ops.lower()
+            if m == 'rts':
+                leave(addr, ks, 'return', 2)
+                continue
+            if m == 'rti':
+                continue
+            if m == 'puls' and 'pc' in regs_of(ops):
+                leave(addr, ks, 'return', sum(regbytes(r) for r in regs_of(ops)))
+                continue
+            ks2, ku2 = step(insn, ks, ku)
+            base = m[1:] if m.startswith('l') and m[1:] in BRANCHES else m
+            if base in BRANCHES or m == 'jmp':
+                direct = base in BRANCHES or (not ops.startswith('[') and ',' not in ops)
+                tgt = target_of(ops) if direct and addr not in relocated else None
+                if tgt is not None and start <= tgt < end:
+                    work.append((tgt, (ks2, ku2)))
+                elif direct:
+                    leave(addr, ks2, 'tail jump', 2)
+                if base == 'bra' or m == 'jmp':
+                    continue
+            nxt = insn.next
+            if nxt is not None:
+                if m == 'swi2' and nxt == addr + 2 and addr + 3 in insns:
+                    nxt = addr + 3  # an OS-9 service call: SWI2 and its code byte
+                work.append((nxt, (ks2, ku2)))
+    return problems
+
+
+def is_elf(path):
+    with open(path, 'rb') as f:
+        return f.read(4) == b'\x7fELF'
+
+
+def objects(tools, path, tmp):
+    """(object, label) for each ELF object in path; LLVM bitcode (an LTO
+    library's members) has no code yet, and is passed over."""
+    with open(path, 'rb') as f:
+        magic = f.read(8)
+    if magic != b'!<arch>\n':
+        if is_elf(path):
+            yield path, os.path.basename(path)
+        return
+    names = tools.run('llvm-ar', 't', path).split()
+    for i, name in enumerate(names):
+        d = os.path.join(tmp, 'm%d' % i)
+        os.makedirs(d)
+        subprocess.run([tools.path('llvm-ar'), 'xN', str(names[:i + 1].count(name)), os.path.abspath(path), name],
+                       cwd=d, check=True)
+        member = os.path.join(d, name)
+        if is_elf(member):
+            yield member, '%s(%s)' % (os.path.basename(path), name)
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    sub = ap.add_subparsers(dest='cmd', required=True)
+    c = sub.add_parser('check')
+    c.add_argument('--bindir', help='where llvm-objdump, llvm-dwarfdump, llvm-readelf and llvm-ar are')
+    c.add_argument('--require', action='store_true', help='fail a function that has no CFI at all')
+    c.add_argument('files', nargs='+')
+    args = ap.parse_args()
+    tools = Tools(args.bindir)
+    problems, checked = [], 0
+    with tempfile.TemporaryDirectory(prefix='mc6809-cfi.') as tmp:
+        for path in args.files:
+            for obj, label in objects(tools, path, tmp):
+                checked += 1
+                try:
+                    problems += check_object(tools, obj, label, args.require)
+                except Problem as e:
+                    problems.append('%s: %s' % (label, e))
+    for p in problems:
+        print(p)
+    print('mc6809-cfi: %d object(s), %d FDE(s), %d instruction(s) followed, %d problem(s)' % (
+        checked, COUNTS['fdes'], COUNTS['insns'], len(problems)))
+    return 1 if problems else 0
+
+
+if __name__ == '__main__':
+    sys.exit(main())
