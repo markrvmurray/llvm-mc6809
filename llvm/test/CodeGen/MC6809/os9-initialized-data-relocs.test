@@ -72,7 +72,7 @@ RUN: echo '        .zero 2'           >> %t.s
 RUN: llvm-mc -triple=mc6809-unknown-os9 --filetype=obj %t.s -o %t.o
 RUN: ld.lld -T %S/../../../../compiler-rt/lib/builtins/mc6809-os9/mc6809-os9.lds \
 RUN:   --os9-name=reloc -Map=%t.map %t-crt0.o %t.o %t-crt1.o -o %t.os9
-RUN: %S/../../../../tools/os9-module-check %t.os9 | FileCheck %s --check-prefix=VALID
+RUN: %os9-module-check %t.os9 | FileCheck %s --check-prefix=VALID
 RUN: xxd -p -c 65536 %t.os9 > %t.hex
 RUN: FileCheck %s --check-prefixes=IMAGE,RELOCS < %t.hex
 

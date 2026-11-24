@@ -30,7 +30,7 @@
 // No --os9-* flags, no Python post-link, no separate .S inputs.
 //
 // RUN: %clang -target mc6809-unknown-os9 %s -o %t.os9
-// RUN: %S/../../../tools/os9-module-check %t.os9 \
+// RUN: %os9-module-check %t.os9 \
 // RUN:   | FileCheck %s --check-prefix=VALID
 //
 // VALID: OK ({{[0-9]+}} bytes)

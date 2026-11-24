@@ -20,7 +20,7 @@
 
 # Path A: binary body, then Python wrap.
 # RUN: ld.lld -o %t-A.body %t.o --oformat=binary
-# RUN: %S/../../../tools/os9-link %t-A.body \
+# RUN: %os9-link %t-A.body \
 # RUN:   --name probe --exec 13 --mem 256 -o %t-A.os9
 
 # Path B: native lld writer.
@@ -32,15 +32,15 @@
 # RUN: diff %t-A.os9 %t-B.os9
 
 # Sanity: Phase 1 validator accepts both.
-# RUN: %S/../../../tools/os9-module-check %t-A.os9 \
+# RUN: %os9-module-check %t-A.os9 \
 # RUN:   | FileCheck %s --check-prefix=VALID
-# RUN: %S/../../../tools/os9-module-check %t-B.os9 \
+# RUN: %os9-module-check %t-B.os9 \
 # RUN:   | FileCheck %s --check-prefix=VALID
 # VALID: CRC: valid (full CRC = $800FE3)
 
 # HD6309 variant — same cross-check at type=0x17.
 # RUN: ld.lld -o %t-A-hd.body %t.o --oformat=binary
-# RUN: %S/../../../tools/os9-link %t-A-hd.body --name probe \
+# RUN: %os9-link %t-A-hd.body --name probe \
 # RUN:   --lang Obj6309 --exec 13 --mem 256 -o %t-A-hd.os9
 # RUN: ld.lld -o %t-B-hd.os9 %t.o --oformat=os9-program-module \
 # RUN:   --os9-name=probe --os9-type=0x17 --os9-exec=13 --os9-mem=256

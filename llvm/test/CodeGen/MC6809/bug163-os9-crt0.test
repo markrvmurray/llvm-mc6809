@@ -75,8 +75,8 @@ EXITSEQ: 103f06
 # 3. Wrap and validate.  Use --mem 1024 (data 0 + bss 0 + heap 1024 +
 #    stack 0 in a stripped-down test; reality is __mem_size symbol-fed,
 #    but for the test the value doesn't have to match a real allocation).
-RUN: %S/../../../../tools/os9-link %t.body --name crt0test --exec 13 --mem 1024 -o %t.os9
-RUN: %S/../../../../tools/os9-module-check %t.os9 | FileCheck %s --check-prefix=VALID
+RUN: %os9-link %t.body --name crt0test --exec 13 --mem 1024 -o %t.os9
+RUN: %os9-module-check %t.os9 | FileCheck %s --check-prefix=VALID
 
 VALID: OK ({{[0-9]+}} bytes)
 VALID: exec offset: $000D (13)

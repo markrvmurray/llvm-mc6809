@@ -53,8 +53,8 @@ RUN: od -A n -t x1 %t.body | FileCheck %s --check-prefix=BODY
 BODY: 5f 10 3f 06 20 fe 12 34
 
 # 2. Wrap as OS-9 module, then validate.
-RUN: %S/../../../../tools/os9-link %t.body --name demo --exec 13 --mem 256 -o %t.os9
-RUN: %S/../../../../tools/os9-module-check %t.os9 | FileCheck %s --check-prefix=VALID
+RUN: %os9-link %t.body --name demo --exec 13 --mem 256 -o %t.os9
+RUN: %os9-module-check %t.os9 | FileCheck %s --check-prefix=VALID
 
 VALID: OK ({{[0-9]+}} bytes)
 VALID: type/lang: $11 (Prgrm|Objct)

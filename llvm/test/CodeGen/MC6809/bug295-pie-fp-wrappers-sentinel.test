@@ -34,8 +34,10 @@
 RUN: not grep -lE "ldd[[:space:]]+#__mc6839_fpcb_" \
 RUN:   %S/../../../../compiler-rt/lib/builtins/mc6809/*.S
 
-# Assertion 2: each FP wrapper file uses the PCR pattern.
-RUN: grep -lE "leay[[:space:]]+\\\\fpcb,pc" \
+# Assertion 2: each FP wrapper file uses the PCR pattern.  The macro
+# argument's backslash is matched as punctuation: a backslash in a pattern
+# does not reach grep intact on Windows.
+RUN: grep -lE "leay[[:space:]]+[[:punct:]]fpcb,pc" \
 RUN:   %S/../../../../compiler-rt/lib/builtins/mc6809/mc6839_call.inc
 RUN: grep -l "FP_ENTRY __mc6839_fpcb_" \
 RUN:   %S/../../../../compiler-rt/lib/builtins/mc6809/fp_arith.S

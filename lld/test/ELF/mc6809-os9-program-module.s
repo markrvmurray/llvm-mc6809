@@ -28,7 +28,7 @@
 # BYTES: {{^87cd001b001311a00c000d01005f103f0620fe68656c6cef327c43$}}
 
 ## 2. Phase 1 validator must accept the output ($800FE3 CRC magic).
-# RUN: %S/../../../tools/os9-module-check %t.os9 \
+# RUN: %os9-module-check %t.os9 \
 # RUN:   | FileCheck %s --check-prefix=VALID
 # VALID: OK ({{[0-9]+}} bytes)
 # VALID: type/lang: $11 (Prgrm|Objct)
@@ -55,7 +55,7 @@
 ## 6. HD6309 native type byte ($17 = Prgrm|Obj6309).
 # RUN: ld.lld -o %t-hd.os9 %t.o --oformat=os9-program-module \
 # RUN:   --os9-name=hello --os9-type=0x17 --os9-mem=256
-# RUN: %S/../../../tools/os9-module-check %t-hd.os9 \
+# RUN: %os9-module-check %t-hd.os9 \
 # RUN:   | FileCheck %s --check-prefix=HD6309
 # HD6309: type/lang: $17 (Prgrm|Obj6309)
 
