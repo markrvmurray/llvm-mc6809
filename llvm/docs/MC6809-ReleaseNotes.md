@@ -6,15 +6,78 @@ tag with no section here is not published.
 
 ## 1.1.0-rc2
 
-The second candidate for llvm-mc6809 1.1.0.
+The second candidate for llvm-mc6809 1.1.0: a debugger can now follow the
+stack through any code in the toolchain, and there is a Windows bundle.
+The code the compiler generates is unchanged from rc1.
+
+### Debugging
+
+A debugger attached to a program (lldb or gdb, through a simulator's remote
+stub) unwinds the stack by the call-frame information (CFI) the compiler and
+assembler write. That information is now right everywhere, so a backtrace
+shows the true chain of callers from any instruction:
+
+* in compiled code at every optimisation level, with or without a frame
+  pointer, including while a function pushes arguments or temporaries;
+* in every hand-written routine in the C library, the compiler's runtime and
+  the start-up code, which had none before;
+* in interrupt handlers, which describe the frame the processor stacked on
+  entry (12 bytes for an IRQ, NMI or SWI; 14 on a 6309 in native mode; 3 for
+  a FIRQ), so a backtrace continues into the code that was interrupted;
+* across saved registers: the CFI names the program counter as the return
+  address and says where each preserved register was pushed, so a debugger
+  shows a caller's own values, not the callee's.
+
+The program's entry point is marked as the outermost frame, so a backtrace
+ends there cleanly. Every bundle is checked for all of this before it is
+packaged: a tool follows every path through every routine in its libraries
+and start-up objects, and refuses a bundle whose CFI is wrong anywhere.
+
+lldb itself is not yet part of the bundle.
 
 ### Windows
 
 There is now a bundle for Windows on x86_64 as well as for Linux and macOS.
-It holds the same compiler, tools and libraries, and is checked the same way,
-except that no program is run, since there is no simulator for Windows yet:
-it compiles and links every test program. A release does not wait for it, so
-if the Windows bundle fails its checks, the release is published without it.
+It holds the same compiler, tools and libraries.
+
+**The Windows bundle has had much less testing than the Linux and macOS
+ones; treat it as experimental.** Those are built from the same sources the
+full benchmark suite runs against, thousands of programs run to completion
+at 31 combinations of optimisation level, processor, library and target,
+and their bundles run every test program on a simulator before release. On
+Windows no program is run at all, since there is no simulator for Windows
+yet: the compiler's own tests are run, and every test program is compiled
+and linked, but nothing checks that what it builds works. It has been
+through two complete runs of its checks, both shortly before this release.
+
+A release does not wait for it, so if the Windows bundle fails its checks,
+the release is published without it.
+
+### Fixed
+
+* A data word holding a distance to a symbol in another section, such as
+  `.word target - .`, was linked as the target's address instead of the
+  distance. This also made every `.eh_frame` entry (written with
+  `-funwind-tables`) name the wrong code.
+* The CoCo (DECB) start-up code saved and restored BASIC's stack through
+  absolute addresses; it is now position-independent, like the code the
+  compiler generates.
+
+### Assembler and tools
+
+* The assembler accepts Motorola's `,pcr` spelling of PC-relative indexing,
+  as well as `,pc`. With `,pcr` the operand is the address to reach, as in
+  Motorola's assembler, rather than the offset.
+* `llvm-objdump` names a backward branch's target after the symbol it is in,
+  and prints signed PC-relative offsets as signed.
+* The assembler rejects an unknown register name in a CFI directive instead of
+  writing a wrong register number.
+
+### How it is tested
+
+As for rc1. In addition, the compiler's own tests that need no simulator now
+run on every host a bundle is built for, Windows included, and each bundle's
+CFI is checked as above.
 
 ### Known issues
 
