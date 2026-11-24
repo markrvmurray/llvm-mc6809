@@ -26,7 +26,9 @@
 	.section .text,"ax",@progbits
 	.globl	__andsi3
 	.type	__andsi3,@function
+	.cfi_sections .debug_frame
 __andsi3:
+	.cfi_startproc
 	lda	2,s		// a byte 0 (MSB)
 	anda	6,s		// & b byte 0
 	sta	,x
@@ -40,4 +42,5 @@ __andsi3:
 	anda	9,s		// & b byte 3 (LSB)
 	sta	3,x
 	rts
+	.cfi_endproc
 	.size	__andsi3, . - __andsi3

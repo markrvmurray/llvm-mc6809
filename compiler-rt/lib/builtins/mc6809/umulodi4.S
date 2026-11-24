@@ -62,7 +62,9 @@
 
 	.globl __umulodi4
 	.type  __umulodi4,@function
+	.cfi_sections .debug_frame
 __umulodi4:
+	.cfi_startproc
 	// Allocate 16-byte virtual product on stack.
 	// Frame after leas -16,s:
 	//   0,S..15,S   = virtual product (S+0 = MSB, S+15 = LSB)
@@ -71,6 +73,7 @@ __umulodi4:
 	//   26,S..33,S  = b (was 10,S..17,S at entry)
 	//   34,S..35,S  = overflow_ptr (was 18,S..19,S at entry)
 	leas	-16,s
+	.cfi_adjust_cfa_offset 16
 
 	// Initialize 16-byte virtual product to zero.
 	clr	,s
@@ -2068,5 +2071,7 @@ __umulodi4:
 	std	,x
 
 	leas	16,s
+	.cfi_adjust_cfa_offset -16
 	rts
+	.cfi_endproc
 	.size __umulodi4, . - __umulodi4

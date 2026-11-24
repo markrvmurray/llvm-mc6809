@@ -35,46 +35,70 @@
 
         .section .text.__addsf3,"ax",@progbits
         .global __addsf3
+	.cfi_sections .debug_frame
 __addsf3:
+	.cfi_startproc
         pshs    u,y
+	.cfi_adjust_cfa_offset 4
+	.cfi_offset u, -4
+	.cfi_offset y, -6
         FP_ENTRY __mc6839_fpcb_f32
         leau    6+FP_SLOT,s
         leay    10+FP_SLOT,s
         FP_CALL FPOP_FADD
         puls    u,y
+	.cfi_endproc
         rts
 
         .section .text.__subsf3,"ax",@progbits
         .global __subsf3
 __subsf3:
+	.cfi_startproc
         pshs    u,y
+	.cfi_adjust_cfa_offset 4
+	.cfi_offset u, -4
+	.cfi_offset y, -6
         FP_ENTRY __mc6839_fpcb_f32
         leau    6+FP_SLOT,s
         leay    10+FP_SLOT,s
         FP_CALL FPOP_FSUB
         puls    u,y
+	.cfi_adjust_cfa_offset -4
+	.cfi_restore u
+	.cfi_restore y
         rts
+	.cfi_endproc
 
         .section .text.__mulsf3,"ax",@progbits
         .global __mulsf3
 __mulsf3:
+	.cfi_startproc
         pshs    u,y
+	.cfi_adjust_cfa_offset 4
+	.cfi_offset u, -4
+	.cfi_offset y, -6
         FP_ENTRY __mc6839_fpcb_f32
         leau    6+FP_SLOT,s
         leay    10+FP_SLOT,s
         FP_CALL FPOP_FMUL
         puls    u,y
+	.cfi_endproc
         rts
 
         .section .text.__divsf3,"ax",@progbits
         .global __divsf3
 __divsf3:
+	.cfi_startproc
         pshs    u,y
+	.cfi_adjust_cfa_offset 4
+	.cfi_offset u, -4
+	.cfi_offset y, -6
         FP_ENTRY __mc6839_fpcb_f32
         leau    6+FP_SLOT,s
         leay    10+FP_SLOT,s
         FP_CALL FPOP_FDIV
         puls    u,y
+	.cfi_endproc
         rts
 
 ; ---- f64 dyadic -------------------------------------------------------------
@@ -82,45 +106,68 @@ __divsf3:
         .section .text.__adddf3,"ax",@progbits
         .global __adddf3
 __adddf3:
+	.cfi_startproc
         pshs    u,y
+	.cfi_adjust_cfa_offset 4
+	.cfi_offset u, -4
+	.cfi_offset y, -6
         FP_ENTRY __mc6839_fpcb_f64
         leau    6+FP_SLOT,s
         leay    14+FP_SLOT,s
         FP_CALL FPOP_FADD
         puls    u,y
+	.cfi_endproc
         rts
 
         .section .text.__subdf3,"ax",@progbits
         .global __subdf3
 __subdf3:
+	.cfi_startproc
         pshs    u,y
+	.cfi_adjust_cfa_offset 4
+	.cfi_offset u, -4
+	.cfi_offset y, -6
         FP_ENTRY __mc6839_fpcb_f64
         leau    6+FP_SLOT,s
         leay    14+FP_SLOT,s
         FP_CALL FPOP_FSUB
         puls    u,y
+	.cfi_adjust_cfa_offset -4
+	.cfi_restore u
+	.cfi_restore y
         rts
+	.cfi_endproc
 
         .section .text.__muldf3,"ax",@progbits
         .global __muldf3
 __muldf3:
+	.cfi_startproc
         pshs    u,y
+	.cfi_adjust_cfa_offset 4
+	.cfi_offset u, -4
+	.cfi_offset y, -6
         FP_ENTRY __mc6839_fpcb_f64
         leau    6+FP_SLOT,s
         leay    14+FP_SLOT,s
         FP_CALL FPOP_FMUL
         puls    u,y
+	.cfi_endproc
         rts
 
         .section .text.__divdf3,"ax",@progbits
         .global __divdf3
 __divdf3:
+	.cfi_startproc
         pshs    u,y
+	.cfi_adjust_cfa_offset 4
+	.cfi_offset u, -4
+	.cfi_offset y, -6
         FP_ENTRY __mc6839_fpcb_f64
         leau    6+FP_SLOT,s
         leay    14+FP_SLOT,s
         FP_CALL FPOP_FDIV
         puls    u,y
+	.cfi_endproc
         rts
 
 ; ---- square root (monadic; Y → arg) ----------------------------------------
@@ -128,22 +175,38 @@ __divdf3:
         .section .text.__sqrtsf2,"ax",@progbits
         .global __sqrtsf2
 __sqrtsf2:
+	.cfi_startproc
         pshs    u,y
+	.cfi_adjust_cfa_offset 4
+	.cfi_offset u, -4
+	.cfi_offset y, -6
         FP_ENTRY __mc6839_fpcb_f32
         leay    6+FP_SLOT,s
         FP_CALL FPOP_FSQRT
         puls    u,y
+	.cfi_adjust_cfa_offset -4
+	.cfi_restore u
+	.cfi_restore y
         rts
+	.cfi_endproc
 
         .section .text.__sqrtdf2,"ax",@progbits
         .global __sqrtdf2
 __sqrtdf2:
+	.cfi_startproc
         pshs    u,y
+	.cfi_adjust_cfa_offset 4
+	.cfi_offset u, -4
+	.cfi_offset y, -6
         FP_ENTRY __mc6839_fpcb_f64
         leay    6+FP_SLOT,s
         FP_CALL FPOP_FSQRT
         puls    u,y
+	.cfi_adjust_cfa_offset -4
+	.cfi_restore u
+	.cfi_restore y
         rts
+	.cfi_endproc
 
 ; ---- absolute value (monadic; Y → arg) -------------------------------------
 ;
@@ -155,21 +218,31 @@ __sqrtdf2:
         .section .text.__abssf2,"ax",@progbits
         .global __abssf2
 __abssf2:
+	.cfi_startproc
         pshs    u,y
+	.cfi_adjust_cfa_offset 4
+	.cfi_offset u, -4
+	.cfi_offset y, -6
         FP_ENTRY __mc6839_fpcb_f32
         leay    6+FP_SLOT,s
         FP_CALL FPOP_FABS
         puls    u,y
+	.cfi_endproc
         rts
 
         .section .text.__absdf2,"ax",@progbits
         .global __absdf2
 __absdf2:
+	.cfi_startproc
         pshs    u,y
+	.cfi_adjust_cfa_offset 4
+	.cfi_offset u, -4
+	.cfi_offset y, -6
         FP_ENTRY __mc6839_fpcb_f64
         leay    6+FP_SLOT,s
         FP_CALL FPOP_FABS
         puls    u,y
+	.cfi_endproc
         rts
 
 ; ---- negation (monadic; Y → arg) -------------------------------------------
@@ -181,19 +254,29 @@ __absdf2:
         .section .text.__negsf2,"ax",@progbits
         .global __negsf2
 __negsf2:
+	.cfi_startproc
         pshs    u,y
+	.cfi_adjust_cfa_offset 4
+	.cfi_offset u, -4
+	.cfi_offset y, -6
         FP_ENTRY __mc6839_fpcb_f32
         leay    6+FP_SLOT,s
         FP_CALL FPOP_FNEG
         puls    u,y
+	.cfi_endproc
         rts
 
         .section .text.__negdf2,"ax",@progbits
         .global __negdf2
 __negdf2:
+	.cfi_startproc
         pshs    u,y
+	.cfi_adjust_cfa_offset 4
+	.cfi_offset u, -4
+	.cfi_offset y, -6
         FP_ENTRY __mc6839_fpcb_f64
         leay    6+FP_SLOT,s
         FP_CALL FPOP_FNEG
         puls    u,y
+	.cfi_endproc
         rts

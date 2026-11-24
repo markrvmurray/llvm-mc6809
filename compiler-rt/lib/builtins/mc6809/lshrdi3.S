@@ -11,7 +11,9 @@
 	.section .text,"ax",@progbits
 	.globl __lshrdi3
 	.type  __lshrdi3,@function
+	.cfi_sections .debug_frame
 __lshrdi3:
+	.cfi_startproc
 	ldd	2,s
 	std	,x
 	ldd	4,s
@@ -36,4 +38,5 @@ __lshrdi3:
 	bne	.Llshrdi3_loop
 .Llshrdi3_done:
 	rts
+	.cfi_endproc
 	.size __lshrdi3, . - __lshrdi3

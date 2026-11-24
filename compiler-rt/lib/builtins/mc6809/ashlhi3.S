@@ -10,8 +10,11 @@
 	.section .text,"ax",@progbits
 	.globl __ashlhi3
 	.type  __ashlhi3,@function
+	.cfi_sections .debug_frame
 __ashlhi3:
+	.cfi_startproc
 	pshs	x
+	.cfi_adjust_cfa_offset 2
 	andb	#15
 	beq	.Lashlhi3_done
 .Lashlhi3_loop:
@@ -21,5 +24,7 @@ __ashlhi3:
 	bne	.Lashlhi3_loop
 .Lashlhi3_done:
 	puls	x
+	.cfi_adjust_cfa_offset -2
 	rts
+	.cfi_endproc
 	.size __ashlhi3, . - __ashlhi3

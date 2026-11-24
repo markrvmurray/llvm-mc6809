@@ -24,7 +24,9 @@
 	.section .text,"ax",@progbits
 	.globl __cmpsi2
 	.type  __cmpsi2,@function
+	.cfi_sections .debug_frame
 __cmpsi2:
+	.cfi_startproc
 	ldd	2,s
 	cmpd	6,s
 	blt	.Lcmpsi2_less		// signed: a_hi < b_hi  → a < b
@@ -45,4 +47,5 @@ __cmpsi2:
 	ldd	#0
 	std	,x			// high half = 0
 	rts
+	.cfi_endproc
 	.size __cmpsi2, . - __cmpsi2

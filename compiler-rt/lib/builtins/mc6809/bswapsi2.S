@@ -28,7 +28,9 @@
 	.section .text,"ax",@progbits
 	.globl __bswapsi2
 	.type  __bswapsi2,@function
+	.cfi_sections .debug_frame
 __bswapsi2:
+	.cfi_startproc
 	lda	2,s		// input byte 0 (MSB)
 	sta	3,x		// → result byte 3 (LSB)
 	lda	3,s		// input byte 1
@@ -38,4 +40,5 @@ __bswapsi2:
 	lda	5,s		// input byte 3 (LSB)
 	sta	,x		// → result byte 0 (MSB)
 	rts
+	.cfi_endproc
 	.size __bswapsi2, . - __bswapsi2

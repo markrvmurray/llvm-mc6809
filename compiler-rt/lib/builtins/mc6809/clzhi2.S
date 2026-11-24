@@ -24,7 +24,9 @@
 
 	.globl	__clzhi2
 	.type	__clzhi2,@function
+	.cfi_sections .debug_frame
 __clzhi2:
+	.cfi_startproc
 	cmpx	#0
 	bne	.Lclzhi2_nonzero
 	ldx	#16			// a == 0 → 16 leading zeros (matches __ctzhi2)
@@ -44,3 +46,4 @@ __clzhi2:
 	bra	.Lclzhi2_loop
 .Lclzhi2_done:
 	rts
+	.cfi_endproc

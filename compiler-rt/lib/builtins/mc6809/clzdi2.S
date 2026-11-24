@@ -29,7 +29,9 @@
 
 	.globl	__clzdi2
 	.type	__clzdi2,@function
+	.cfi_sections .debug_frame
 __clzdi2:
+	.cfi_startproc
 	ldb	2,s			// MSB byte
 	bne	.Lclzdi2_byte7
 	ldb	3,s
@@ -96,4 +98,5 @@ __clzdi2:
 	clr	6,x
 	sta	7,x			// byte 7 = count (low byte; count <= 64)
 	rts
+	.cfi_endproc
 	.size	__clzdi2, . - __clzdi2

@@ -23,7 +23,9 @@
 	.section .text,"ax",@progbits
 	.globl __bswapdi2
 	.type  __bswapdi2,@function
+	.cfi_sections .debug_frame
 __bswapdi2:
+	.cfi_startproc
 	lda	2,s
 	sta	7,x
 	lda	3,s
@@ -41,4 +43,5 @@ __bswapdi2:
 	lda	9,s
 	sta	,x
 	rts
+	.cfi_endproc
 	.size __bswapdi2, . - __bswapdi2

@@ -83,12 +83,17 @@ __mc6839_fpstak_ptr:
         .text
 
         .global __fpreg
+	.cfi_sections .debug_frame
 __fpreg:
+	.cfi_startproc
         jmp     [__mc6839_fpreg_ptr,pc]
+	.cfi_endproc
 
         .global __fpstak
 __fpstak:
+	.cfi_startproc
         jmp     [__mc6839_fpstak_ptr,pc]
+	.cfi_endproc
 
 #endif
 
@@ -107,6 +112,7 @@ __fpstak:
 
         .global __mc6839_set_rom_base
 __mc6839_set_rom_base:
+	.cfi_startproc
 #ifdef __OS9__
         stx     mc6809_os9_data(__mc6839_rom_base),u
         leax    0x3D,x
@@ -121,3 +127,4 @@ __mc6839_set_rom_base:
         stx     __mc6839_fpstak_ptr
 #endif
         rts
+	.cfi_endproc

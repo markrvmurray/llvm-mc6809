@@ -42,7 +42,9 @@
 
 	.globl __muldi3
 	.type  __muldi3,@function
+	.cfi_sections .debug_frame
 __muldi3:
+	.cfi_startproc
 #ifdef __6309__
 	// HD6309 fast path — Bug aacd0b7.
 	//
@@ -696,4 +698,5 @@ __muldi3:
 	stb	,x
 
 	rts
+	.cfi_endproc
 	.size __muldi3, . - __muldi3

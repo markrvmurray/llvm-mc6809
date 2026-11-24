@@ -67,46 +67,67 @@
 
         .section .text.__mc6839_bindec_f64,"ax",@progbits
         .global __mc6839_bindec_f64
+	.cfi_sections .debug_frame
 __mc6839_bindec_f64:
+	.cfi_startproc
         pshs    u,y                 ; save callee-saved U, Y
+	.cfi_adjust_cfa_offset 4
+	.cfi_offset u, -4
+	.cfi_offset y, -6
         FP_ENTRY __mc6839_fpcb_f64
         ldu     6+FP_SLOT,s                 ; U = k (digit count)
         leay    8+FP_SLOT,s                 ; Y -> double val (8 bytes at S+8..15)
         FP_CALL FPOP_BINDEC
         puls    u,y                 ; runs at FPOP+1, restore caller's U,Y
+	.cfi_endproc
         rts
 
         .section .text.__mc6839_bindec_f32,"ax",@progbits
         .global __mc6839_bindec_f32
 __mc6839_bindec_f32:
+	.cfi_startproc
         pshs    u,y
+	.cfi_adjust_cfa_offset 4
+	.cfi_offset u, -4
+	.cfi_offset y, -6
         FP_ENTRY __mc6839_fpcb_f32
         ldu     6+FP_SLOT,s                 ; U = k
         leay    8+FP_SLOT,s                 ; Y -> float val (4 bytes at S+8..11)
         FP_CALL FPOP_BINDEC
         puls    u,y
+	.cfi_endproc
         rts
 
         .section .text.__mc6839_bindec_f64_rz,"ax",@progbits
         .global __mc6839_bindec_f64_rz
 __mc6839_bindec_f64_rz:
+	.cfi_startproc
         pshs    u,y
+	.cfi_adjust_cfa_offset 4
+	.cfi_offset u, -4
+	.cfi_offset y, -6
         FP_ENTRY __mc6839_fpcb_f64_trunc
         ldu     6+FP_SLOT,s                 ; U = k
         leay    8+FP_SLOT,s                 ; Y -> double val
         FP_CALL FPOP_BINDEC
         puls    u,y
+	.cfi_endproc
         rts
 
         .section .text.__mc6839_bindec_f32_rz,"ax",@progbits
         .global __mc6839_bindec_f32_rz
 __mc6839_bindec_f32_rz:
+	.cfi_startproc
         pshs    u,y
+	.cfi_adjust_cfa_offset 4
+	.cfi_offset u, -4
+	.cfi_offset y, -6
         FP_ENTRY __mc6839_fpcb_f32_trunc
         ldu     6+FP_SLOT,s                 ; U = k
         leay    8+FP_SLOT,s                 ; Y -> float val
         FP_CALL FPOP_BINDEC
         puls    u,y
+	.cfi_endproc
         rts
 
 ; ---- DECBIN --------------------------------------------------------------
@@ -127,19 +148,29 @@ __mc6839_bindec_f32_rz:
         .section .text.__mc6839_decbin_f64,"ax",@progbits
         .global __mc6839_decbin_f64
 __mc6839_decbin_f64:
+	.cfi_startproc
         pshs    u,y
+	.cfi_adjust_cfa_offset 4
+	.cfi_offset u, -4
+	.cfi_offset y, -6
         FP_ENTRY __mc6839_fpcb_f64
         ldu     6+FP_SLOT,s                 ; U -> BCD string
         FP_CALL FPOP_DECBIN
         puls    u,y
+	.cfi_endproc
         rts
 
         .section .text.__mc6839_decbin_f32,"ax",@progbits
         .global __mc6839_decbin_f32
 __mc6839_decbin_f32:
+	.cfi_startproc
         pshs    u,y
+	.cfi_adjust_cfa_offset 4
+	.cfi_offset u, -4
+	.cfi_offset y, -6
         FP_ENTRY __mc6839_fpcb_f32
         ldu     6+FP_SLOT,s                 ; U -> BCD string
         FP_CALL FPOP_DECBIN
         puls    u,y
+	.cfi_endproc
         rts

@@ -60,16 +60,20 @@ FP_SLOT = 2
 
         ; D = &fpcb, and the ROM entry point pushed.  U must hold the
         ; data base on entry; it is dead afterwards.
+        ; The entry slot is on the stack from FP_ENTRY to FP_CALL, and each
+        ; says so in the CFI of the routine it is expanded in.
         .macro  FP_ENTRY fpcb
         leay    mc6809_os9_data(\fpcb),u
         ldu     mc6809_os9_data(__mc6839_fpreg_ptr),u
         pshs    u
+        .cfi_adjust_cfa_offset 2
         tfr     y,d
         .endm
 
         .macro  FP_CALL op
         jsr     [,s++]
         .byte   \op
+        .cfi_adjust_cfa_offset -2
         .endm
 
 #else

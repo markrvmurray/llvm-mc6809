@@ -29,7 +29,9 @@
 
 	.globl	__ctzhi2
 	.type	__ctzhi2,@function
+	.cfi_sections .debug_frame
 __ctzhi2:
+	.cfi_startproc
 	cmpx	#0
 	bne	.Lctzhi2_nonzero
 	ldx	#16			// a == 0 → 16 trailing zeros (per C convention)
@@ -46,3 +48,4 @@ __ctzhi2:
 	bra	.Lctzhi2_loop
 .Lctzhi2_done:
 	rts
+	.cfi_endproc

@@ -35,7 +35,9 @@
 
 	.globl	__mulsi3
 	.type	__mulsi3,@function
+	.cfi_sections .debug_frame
 __mulsi3:
+	.cfi_startproc
 #ifdef __6309__
 	// Bug #161 Phase 1: HD6309 schoolbook with MULD partial products.
 	//
@@ -92,6 +94,7 @@ __mulsi3:
 	std	,x		// result_hi = D
 
 	rts
+	.cfi_endproc
 #else
 	// ==== Step 1: a_lo * b_lo -> 32-bit result at [IX..IX+3] ====
 
@@ -177,4 +180,5 @@ __mulsi3:
 	stb	,x
 
 	rts
+	.cfi_endproc
 #endif

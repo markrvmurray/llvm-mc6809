@@ -25,7 +25,9 @@
 	.section .text,"ax",@progbits
 	.globl __cmpdi2
 	.type  __cmpdi2,@function
+	.cfi_sections .debug_frame
 __cmpdi2:
+	.cfi_startproc
 	ldd	2,s
 	cmpd	10,s
 	lblt	.Lcmpdi2_less		// signed compare on top word
@@ -54,4 +56,5 @@ __cmpdi2:
 	ldd	#0
 	std	,x
 	rts
+	.cfi_endproc
 	.size __cmpdi2, . - __cmpdi2

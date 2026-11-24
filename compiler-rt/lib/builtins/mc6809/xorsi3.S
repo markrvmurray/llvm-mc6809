@@ -15,7 +15,9 @@
 	.section .text,"ax",@progbits
 	.globl	__xorsi3
 	.type	__xorsi3,@function
+	.cfi_sections .debug_frame
 __xorsi3:
+	.cfi_startproc
 	lda	2,s
 	eora	6,s
 	sta	,x
@@ -29,4 +31,5 @@ __xorsi3:
 	eora	9,s
 	sta	3,x
 	rts
+	.cfi_endproc
 	.size	__xorsi3, . - __xorsi3

@@ -28,10 +28,15 @@
 
 	.globl	__popcounthi2
 	.type	__popcounthi2,@function
+	.cfi_sections .debug_frame
 __popcounthi2:
+	.cfi_startproc
 	pshs	y			// save Y (callee-saved)
+	.cfi_adjust_cfa_offset 2
+	.cfi_offset y, -4
 	tfr	x,d			// D = a; A = high byte, B = low byte
 	pshs	a			// stash high byte on stack
+	.cfi_adjust_cfa_offset 1
 	ldy	#0			// total = 0
 	bsr	.Lpopcounthi2_byte	// popcount(low) → A; clobber B
 	leay	a,y
@@ -39,8 +44,11 @@ __popcounthi2:
 	bsr	.Lpopcounthi2_byte	// popcount(high) → A
 	leay	a,y
 	leas	1,s			// release stashed byte
+	.cfi_adjust_cfa_offset -1
 	tfr	y,x			// X = total (return value)
 	puls	y			// restore Y
+	.cfi_adjust_cfa_offset -2
+	.cfi_restore y
 	rts
 
 // Subroutine: A = popcount(B); on exit B = 0.
@@ -64,4 +72,5 @@ __popcounthi2:
 	adca	#0
 	rts
 
+	.cfi_endproc
 	.size	__popcounthi2, . - __popcounthi2

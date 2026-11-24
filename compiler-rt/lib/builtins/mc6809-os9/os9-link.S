@@ -24,46 +24,70 @@
 
 	.globl	__os9_link
 	.type	__os9_link,@function
+	.cfi_sections .debug_frame
 __os9_link:
+	.cfi_startproc
 	pshs	u,x			// [0,s] = the struct, [2,s] = data base
+	.cfi_adjust_cfa_offset 4
+	.cfi_offset u, -4
 	lda	2,x			// A = type/language
 	ldx	,x			// X = the module name
 	os9	0x00			// F$Link
 	bra	.Lfound
+	.cfi_endproc
 	.size	__os9_link, .-__os9_link
 
 	.globl	__os9_load
 	.type	__os9_load,@function
 __os9_load:
+	.cfi_startproc
 	pshs	u,x
+	.cfi_adjust_cfa_offset 4
+	.cfi_offset u, -4
 	lda	2,x
 	ldx	,x			// X = the pathlist
 	os9	0x01			// F$Load
 	bra	.Lfound
+	.cfi_endproc
 	.size	__os9_load, .-__os9_load
 
 	// Common return: carry set = failure with the code in B.
 .Lfound:
+	.cfi_startproc
+	.cfi_def_cfa_offset 6
+	.cfi_offset u, -4
 	bcs	.Lfail
 	ldx	,s			// X = the struct again
 	stu	3,x			// the module header
 	sty	5,x			// its entry point
 	puls	x,u			// X = the struct (dropped), U = data base
+	.cfi_adjust_cfa_offset -4
+	.cfi_restore u
 	ldx	#0
 	rts
 .Lfail:
+	.cfi_def_cfa_offset 6
+	.cfi_offset u, -4
 	puls	x,u
+	.cfi_adjust_cfa_offset -4
+	.cfi_restore u
 	clra
 	tfr	d,x			// return the OS-9 error code
 	rts
+	.cfi_endproc
 
 	.globl	__os9_unlink
 	.type	__os9_unlink,@function
 __os9_unlink:
+	.cfi_startproc
 	pshs	u			// save the data base
+	.cfi_adjust_cfa_offset 2
+	.cfi_offset u, -4
 	tfr	x,u			// U = the module header
 	os9	0x02			// F$UnLink
 	puls	u			// (PULS without CC leaves the carry alone)
+	.cfi_adjust_cfa_offset -2
+	.cfi_restore u
 	bcs	.Lunlink_fail
 	ldx	#0
 	rts
@@ -71,4 +95,5 @@ __os9_unlink:
 	clra
 	tfr	d,x
 	rts
+	.cfi_endproc
 	.size	__os9_unlink, .-__os9_unlink

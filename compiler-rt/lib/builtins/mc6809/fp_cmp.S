@@ -55,27 +55,38 @@ __cmpsf2:
 __ltsf2:
 __lesf2:
 __eqsf2:
+	.cfi_sections .debug_frame
 __nesf2:
+	.cfi_startproc
         pshs    u,y,x               ; save callee-saved U,Y + result buffer X
+	.cfi_adjust_cfa_offset 6
+	.cfi_offset u, -4
+	.cfi_offset y, -6
         FP_ENTRY __mc6839_fpcb_f32
         leau    8+FP_SLOT,s                 ; U = &arg1
         leay    12+FP_SLOT,s                ; Y = &arg2
         ldx     #FCMP_S_S           ; parameter word: single, single
         FP_CALL FPOP_FCMP
         lbra    __mc6839_cmp_result ; (LBRA preserves CC)
+	.cfi_endproc
 
         .section .text.__gtsf2,"ax",@progbits
         .global __gtsf2
         .global __gesf2
 __gtsf2:
+	.cfi_startproc
 __gesf2:
         pshs    u,y,x
+	.cfi_adjust_cfa_offset 6
+	.cfi_offset u, -4
+	.cfi_offset y, -6
         FP_ENTRY __mc6839_fpcb_f32
         leau    8+FP_SLOT,s
         leay    12+FP_SLOT,s
         ldx     #FCMP_S_S
         FP_CALL FPOP_FCMP
         lbra    __mc6839_cmp_result_gt ; (LBRA preserves CC)
+	.cfi_endproc
 
 ; ---- f64 comparison --------------------------------------------------------
 
@@ -90,26 +101,36 @@ __ltdf2:
 __ledf2:
 __eqdf2:
 __nedf2:
+	.cfi_startproc
         pshs    u,y,x
+	.cfi_adjust_cfa_offset 6
+	.cfi_offset u, -4
+	.cfi_offset y, -6
         FP_ENTRY __mc6839_fpcb_f64
         leau    8+FP_SLOT,s
         leay    16+FP_SLOT,s                ; Y = &arg2 (f64 arg2 starts 8 bytes higher)
         ldx     #FCMP_D_D           ; parameter word: double, double
         FP_CALL FPOP_FCMP
         lbra    __mc6839_cmp_result ; (LBRA preserves CC)
+	.cfi_endproc
 
         .section .text.__gtdf2,"ax",@progbits
         .global __gtdf2
         .global __gedf2
 __gtdf2:
+	.cfi_startproc
 __gedf2:
         pshs    u,y,x
+	.cfi_adjust_cfa_offset 6
+	.cfi_offset u, -4
+	.cfi_offset y, -6
         FP_ENTRY __mc6839_fpcb_f64
         leau    8+FP_SLOT,s
         leay    16+FP_SLOT,s
         ldx     #FCMP_D_D
         FP_CALL FPOP_FCMP
         lbra    __mc6839_cmp_result_gt ; (LBRA preserves CC)
+	.cfi_endproc
 
 ; ---- shared result ---------------------------------------------------------
 ; On entry: CC = comparison result; X = parameter word (= 0 or 0x0011).
@@ -125,8 +146,17 @@ __gedf2:
 ; __gtXf2/__geXf2: unordered (C=1) gives -1, so a > b and a >= b are
 ; false on a NaN; anything else as below.
 __mc6839_cmp_result_gt:
+	.cfi_startproc
+	.cfi_def_cfa_offset 8
+	.cfi_offset u, -4
+	.cfi_offset y, -6
         bcs     .Lcmp_uo_gt         ; unordered: -1
+	.cfi_endproc
 __mc6839_cmp_result:
+	.cfi_startproc
+	.cfi_def_cfa_offset 8
+	.cfi_offset u, -4
+	.cfi_offset y, -6
         tfr     cc,a                ; A = CC byte (TFR doesn't modify CC)
         ldx     ,s                  ; X = saved result buffer (LDX modifies CC; OK)
         bita    #0x04               ; Z?
@@ -156,7 +186,9 @@ __mc6839_cmp_result:
         std     2,x                 ; i32 = 0
 .Lcmp_ret:
         leas    2,s                 ; pop the saved-X slot
+	.cfi_adjust_cfa_offset -2
         puls    y,u,pc              ; restore caller's U and Y, return
+	.cfi_endproc
 
 ; ---- unordered predicate (Bug #337) ----------------------------------------
 ; int __unordsf2(float, float) / int __unorddf2(double, double): return
@@ -168,24 +200,34 @@ __mc6839_cmp_result:
         .section .text.__unordsf2,"ax",@progbits
         .global __unordsf2
 __unordsf2:
+	.cfi_startproc
         pshs    u,y,x               ; save callee-saved U,Y + result buffer X
+	.cfi_adjust_cfa_offset 6
+	.cfi_offset u, -4
+	.cfi_offset y, -6
         FP_ENTRY __mc6839_fpcb_f32
         leau    8+FP_SLOT,s                 ; U = &arg1
         leay    12+FP_SLOT,s                ; Y = &arg2
         ldx     #FCMP_S_S           ; parameter word: single, single
         FP_CALL FPOP_FCMP
         lbra    __mc6839_unord_result ; (LBRA preserves CC)
+	.cfi_endproc
 
         .section .text.__unorddf2,"ax",@progbits
         .global __unorddf2
 __unorddf2:
+	.cfi_startproc
         pshs    u,y,x
+	.cfi_adjust_cfa_offset 6
+	.cfi_offset u, -4
+	.cfi_offset y, -6
         FP_ENTRY __mc6839_fpcb_f64
         leau    8+FP_SLOT,s
         leay    16+FP_SLOT,s                ; Y = &arg2 (f64 arg2 starts 8 bytes higher)
         ldx     #FCMP_D_D           ; parameter word: double, double
         FP_CALL FPOP_FCMP
         lbra    __mc6839_unord_result ; (LBRA preserves CC)
+	.cfi_endproc
 
 ; On entry: CC = comparison result; X = parameter word. Saved result
 ; buffer X at [S+0..1]; saved Y at [S+2..3]; saved U at [S+4..5].
@@ -193,6 +235,10 @@ __unorddf2:
         .global __mc6839_unord_result
         .hidden __mc6839_unord_result
 __mc6839_unord_result:
+	.cfi_startproc
+	.cfi_def_cfa_offset 8
+	.cfi_offset u, -4
+	.cfi_offset y, -6
         tfr     cc,b                ; B = CC byte (TFR doesn't modify CC)
         andb    #0x01               ; C = unordered (NaN): B = 1, else 0
         clra
@@ -201,4 +247,6 @@ __mc6839_unord_result:
         clrb
         std     ,x                  ; high 16 bits = 0
         leas    2,s                 ; pop the saved-X slot
+	.cfi_adjust_cfa_offset -2
         puls    y,u,pc              ; restore caller's U and Y, return
+	.cfi_endproc

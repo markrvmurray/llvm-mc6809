@@ -21,7 +21,9 @@
 	.section .text,"ax",@progbits
 	.globl __ashrsi3
 	.type  __ashrsi3,@function
+	.cfi_sections .debug_frame
 __ashrsi3:
+	.cfi_startproc
 	// Copy 4-byte input from stack to result buffer at X.
 	ldd	2,s
 	std	,x
@@ -40,4 +42,5 @@ __ashrsi3:
 	bne	.Lashrsi3_loop
 .Lashrsi3_done:
 	rts
+	.cfi_endproc
 	.size __ashrsi3, . - __ashrsi3

@@ -10,7 +10,9 @@
 	.section .text,"ax",@progbits
 	.globl __ashlsi3
 	.type  __ashlsi3,@function
+	.cfi_sections .debug_frame
 __ashlsi3:
+	.cfi_startproc
 	ldd	2,s
 	std	,x
 	ldd	4,s
@@ -27,4 +29,5 @@ __ashlsi3:
 	bne	.Lashlsi3_loop
 .Lashlsi3_done:
 	rts
+	.cfi_endproc
 	.size __ashlsi3, . - __ashlsi3

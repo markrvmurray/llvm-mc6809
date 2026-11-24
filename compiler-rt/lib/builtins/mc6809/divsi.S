@@ -34,7 +34,9 @@
 // ============================================================
 	.globl	__udivsi3
 	.type	__udivsi3,@function
+	.cfi_sections .debug_frame
 __udivsi3:
+	.cfi_startproc
 #ifdef __6309__
 	// HD6309 fast path test (pre-mutation offsets):
 	//   0..1=ret, 2..3=a_hi, 4..5=a_lo, 6..7=b_hi, 8..9=b_lo
@@ -51,6 +53,7 @@ __udivsi3:
 	ldw	2,s		// W = a_hi
 	divq	8,s		// → W = q_hi, D = remainder ∈ [0, b_lo-1]
 	pshsw			// save q_hi (W) — note: 'PSHS W' is invalid;
+	.cfi_adjust_cfa_offset 2
 				//   HD6309 W needs the dedicated PSHSW opcode
 	// S: 0..1=q_hi, 2..3=ret, 4..5=a_hi, 6..7=a_lo, 8..9=b_hi, 10..11=b_lo
 	ldw	6,s		// W = a_lo (Phase 2 input; D still has remainder)
@@ -59,6 +62,7 @@ __udivsi3:
 	std	,x		// *X (high 16) = q_hi
 	stw	2,x		// *(X+2) (low 16) = q_lo
 	leas	2,s		// pop saved q_hi
+	.cfi_adjust_cfa_offset -2
 	rts
 
 .Lud32_div_by_1:
@@ -72,7 +76,10 @@ __udivsi3:
 .Lud32_slow:
 #endif
 	pshs	y		// preserve callee-saved Y
+	.cfi_adjust_cfa_offset 2
+	.cfi_offset y, -4
 	leas	-9,s		// workspace: quot(4) + rem(4) + counter(1)
+	.cfi_adjust_cfa_offset 9
 	// Frame layout (relative to S):
 	//   S+0..3   = quotient workspace
 	//   S+4..7   = remainder workspace
@@ -148,8 +155,12 @@ __udivsi3:
 	std	2,x
 
 	leas	9,s
+	.cfi_adjust_cfa_offset -9
 	puls	y
+	.cfi_adjust_cfa_offset -2
+	.cfi_restore y
 	rts
+	.cfi_endproc
 
 // ============================================================
 // __umodsi3 -- unsigned 32-bit remainder
@@ -157,6 +168,7 @@ __udivsi3:
 	.globl	__umodsi3
 	.type	__umodsi3,@function
 __umodsi3:
+	.cfi_startproc
 #ifdef __6309__
 	ldd	6,s		// b_hi == 0?
 	bne	.Lum32_slow
@@ -174,9 +186,11 @@ __umodsi3:
 	ldw	4,s		// W = a_lo (Phase 2 input)
 	divq	8,s		// → W = q_lo (discard), D = final remainder
 	pshs	d		// save remainder
+	.cfi_adjust_cfa_offset 2
 	ldd	#0
 	std	,x		// *X (high 16) = 0
 	puls	d
+	.cfi_adjust_cfa_offset -2
 	std	2,x		// *(X+2) (low 16) = remainder
 	rts
 
@@ -190,7 +204,10 @@ __umodsi3:
 .Lum32_slow:
 #endif
 	pshs	y
+	.cfi_adjust_cfa_offset 2
+	.cfi_offset y, -4
 	leas	-9,s
+	.cfi_adjust_cfa_offset 9
 
 	ldd	13,s
 	std	,s
@@ -249,8 +266,12 @@ __umodsi3:
 	std	2,x
 
 	leas	9,s
+	.cfi_adjust_cfa_offset -9
 	puls	y
+	.cfi_adjust_cfa_offset -2
+	.cfi_restore y
 	rts
+	.cfi_endproc
 
 // ============================================================
 // __divsi3 -- signed 32-bit division (returns quotient)
@@ -259,6 +280,7 @@ __umodsi3:
 	.globl	__divsi3
 	.type	__divsi3,@function
 __divsi3:
+	.cfi_startproc
 #ifdef __6309__
 	// HD6309 fast path: |b|.hi == 0 AND |b|.lo ∈ [2, 0x7FFF].
 	// Mirror of the unsigned __udivsi3 fast path with abs/sign-fix
@@ -271,7 +293,10 @@ __divsi3:
 	// don't trample caller's args before eligibility is confirmed —
 	// otherwise jumping to the slow path would feed it modified input.
 	pshs	y			// save callee-saved Y
+	.cfi_adjust_cfa_offset 2
+	.cfi_offset y, -4
 	leas	-8,s			// |a|(4) + |b|(4)
+	.cfi_adjust_cfa_offset 8
 	// Frame:
 	//   S+0..3   = |a| (workspace, hi at S+0)
 	//   S+4..7   = |b| (workspace, hi at S+4)
@@ -328,6 +353,7 @@ __divsi3:
 	lda	12,s			// a_hi.MSB at S+12
 	eora	16,s			// XOR b_hi.MSB at S+16
 	pshs	a			// push sign_q byte
+	.cfi_adjust_cfa_offset 1
 	// New offsets after pshs A (everything shifted by +1):
 	//   S+0     = sign_q
 	//   S+1..4  = |a|
@@ -353,17 +379,28 @@ __divsi3:
 	std	,x
 .Lsd32q_done:
 	leas	9,s			// pop sign(1) + |a|(4) + |b|(4)
+	.cfi_adjust_cfa_offset -9
 	puls	y
+	.cfi_adjust_cfa_offset -2
+	.cfi_restore y
 	rts
 
 .Lsd32q_slow:
 	// Eligibility failed. Pop our workspace + saved Y, fall through
 	// to the slow path which does its own pshs/leas.
+	.cfi_def_cfa_offset 12
+	.cfi_offset y, -4
 	leas	8,s
+	.cfi_adjust_cfa_offset -8
 	puls	y
+	.cfi_adjust_cfa_offset -2
+	.cfi_restore y
 #endif
 	pshs	y
+	.cfi_adjust_cfa_offset 2
+	.cfi_offset y, -4
 	leas	-10,s		// quot(4) + rem(4) + counter(1) + sign(1)
+	.cfi_adjust_cfa_offset 10
 	// Frame layout (relative to S):
 	//   S+0..3   = quotient
 	//   S+4..7   = remainder
@@ -491,8 +528,12 @@ __divsi3:
 	std	2,x
 
 	leas	10,s
+	.cfi_adjust_cfa_offset -10
 	puls	y
+	.cfi_adjust_cfa_offset -2
+	.cfi_restore y
 	rts
+	.cfi_endproc
 
 // ============================================================
 // __modsi3 -- signed 32-bit remainder
@@ -501,13 +542,17 @@ __divsi3:
 	.globl	__modsi3
 	.type	__modsi3,@function
 __modsi3:
+	.cfi_startproc
 #ifdef __6309__
 	// HD6309 fast path mirroring __divsi3's. Difference: sign of
 	// remainder follows sign(a) (no XOR with sign(b)), and we extract
 	// the FINAL remainder from D after the second DIVQ rather than
 	// the quotient.
 	pshs	y
+	.cfi_adjust_cfa_offset 2
+	.cfi_offset y, -4
 	leas	-8,s
+	.cfi_adjust_cfa_offset 8
 	// Frame: same shape as __divsi3 fast path
 	//   S+0..3=|a|, S+4..7=|b|, S+8..9=Y, S+10..11=ret,
 	//   S+12..13=a_hi, S+14..15=a_lo, S+16..17=b_hi, S+18..19=b_lo
@@ -552,6 +597,7 @@ __modsi3:
 	// sign(b).
 	lda	12,s			// a_hi.MSB
 	pshs	a
+	.cfi_adjust_cfa_offset 1
 	// S+0=sign_a, S+1..4=|a|, S+5..8=|b|
 
 	// Two-DIVQ. Final remainder is in D after the second DIVQ.
@@ -579,15 +625,26 @@ __modsi3:
 	std	,x
 .Lsm32q_done:
 	leas	9,s			// pop sign(1) + |a|(4) + |b|(4)
+	.cfi_adjust_cfa_offset -9
 	puls	y
+	.cfi_adjust_cfa_offset -2
+	.cfi_restore y
 	rts
 
 .Lsm32q_slow:
+	.cfi_def_cfa_offset 12
+	.cfi_offset y, -4
 	leas	8,s
+	.cfi_adjust_cfa_offset -8
 	puls	y
+	.cfi_adjust_cfa_offset -2
+	.cfi_restore y
 #endif
 	pshs	y
+	.cfi_adjust_cfa_offset 2
+	.cfi_offset y, -4
 	leas	-10,s
+	.cfi_adjust_cfa_offset 10
 	// Frame layout (relative to S):
 	//   S+0..3   = quotient
 	//   S+4..7   = remainder
@@ -710,5 +767,9 @@ __modsi3:
 	std	2,x
 
 	leas	10,s
+	.cfi_adjust_cfa_offset -10
 	puls	y
+	.cfi_adjust_cfa_offset -2
+	.cfi_restore y
 	rts
+	.cfi_endproc

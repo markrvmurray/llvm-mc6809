@@ -15,7 +15,9 @@
 	.section .text,"ax",@progbits
 	.globl	__orsi3
 	.type	__orsi3,@function
+	.cfi_sections .debug_frame
 __orsi3:
+	.cfi_startproc
 	lda	2,s
 	ora	6,s
 	sta	,x
@@ -29,4 +31,5 @@ __orsi3:
 	ora	9,s
 	sta	3,x
 	rts
+	.cfi_endproc
 	.size	__orsi3, . - __orsi3

@@ -29,14 +29,20 @@
 
         .section .text.__extendsfdf2,"ax",@progbits
         .global __extendsfdf2
+	.cfi_sections .debug_frame
 __extendsfdf2:
+	.cfi_startproc
         ; f32 → f64.  Precision word: src=single(0), dst=double(1).
         pshs    u,y
+	.cfi_adjust_cfa_offset 4
+	.cfi_offset u, -4
+	.cfi_offset y, -6
         FP_ENTRY __mc6839_fpcb_f64
         ldu     #FMOV_S_TO_D
         leay    6+FP_SLOT,s
         FP_CALL FPOP_FMOV
         puls    u,y
+	.cfi_endproc
         rts
 
         ; f64 → f32 through the ROM's FMOV.  Correct only when the result is
@@ -47,13 +53,18 @@ __extendsfdf2:
         .section .text.__mc6839_truncdfsf2,"ax",@progbits
         .global __mc6839_truncdfsf2
 __mc6839_truncdfsf2:
+	.cfi_startproc
         ; Precision word: src=double(1), dst=single(0).
         pshs    u,y
+	.cfi_adjust_cfa_offset 4
+	.cfi_offset u, -4
+	.cfi_offset y, -6
         FP_ENTRY __mc6839_fpcb_f32
         ldu     #FMOV_D_TO_S
         leay    6+FP_SLOT,s
         FP_CALL FPOP_FMOV
         puls    u,y
+	.cfi_endproc
         rts
 
 ; ---- signed integer → float (FFLTD) ---------------------------------------
@@ -61,23 +72,33 @@ __mc6839_truncdfsf2:
         .section .text.__floatsisf,"ax",@progbits
         .global __floatsisf
 __floatsisf:
+	.cfi_startproc
         ; signed i32 → f32.  Y → i32 arg.
         pshs    u,y
+	.cfi_adjust_cfa_offset 4
+	.cfi_offset u, -4
+	.cfi_offset y, -6
         FP_ENTRY __mc6839_fpcb_f32
         leay    6+FP_SLOT,s
         FP_CALL FPOP_FFLTD
         puls    u,y
+	.cfi_endproc
         rts
 
         .section .text.__floatsidf,"ax",@progbits
         .global __floatsidf
 __floatsidf:
+	.cfi_startproc
         ; signed i32 → f64.
         pshs    u,y
+	.cfi_adjust_cfa_offset 4
+	.cfi_offset u, -4
+	.cfi_offset y, -6
         FP_ENTRY __mc6839_fpcb_f64
         leay    6+FP_SLOT,s
         FP_CALL FPOP_FFLTD
         puls    u,y
+	.cfi_endproc
         rts
 
         ; __floatdisf / __floatdidf moved to mc6809/floatdi.S
@@ -90,12 +111,17 @@ __floatsidf:
         .section .text.__floatunsisf,"ax",@progbits
         .global __floatunsisf
 __floatunsisf:
+	.cfi_startproc
         ; u32 → f32.  Entry: X=f32 result(4B), [S+2..5]=u32.
         pshs    u,y                 ; arg now at [S+6..9]
+	.cfi_adjust_cfa_offset 4
+	.cfi_offset u, -4
+	.cfi_offset y, -6
         tst     6,s
         bpl     .Lfunsisf_simple
         ; bit31 set: scratch slot at [S+0..3]; arg now at [S+10..13]
         leas    -4,s
+	.cfi_adjust_cfa_offset 4
         ldd     10,s
         anda    #0x7F
         std     ,s
@@ -116,24 +142,37 @@ __floatunsisf:
         leay    0+FP_SLOT,s                  ; Y → 2^31 constant
         FP_CALL FPOP_FADD
         leas    4,s
+	.cfi_adjust_cfa_offset -4
         puls    u,y
+	.cfi_adjust_cfa_offset -4
+	.cfi_restore u
+	.cfi_restore y
         rts
 .Lfunsisf_simple:
+	.cfi_def_cfa_offset 6
+	.cfi_offset u, -4
+	.cfi_offset y, -6
         FP_ENTRY __mc6839_fpcb_f32
         leay    6+FP_SLOT,s
         FP_CALL FPOP_FFLTD
         puls    u,y
+	.cfi_endproc
         rts
 
         .section .text.__floatunsidf,"ax",@progbits
         .global __floatunsidf
 __floatunsidf:
+	.cfi_startproc
         ; u32 → f64.  Entry: X=f64 result(8B), [S+2..5]=u32.
         pshs    u,y
+	.cfi_adjust_cfa_offset 4
+	.cfi_offset u, -4
+	.cfi_offset y, -6
         tst     6,s
         bpl     .Lfunsidf_simple
         ; scratch i32(4) + f64 const(8) = 12 bytes; arg now at [S+18..21]
         leas    -12,s
+	.cfi_adjust_cfa_offset 12
         ldd     18,s
         anda    #0x7F
         std     ,s
@@ -156,13 +195,21 @@ __floatunsidf:
         leay    4+FP_SLOT,s
         FP_CALL FPOP_FADD
         leas    12,s
+	.cfi_adjust_cfa_offset -12
         puls    u,y
+	.cfi_adjust_cfa_offset -4
+	.cfi_restore u
+	.cfi_restore y
         rts
 .Lfunsidf_simple:
+	.cfi_def_cfa_offset 6
+	.cfi_offset u, -4
+	.cfi_offset y, -6
         FP_ENTRY __mc6839_fpcb_f64
         leay    6+FP_SLOT,s
         FP_CALL FPOP_FFLTD
         puls    u,y
+	.cfi_endproc
         rts
 
         ; __floatundisf / __floatundidf moved to mc6809/floatdi.S
@@ -174,24 +221,40 @@ __floatunsidf:
         .section .text.__fixsfsi,"ax",@progbits
         .global __fixsfsi
 __fixsfsi:
+	.cfi_startproc
         ; f32 → signed i32.
         pshs    u,y
+	.cfi_adjust_cfa_offset 4
+	.cfi_offset u, -4
+	.cfi_offset y, -6
         FP_ENTRY __mc6839_fpcb_f32_trunc
         leay    6+FP_SLOT,s
         FP_CALL FPOP_FFIXD
         puls    u,y
+	.cfi_adjust_cfa_offset -4
+	.cfi_restore u
+	.cfi_restore y
         rts
+	.cfi_endproc
 
         .section .text.__fixdfsi,"ax",@progbits
         .global __fixdfsi
 __fixdfsi:
+	.cfi_startproc
         ; f64 → signed i32.
         pshs    u,y
+	.cfi_adjust_cfa_offset 4
+	.cfi_offset u, -4
+	.cfi_offset y, -6
         FP_ENTRY __mc6839_fpcb_f64_trunc
         leay    6+FP_SLOT,s
         FP_CALL FPOP_FFIXD
         puls    u,y
+	.cfi_adjust_cfa_offset -4
+	.cfi_restore u
+	.cfi_restore y
         rts
+	.cfi_endproc
 
         ; __fixsfdi / __fixdfdi moved to mc6809/floatdi.S — Bug #286
         ; part 2: full i64 range via hi*2^32 + lo decomposition.

@@ -49,7 +49,9 @@
 
 	.globl	__ctzsi2
 	.type	__ctzsi2,@function
+	.cfi_sections .debug_frame
 __ctzsi2:
+	.cfi_startproc
 	ldb	5,s			// LSB
 	bne	.Lctzsi2_byte0
 	ldb	4,s
@@ -89,4 +91,5 @@ __ctzsi2:
 	clr	2,x
 	sta	3,x			// byte 3 = count (low byte; count <= 32)
 	rts
+	.cfi_endproc
 	.size	__ctzsi2, . - __ctzsi2

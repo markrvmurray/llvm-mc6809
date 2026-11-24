@@ -65,6 +65,7 @@ _start:
 	//        the area (Y) while the data area is set up; U survives on its
 	//        own (nothing below writes it).
 	pshs	d,x,y
+	.cfi_adjust_cfa_offset 6
 	// --- 1. Copy the initialised-data images from the module body into
 	//        the data area: .dp.data to U + __dp_data_start (the direct
 	//        page), .data to U + __data_start.
@@ -90,10 +91,13 @@ _start:
 	ldb	,x+			// B = relocation kind, 0 = sentinel
 	beq	.Lreloc_done
 	pshs	b			// keep the kind while D is used for the offset
+	.cfi_adjust_cfa_offset 1
 	ldd	,x++			// D = U-relative offset of the word
 	leay	d,u			// Y = address of the copied word
 	puls	b			// B = kind
+	.cfi_adjust_cfa_offset -1
 	pshs	x			// keep the table pointer
+	.cfi_adjust_cfa_offset 2
 	cmpb	#1
 	beq	.Lreloc_module
 	ldd	,y			// kind 2: word += U
@@ -107,6 +111,7 @@ _start:
 	tfr	x,d
 	std	,y
 	puls	x
+	.cfi_adjust_cfa_offset -2
 	bra	.Lreloc_loop
 .Lreloc_done:
 	// --- 3. Zero .dp.bss (in the direct page) and .bss ---------------------
@@ -122,9 +127,14 @@ _start:
 
 	// Copy D bytes from X to Y. Clobbers D, X, Y; U preserved.
 .Lcopy:
+	// A subroutine of _start: a stop here is a frame of its own, whose
+	// return address leads back into _start.
+	.cfi_def_cfa_offset 2
+	.cfi_offset pc, -2
 	cmpd	#0
 	beq	.Lcopy_done
 	pshs	u
+	.cfi_adjust_cfa_offset 2
 	tfr	d,u			// U = byte count
 .Lcopy_loop:
 	lda	,x+
@@ -133,6 +143,7 @@ _start:
 	cmpu	#0
 	bne	.Lcopy_loop
 	puls	u
+	.cfi_adjust_cfa_offset -2
 .Lcopy_done:
 	rts
 
@@ -141,6 +152,7 @@ _start:
 	cmpd	#0
 	beq	.Lzero_done
 	pshs	u
+	.cfi_adjust_cfa_offset 2
 	tfr	d,u			// U = byte count
 .Lzero_loop:
 	clr	,y+
@@ -148,16 +160,20 @@ _start:
 	cmpu	#0
 	bne	.Lzero_loop
 	puls	u
+	.cfi_adjust_cfa_offset -2
 .Lzero_done:
 	rts
 
 .Lcall_main:
+	.cfi_def_cfa_offset 6
+	.cfi_undefined pc
 	// --- 4. Hand over to the C half ------------------------------------
 	//
 	// The variables live in the data area (U-relative, the data model);
 	// the linker-script numbers are plain immediates.
 	stu	mc6809_os9_data(__os9_data_base),u
 	puls	d,x,y			// D = parameter length, X = parameter string,
+	.cfi_adjust_cfa_offset -6
 					// Y = top of the area
 	std	mc6809_os9_data(__os9_param_len),u
 	stx	mc6809_os9_data(__os9_param),u

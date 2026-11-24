@@ -112,9 +112,12 @@ __attribute__((section(".text.startup"), used)) void __decb_main(void) {
   // first makes it work whatever the program did to the stack in between.
   // Falling off the end of this function would do the same thing only while
   // everything in between was balanced.
+  // The CFI says so too: from here S is BASIC's, and its return address is
+  // the one on top, as at _start's entry.
   __asm__ __volatile__("lda __decb_entry_dp,pc\n\t"
                        "tfr a,dp\n\t"
                        "lds __decb_entry_sp,pc\n\t"
+                       ".cfi_def_cfa s, 2\n\t"
                        "rts");
   __builtin_unreachable();
 }

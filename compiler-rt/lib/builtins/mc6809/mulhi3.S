@@ -28,15 +28,19 @@
 
 	.globl	__mulhi3
 	.type	__mulhi3,@function
+	.cfi_sections .debug_frame
 __mulhi3:
+	.cfi_startproc
 #ifdef __6309__
 	// Bug #161 Phase 1: HD6309 single-instruction path.
 	tfr	x,d		// D = a
 	muld	2,s		// Q = a * b  (D = hi16, W = lo16)
 	tfr	w,x		// X = lo16 = a*b mod 2^16
 	rts
+	.cfi_endproc
 #else
 	pshs	x		// save a; S: [ah][al][retH][retL][bh][bl]
+	.cfi_adjust_cfa_offset 2
 	//       0    1     2      3     4    5
 
 	// Partial product 1: al * bl -> full 16-bit result
@@ -44,6 +48,7 @@ __mulhi3:
 	ldb	5,s		// bl
 	mul			// D = al * bl
 	pshs	d		// save [hi(al*bl), lo(al*bl)]
+	.cfi_adjust_cfa_offset 2
 	// S: [carry][res_lo][ah][al][retH][retL][bh][bl]
 	//      0       1      2    3    4      5     6    7
 
@@ -66,5 +71,7 @@ __mulhi3:
 	tfr	d,x		// X = result
 
 	leas	4,s		// clean up (pshs d + pshs x)
+	.cfi_adjust_cfa_offset -4
 	rts
+	.cfi_endproc
 #endif

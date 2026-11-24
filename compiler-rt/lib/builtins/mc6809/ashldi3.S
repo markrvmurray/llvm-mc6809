@@ -10,7 +10,9 @@
 	.section .text,"ax",@progbits
 	.globl __ashldi3
 	.type  __ashldi3,@function
+	.cfi_sections .debug_frame
 __ashldi3:
+	.cfi_startproc
 	ldd	2,s
 	std	,x
 	ldd	4,s
@@ -35,4 +37,5 @@ __ashldi3:
 	bne	.Lashldi3_loop
 .Lashldi3_done:
 	rts
+	.cfi_endproc
 	.size __ashldi3, . - __ashldi3

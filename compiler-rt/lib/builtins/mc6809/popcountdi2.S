@@ -25,13 +25,17 @@
 
 	.globl	__popcountdi2
 	.type	__popcountdi2,@function
+	.cfi_sections .debug_frame
 __popcountdi2:
+	.cfi_startproc
 	// Bug #352: Y is callee-saved (MC6809 CSR = IY,SU).  This routine
 	// uses Y as the i16 running total across the byte subroutine, so it
 	// must save/restore the caller's Y.  The `pshs y` shifts the input
 	// arguments down by 2 bytes (2,s..9,s -> 4,s..11,s); the bsr/rts to
 	// .Lpopdi2_byte balances, so the offsets are stable across the loop.
 	pshs	y
+	.cfi_adjust_cfa_offset 2
+	.cfi_offset y, -4
 	ldy	#0			// running total
 
 	ldb	4,s			// MSB (was 2,s)
@@ -58,6 +62,8 @@ __popcountdi2:
 	std	4,x
 	sty	6,x
 	puls	y			// restore caller's Y
+	.cfi_adjust_cfa_offset -2
+	.cfi_restore y
 	rts
 
 // Subroutine: A = popcount(B); on exit Y += A. Clobbers A, B; preserves X.
@@ -82,4 +88,5 @@ __popcountdi2:
 	leay	a,y			// Y += A (A in 0..8, treated as signed)
 	rts
 
+	.cfi_endproc
 	.size	__popcountdi2, . - __popcountdi2

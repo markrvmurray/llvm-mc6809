@@ -57,9 +57,15 @@
 
         .section .text.__floatundidf,"ax",@progbits
         .global __floatundidf
+	.cfi_sections .debug_frame
 __floatundidf:
+	.cfi_startproc
         pshs    u,y                  ; arg now at [S+6..13]
+	.cfi_adjust_cfa_offset 4
+	.cfi_offset u, -4
+	.cfi_offset y, -6
         leas    -22,s                ; arg now at [S+28..35]
+	.cfi_adjust_cfa_offset 22
         stx     ,s                   ; save caller's sret pointer
         ; ----- step 1: hi half u32 → f64 at *X (X already holds sret) -----
         ; Hi u32 is at [S+28..31].  If bit 31 is set, use the
@@ -154,8 +160,13 @@ __floatundidf:
         leay    2+FP_SLOT,s                  ; Y → lo_f64
         FP_CALL FPOP_FADD
         leas    22,s
+	.cfi_adjust_cfa_offset -22
         puls    u,y
+	.cfi_adjust_cfa_offset -4
+	.cfi_restore u
+	.cfi_restore y
         rts
+	.cfi_endproc
         .size __floatundidf, . - __floatundidf
 
 ; ===========================================================================
@@ -171,8 +182,13 @@ __floatundidf:
         .section .text.__floatdidf,"ax",@progbits
         .global __floatdidf
 __floatdidf:
+	.cfi_startproc
         pshs    u,y                  ; arg now at [S+6..13]
+	.cfi_adjust_cfa_offset 4
+	.cfi_offset u, -4
+	.cfi_offset y, -6
         leas    -22,s                ; arg now at [S+28..35]
+	.cfi_adjust_cfa_offset 22
         stx     ,s                   ; save caller's sret pointer
         ; ----- step 1: hi i32 (SIGNED) → f64 at *X -----
         FP_BASE 24
@@ -233,8 +249,13 @@ __floatdidf:
         leay    2+FP_SLOT,s
         FP_CALL FPOP_FADD
         leas    22,s
+	.cfi_adjust_cfa_offset -22
         puls    u,y
+	.cfi_adjust_cfa_offset -4
+	.cfi_restore u
+	.cfi_restore y
         rts
+	.cfi_endproc
         .size __floatdidf, . - __floatdidf
 
 ; ===========================================================================
@@ -256,8 +277,13 @@ __floatdidf:
         .section .text.__floatundisf,"ax",@progbits
         .global __floatundisf
 __floatundisf:
+	.cfi_startproc
         pshs    u,y                  ; arg [S+6..13]
+	.cfi_adjust_cfa_offset 4
+	.cfi_offset u, -4
+	.cfi_offset y, -6
         leas    -14,s                ; arg now [S+20..27]
+	.cfi_adjust_cfa_offset 14
         stx     ,s                   ; save caller's sret
         ; ----- step 1: hi u32 → f32 at *X -----
         lda     20,s
@@ -340,8 +366,13 @@ __floatundisf:
         leay    2+FP_SLOT,s
         FP_CALL FPOP_FADD
         leas    14,s
+	.cfi_adjust_cfa_offset -14
         puls    u,y
+	.cfi_adjust_cfa_offset -4
+	.cfi_restore u
+	.cfi_restore y
         rts
+	.cfi_endproc
         .size __floatundisf, . - __floatundisf
 
 ; ===========================================================================
@@ -354,8 +385,13 @@ __floatundisf:
         .section .text.__floatdisf,"ax",@progbits
         .global __floatdisf
 __floatdisf:
+	.cfi_startproc
         pshs    u,y
+	.cfi_adjust_cfa_offset 4
+	.cfi_offset u, -4
+	.cfi_offset y, -6
         leas    -14,s
+	.cfi_adjust_cfa_offset 14
         stx     ,s
         ; hi i32 (SIGNED) → f32 at *X
         FP_BASE 16
@@ -412,8 +448,13 @@ __floatdisf:
         leay    2+FP_SLOT,s
         FP_CALL FPOP_FADD
         leas    14,s
+	.cfi_adjust_cfa_offset -14
         puls    u,y
+	.cfi_adjust_cfa_offset -4
+	.cfi_restore u
+	.cfi_restore y
         rts
+	.cfi_endproc
         .size __floatdisf, . - __floatdisf
 
 ; ===========================================================================
@@ -451,8 +492,13 @@ __floatdisf:
         .section .text.__fixdfdi,"ax",@progbits
         .global __fixdfdi
 __fixdfdi:
+	.cfi_startproc
         pshs    u,y
+	.cfi_adjust_cfa_offset 4
+	.cfi_offset u, -4
+	.cfi_offset y, -6
         leas    -40,s                ; arg now at [S+46..53]
+	.cfi_adjust_cfa_offset 40
         stx     ,s                   ; save sret
 
         ; ----- step 1: sign flag + |a| at [S+4..11] -----
@@ -613,8 +659,13 @@ __fixdfdi:
 
 .Lfdd_done:
         leas    40,s
+	.cfi_adjust_cfa_offset -40
         puls    u,y
+	.cfi_adjust_cfa_offset -4
+	.cfi_restore u
+	.cfi_restore y
         rts
+	.cfi_endproc
         .size __fixdfdi, . - __fixdfdi
 
 ; ===========================================================================
@@ -647,8 +698,13 @@ __fixdfdi:
         .section .text.__fixsfdi,"ax",@progbits
         .global __fixsfdi
 __fixsfdi:
+	.cfi_startproc
         pshs    u,y
+	.cfi_adjust_cfa_offset 4
+	.cfi_offset u, -4
+	.cfi_offset y, -6
         leas    -32,s                ; arg now at [S+38..41]
+	.cfi_adjust_cfa_offset 32
         stx     ,s
 
         ; sign flag + |a|
@@ -793,6 +849,11 @@ __fixsfdi:
 
 .Lfsd_done:
         leas    32,s
+	.cfi_adjust_cfa_offset -32
         puls    u,y
+	.cfi_adjust_cfa_offset -4
+	.cfi_restore u
+	.cfi_restore y
         rts
+	.cfi_endproc
         .size __fixsfdi, . - __fixsfdi

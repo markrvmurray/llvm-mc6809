@@ -29,12 +29,16 @@
 	.section .text.__umulohi4,"ax",@progbits
 	.globl	__umulohi4
 	.type	__umulohi4,@function
+	.cfi_sections .debug_frame
 __umulohi4:
+	.cfi_startproc
 	pshs	x		// 0,S ah  1,S al  2,S return  4,S bh  5,S bl  6,S overflow
+	.cfi_adjust_cfa_offset 2
 	lda	,s		// ah
 	ldb	5,s		// bl
 	mul			// D = ah*bl
 	pshs	d		// cross at 0,S; everything else moves down two
+	.cfi_adjust_cfa_offset 2
 	lda	3,s		// al
 	ldb	6,s		// bh
 	mul			// D = al*bh
@@ -57,5 +61,7 @@ __umulohi4:
 	ldb	#1
 2:	std	[8,s]		// *overflow, with A = 0
 	leas	4,s
+	.cfi_adjust_cfa_offset -4
 	rts
+	.cfi_endproc
 	.size	__umulohi4, .-__umulohi4

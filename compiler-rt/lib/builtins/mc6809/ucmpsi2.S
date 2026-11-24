@@ -12,7 +12,9 @@
 	.section .text,"ax",@progbits
 	.globl __ucmpsi2
 	.type  __ucmpsi2,@function
+	.cfi_sections .debug_frame
 __ucmpsi2:
+	.cfi_startproc
 	ldd	2,s
 	cmpd	6,s
 	blo	.Lucmpsi2_less		// unsigned: a_hi < b_hi
@@ -33,4 +35,5 @@ __ucmpsi2:
 	ldd	#0
 	std	,x
 	rts
+	.cfi_endproc
 	.size __ucmpsi2, . - __ucmpsi2

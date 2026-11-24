@@ -35,17 +35,24 @@
 
 	.globl	__memset
 	.type	__memset,@function
+	.cfi_sections .debug_frame
 __memset:
+	.cfi_startproc
 #ifdef __6309__
 	pshs	b,x,y		// fill byte for TFM; x for return; preserve y
+	.cfi_adjust_cfa_offset 5
+	.cfi_offset y, -4
 	ldw	7,s		// W = n (+1 fill, +2 saved X, +2 saved Y, +2 retaddr)
 	beq	.L__memset_6309_done
 	tfr	s,y		// Y -> the fill byte
 	tfm	y,x+
 .L__memset_6309_done:
 	puls	b,x,y,pc
+	.cfi_endproc
 #else
 	pshs	x,y		// save x for return; preserve y (callee-saved per MC6809_CSR)
+	.cfi_adjust_cfa_offset 4
+	.cfi_offset y, -4
 	ldy	6,s		// Y = n (+2 saved Y, +2 saved X, +2 retaddr)
 	beq	.L__memset_done
 	tfr	b,a		// A = fill byte
@@ -69,4 +76,5 @@ __memset:
 	bne	.L__memset_loop
 .L__memset_done:
 	puls	x,y,pc
+	.cfi_endproc
 #endif

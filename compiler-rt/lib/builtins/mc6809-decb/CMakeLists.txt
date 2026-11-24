@@ -19,11 +19,14 @@ set(_DECB_LDS_OUT  "${_DECB_BUILD_LIB_DIR}/mc6809-decb.lds")
 
 # -fno-builtin: the zero loops in crt0 are what they say they are, and must
 # not become calls to a memset that nothing here provides.
+# -gline-tables-only: the CFI a debugger unwinds by (and line numbers), for
+# __decb_main as for the assembly _start beside it; nothing loaded changes.
 add_custom_command(
     OUTPUT  "${_DECB_CRT0_OUT}"
     COMMAND ${CMAKE_COMMAND} -E make_directory "${_DECB_BUILD_LIB_DIR}"
     COMMAND ${CMAKE_C_COMPILER}
             --target=${_DECB_TRIPLE} -Os -nostdlib -nostdinc -fno-builtin
+            -gline-tables-only
             -c "${CMAKE_CURRENT_SOURCE_DIR}/crt0.c"
             -o "${_DECB_CRT0_OUT}"
     DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/crt0.c"

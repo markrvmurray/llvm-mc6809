@@ -9,8 +9,11 @@
 	.section .text,"ax",@progbits
 	.globl __lshrhi3
 	.type  __lshrhi3,@function
+	.cfi_sections .debug_frame
 __lshrhi3:
+	.cfi_startproc
 	pshs	x
+	.cfi_adjust_cfa_offset 2
 	andb	#15
 	beq	.Llshrhi3_done
 .Llshrhi3_loop:
@@ -20,5 +23,7 @@ __lshrhi3:
 	bne	.Llshrhi3_loop
 .Llshrhi3_done:
 	puls	x
+	.cfi_adjust_cfa_offset -2
 	rts
+	.cfi_endproc
 	.size __lshrhi3, . - __lshrhi3

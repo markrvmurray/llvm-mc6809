@@ -12,7 +12,9 @@
 	.section .text,"ax",@progbits
 	.globl __ucmpdi2
 	.type  __ucmpdi2,@function
+	.cfi_sections .debug_frame
 __ucmpdi2:
+	.cfi_startproc
 	ldd	2,s
 	cmpd	10,s
 	lblo	.Lucmpdi2_less
@@ -41,4 +43,5 @@ __ucmpdi2:
 	ldd	#0
 	std	,x
 	rts
+	.cfi_endproc
 	.size __ucmpdi2, . - __ucmpdi2

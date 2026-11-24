@@ -28,46 +28,68 @@
 
 	.globl	__os9_seek
 	.type	__os9_seek,@function
+	.cfi_sections .debug_frame
 __os9_seek:
+	.cfi_startproc
 	pshs	u,x			// [0,s] = struct pointer, [2,s] = data base
+	.cfi_adjust_cfa_offset 4
+	.cfi_offset u, -4
 	lda	,x			// A = path
 	ldu	4,x			// U = low word of the position
 	ldx	2,x			// X = high word (loads X last)
 	os9	0x88			// I$Seek
 	bra	.Lreturn
+	.cfi_endproc
 	.size	__os9_seek, .-__os9_seek
 
 	.globl	__os9_setstt_xu
 	.type	__os9_setstt_xu,@function
 __os9_setstt_xu:
+	.cfi_startproc
 	pshs	u,x
+	.cfi_adjust_cfa_offset 4
+	.cfi_offset u, -4
 	ldd	,x			// A = path, B = function
 	ldu	4,x
 	ldx	2,x
 	os9	0x8E			// I$SetStt
 	bra	.Lreturn
+	.cfi_endproc
 	.size	__os9_setstt_xu, .-__os9_setstt_xu
 
 	.globl	__os9_getstt_xu
 	.type	__os9_getstt_xu,@function
 __os9_getstt_xu:
+	.cfi_startproc
 	pshs	u,x			// [0,s] = struct pointer, [2,s] = data base
+	.cfi_adjust_cfa_offset 4
+	.cfi_offset u, -4
 	ldd	,x			// A = path, B = function
 	os9	0x8D			// I$GetStt -> X:U
 	bcs	.Lreturn
 	pshs	u			// [0,s] = low word, [2,s] = struct, [4,s] = base
+	.cfi_adjust_cfa_offset 2
 	ldu	2,s			// U = struct pointer for the stores
 	stx	2,u			// high word
 	puls	x			// X = low word
+	.cfi_adjust_cfa_offset -2
 	stx	4,u			// low word
 	puls	x,u			// X = struct pointer (dropped), U = data base
+	.cfi_adjust_cfa_offset -4
+	.cfi_restore u
 	ldx	#0
 	rts
+	.cfi_endproc
 	.size	__os9_getstt_xu, .-__os9_getstt_xu
 
 	// Common return: carry set = failure with the code in B.
 .Lreturn:
+	.cfi_startproc
+	.cfi_def_cfa_offset 6
+	.cfi_offset u, -4
 	puls	u,x			// X = struct pointer (dropped), U = data base
+	.cfi_adjust_cfa_offset -4
+	.cfi_restore u
 	bcs	.Lfail
 	ldx	#0
 	rts
@@ -75,3 +97,4 @@ __os9_getstt_xu:
 	clra
 	tfr	d,x			// return the OS-9 error code
 	rts
+	.cfi_endproc

@@ -27,10 +27,14 @@
 
 	.globl	__popcountsi2
 	.type	__popcountsi2,@function
+	.cfi_sections .debug_frame
 __popcountsi2:
+	.cfi_startproc
 	// Y is callee-saved: push it, which moves the argument from 2,s..5,s
 	// to 4,s..7,s; the bsr/rts pairs balance, so the offsets hold.
 	pshs	y
+	.cfi_adjust_cfa_offset 2
+	.cfi_offset y, -4
 	ldy	#0			// running total
 
 	ldb	4,s			// MSB
@@ -47,6 +51,8 @@ __popcountsi2:
 	std	,x
 	sty	2,x
 	puls	y			// restore caller's Y
+	.cfi_adjust_cfa_offset -2
+	.cfi_restore y
 	rts
 
 // Subroutine: Y += popcount(B). Clobbers A, B; preserves X.
@@ -71,4 +77,5 @@ __popcountsi2:
 	leay	a,y			// Y += A (A in 0..8)
 	rts
 
+	.cfi_endproc
 	.size	__popcountsi2, . - __popcountsi2

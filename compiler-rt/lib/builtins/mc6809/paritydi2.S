@@ -23,7 +23,9 @@
 
 	.globl	__paritydi2
 	.type	__paritydi2,@function
+	.cfi_sections .debug_frame
 __paritydi2:
+	.cfi_startproc
 	ldb	2,s
 	eorb	3,s
 	eorb	4,s
@@ -34,6 +36,7 @@ __paritydi2:
 	eorb	9,s
 	// B = XOR of all input bytes. Collapse:
 	pshs	b
+	.cfi_adjust_cfa_offset 1
 	lsrb
 	lsrb
 	lsrb
@@ -46,15 +49,19 @@ __paritydi2:
 	stb	,s
 	lsrb
 	eorb	,s+		// B = (above) ^ ((above) >> 1); dealloc
+	.cfi_adjust_cfa_offset -1
 	andb	#1		// B = parity
 	// Write 8-byte zero-extended big-endian result.
 	pshs	b
+	.cfi_adjust_cfa_offset 1
 	clra
 	clrb
 	std	,x
 	std	2,x
 	std	4,x
 	puls	b		// B = parity, A = 0 (still)
+	.cfi_adjust_cfa_offset -1
 	std	6,x		// bytes 6..7 = (0, parity)
 	rts
+	.cfi_endproc
 	.size	__paritydi2, . - __paritydi2

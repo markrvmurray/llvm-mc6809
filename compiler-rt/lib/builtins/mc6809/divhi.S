@@ -39,7 +39,9 @@
 // ============================================================
 	.globl	__udivhi3
 	.type	__udivhi3,@function
+	.cfi_sections .debug_frame
 __udivhi3:
+	.cfi_startproc
 #ifdef __6309__
 	// HD6309 fast path test — runs before any stack mutation, so
 	// divisor (the 2nd arg) sits at S+2..3 and dividend is in X.
@@ -54,22 +56,30 @@ __udivhi3:
 	beq	.Lud_div_by_1	// divisor == 1 → quotient = dividend
 	// divisor ∈ [2, 127], in B. X = dividend.
 	pshs	y		// save callee-saved Y
+	.cfi_adjust_cfa_offset 2
+	.cfi_offset y, -4
 	pshs	b		// push divisor8 at S+0
+	.cfi_adjust_cfa_offset 1
 	// S: 0=divisor8, 1..2=Y, 3..4=ret, 5..6=divisor16
 	tfr	x,d		// D = dividend (A=hi, B=lo)
 	pshs	b		// save dividend.lo at S+0
+	.cfi_adjust_cfa_offset 1
 	// S: 0=dividend.lo, 1=divisor8, 2..3=Y, 4..5=ret, 6..7=divisor16
 	tfr	a,b		// B = dividend.hi
 	clra			// A = 0 → D = (0 : dividend.hi), unsigned 0..255
 	divd	1,s		// D / divisor8 → B=q_hi, A=remainder ∈ [0,126]
 	pshs	b		// save q_hi at S+0
+	.cfi_adjust_cfa_offset 1
 	// S: 0=q_hi, 1=dividend.lo, 2=divisor8, 3..4=Y, 5..6=ret, 7..8=divisor16
 	ldb	1,s		// B = dividend.lo (A still has remainder, hi-bit clear)
 	divd	2,s		// D / divisor8 → B=q_lo, A=final remainder
 	lda	,s		// A = q_hi (overwriting remainder)
 	tfr	d,x		// X = quotient (A:B = q_hi:q_lo)
 	leas	3,s		// pop q_hi, dividend.lo, divisor8
+	.cfi_adjust_cfa_offset -3
 	puls	y
+	.cfi_adjust_cfa_offset -2
+	.cfi_restore y
 	rts
 
 .Lud_div_by_1:
@@ -78,6 +88,8 @@ __udivhi3:
 .Lud_slow:
 #endif
 	pshs	y		// save callee-saved Y
+	.cfi_adjust_cfa_offset 2
+	.cfi_offset y, -4
 	// stack: [Y:2][ret:2][divisor:2]  offsets 0,2,4
 	tfr	x,d		// D = dividend (becomes quotient)
 	ldy	#0		// Y = remainder
@@ -101,7 +113,10 @@ __udivhi3:
 	bne	.Lud_loop
 	tfr	d,x		// X = quotient
 	puls	y
+	.cfi_adjust_cfa_offset -2
+	.cfi_restore y
 	rts
+	.cfi_endproc
 
 // ============================================================
 // __umodhi3 -- unsigned 16-bit remainder
@@ -109,6 +124,7 @@ __udivhi3:
 	.globl	__umodhi3
 	.type	__umodhi3,@function
 __umodhi3:
+	.cfi_startproc
 #ifdef __6309__
 	// Same divisor-range test as __udivhi3, but return remainder.
 	ldd	2,s		// D = divisor
@@ -120,10 +136,14 @@ __umodhi3:
 	cmpb	#1
 	beq	.Lum_div_by_1	// divisor == 1 → remainder = 0
 	pshs	y
+	.cfi_adjust_cfa_offset 2
+	.cfi_offset y, -4
 	pshs	b		// divisor8 at S+0
+	.cfi_adjust_cfa_offset 1
 	// S: 0=divisor8, 1..2=Y, 3..4=ret, 5..6=divisor16
 	tfr	x,d
 	pshs	b		// dividend.lo at S+0
+	.cfi_adjust_cfa_offset 1
 	// S: 0=dividend.lo, 1=divisor8, 2..3=Y, 4..5=ret, 6..7=divisor16
 	tfr	a,b
 	clra
@@ -134,7 +154,10 @@ __umodhi3:
 	clra			// A = 0 → D = (0 : remainder)
 	tfr	d,x		// X = remainder
 	leas	2,s		// pop dividend.lo, divisor8
+	.cfi_adjust_cfa_offset -2
 	puls	y
+	.cfi_adjust_cfa_offset -2
+	.cfi_restore y
 	rts
 
 .Lum_div_by_1:
@@ -144,6 +167,8 @@ __umodhi3:
 .Lum_slow:
 #endif
 	pshs	y
+	.cfi_adjust_cfa_offset 2
+	.cfi_offset y, -4
 	tfr	x,d
 	ldy	#0
 	ldx	#16
@@ -166,7 +191,10 @@ __umodhi3:
 	bne	.Lum_loop
 	tfr	y,x		// X = remainder (not quotient)
 	puls	y
+	.cfi_adjust_cfa_offset -2
+	.cfi_restore y
 	rts
+	.cfi_endproc
 
 // ============================================================
 // __divhi3 -- signed 16-bit division (returns quotient)
@@ -175,6 +203,7 @@ __umodhi3:
 	.globl	__divhi3
 	.type	__divhi3,@function
 __divhi3:
+	.cfi_startproc
 #ifdef __6309__
 	// HD6309 fast path: if |b| ∈ [2, 127] use two-DIVD long-division
 	// (same constraint as __udivhi3; DIVD is signed so we do abs(a)/abs(b)
@@ -202,7 +231,10 @@ __divhi3:
 	// MAME CC-flag interaction with the `tst ,s` / `leas` sequence.
 	// Y is callee-saved; we save old Y, use it as a sign flag, restore.
 	pshs	y		// save callee-saved Y. S: 0..1=Y, 2..3=ret, 4..5=b.
+	.cfi_adjust_cfa_offset 2
+	.cfi_offset y, -4
 	pshs	b		// push |b|. S: 0=|b|, 1..2=Y, 3..4=ret, 5..6=b.
+	.cfi_adjust_cfa_offset 1
 	// Compute sign_q = sign(a) XOR sign(b) → Y (0xFFFF=negative, 0x0000=positive).
 	// SEX extends B's sign into A only; B unchanged. Two-step to get 0x0000/0xFFFF:
 	//   step1: tfr a,b; sex → A=sign_ext(B.bit7), B=original_B
@@ -222,22 +254,28 @@ __divhi3:
 .Lsd6_a_pos:
 	// D = |a|. Two-DIVD long-division with |b| at S+1.
 	pshs	b		// push |a|.lo. S: 0=|a|.lo, 1=|b|, 2..3=Y, 4..5=ret, 6..7=b.
+	.cfi_adjust_cfa_offset 1
 	tfr	a,b		// B = |a|.hi
 	clra
 	divd	1,s		// (0:|a|.hi) / |b| → B=q_hi, A=rem; |b| at S+1.
 	pshs	b		// push q_hi. S: 0=q_hi, 1=|a|.lo, 2=|b|, 3..4=Y, 5..6=ret, 7..8=b.
+	.cfi_adjust_cfa_offset 1
 	ldb	1,s		// B = |a|.lo; A = rem from Phase 1.
 	divd	2,s		// (rem:|a|.lo) / |b| → B=q_lo, A=final_rem; |b| at S+2.
 	lda	,s		// A = q_hi.
 	// D = |quotient|. Apply sign from Y.
 	leas	2,s		// pop q_hi, |a|.lo. S: 0=|b|, 1..2=Y, 3..4=ret, 5..6=b.
+	.cfi_adjust_cfa_offset -2
 	cmpy	#0		// sign_q == 0 → positive quotient
 	beq	.Lsd6_q_done
 	negd			// D = signed quotient.
 .Lsd6_q_done:
 	tfr	d,x		// X = quotient.
 	leas	1,s		// pop |b|. S: 0..1=Y, 2..3=ret, 4..5=b.
+	.cfi_adjust_cfa_offset -1
 	puls	y
+	.cfi_adjust_cfa_offset -2
+	.cfi_restore y
 	rts
 
 .Lsd6_one:
@@ -254,11 +292,14 @@ __divhi3:
 .Lsd6_slow:
 #endif
 	pshs	y
+	.cfi_adjust_cfa_offset 2
+	.cfi_offset y, -4
 	// [Y:2][ret:2][b:2]  offsets 0,2,4
 	// Determine result sign: XOR high bytes of a and b
 	tfr	x,d		// D = a
 	eora	4,s		// A.7 = sign(a) XOR sign(b)
 	pshs	a		// save sign flag
+	.cfi_adjust_cfa_offset 1
 	// [sign:1][Y:2][ret:2][b:2]  offsets 0,1,3,5
 	// Make a positive
 	tfr	x,d		// D = a (tfr does NOT set flags)
@@ -269,6 +310,7 @@ __divhi3:
 	addd	#1
 .Lsd_a_pos:
 	pshs	d		// save |a|
+	.cfi_adjust_cfa_offset 2
 	// [|a|:2][sign:1][Y:2][ret:2][b:2]  offsets 0,2,3,5,7
 	// Make b positive
 	ldd	7,s		// load b
@@ -280,6 +322,7 @@ __divhi3:
 .Lsd_b_pos:
 	// Unsigned division: |a| / |b|
 	puls	d		// D = |a|
+	.cfi_adjust_cfa_offset -2
 	// [sign:1][Y:2][ret:2][|b|:2]  offsets 0,1,3,5
 	ldy	#0
 	ldx	#16
@@ -309,8 +352,12 @@ __divhi3:
 .Lsd_pos:
 	tfr	d,x		// X = signed quotient
 	leas	1,s		// drop sign byte
+	.cfi_adjust_cfa_offset -1
 	puls	y
+	.cfi_adjust_cfa_offset -2
+	.cfi_restore y
 	rts
+	.cfi_endproc
 
 // ============================================================
 // __modhi3 -- signed 16-bit remainder
@@ -319,6 +366,7 @@ __divhi3:
 	.globl	__modhi3
 	.type	__modhi3,@function
 __modhi3:
+	.cfi_startproc
 #ifdef __6309__
 	// Same fast path as __divhi3 but return remainder.
 	// sign_r = sign(a); no need to XOR with sign(b).
@@ -340,7 +388,10 @@ __modhi3:
 	beq	.Lsm6_one	// |b| == 1 → remainder = 0
 	// B = |b| ∈ [2, 127]. Hold sign_r in Y to avoid tst ,s / leas MAME bug.
 	pshs	y		// save old Y. S: 0..1=Y, 2..3=ret, 4..5=b.
+	.cfi_adjust_cfa_offset 2
+	.cfi_offset y, -4
 	pshs	b		// push |b|. S: 0=|b|, 1..2=Y, 3..4=ret, 5..6=b.
+	.cfi_adjust_cfa_offset 1
 	// sign_r = sign(a) → Y (0xFFFF or 0x0000). Same two-step SEX.
 	tfr	x,d		// D = a; A = a.hi; N = sign(a).
 	tfr	a,b		// B = a.hi.
@@ -356,6 +407,7 @@ __modhi3:
 .Lsm6_a_pos:
 	// D = |a|. Two-DIVD long-division with |b| at S+1.
 	pshs	b		// push |a|.lo. S: 0=|a|.lo, 1=|b|, 2..3=Y, 4..5=ret, 6..7=b.
+	.cfi_adjust_cfa_offset 1
 	tfr	a,b
 	clra
 	divd	1,s		// (0:|a|.hi) / |b| → B=q_hi, A=rem; |b| at S+1.
@@ -364,6 +416,7 @@ __modhi3:
 	// A = |remainder|. Apply sign from Y.
 	tfr	a,b		// B = |remainder|.
 	leas	1,s		// pop |a|.lo. S: 0=|b|, 1..2=Y, 3..4=ret, 5..6=b.
+	.cfi_adjust_cfa_offset -1
 	cmpy	#0		// sign_r == 0 → positive remainder
 	beq	.Lsm6_r_done
 	negb			// B = -|remainder|
@@ -371,7 +424,10 @@ __modhi3:
 	sex			// sign-extend B into D.
 	tfr	d,x		// X = i16 remainder.
 	leas	1,s		// pop |b|. S: 0..1=Y, 2..3=ret, 4..5=b.
+	.cfi_adjust_cfa_offset -1
 	puls	y
+	.cfi_adjust_cfa_offset -2
+	.cfi_restore y
 	rts
 
 .Lsm6_one:
@@ -381,10 +437,13 @@ __modhi3:
 .Lsm6_slow:
 #endif
 	pshs	y
+	.cfi_adjust_cfa_offset 2
+	.cfi_offset y, -4
 	// [Y:2][ret:2][b:2]
 	// Save sign of a (remainder follows dividend sign)
 	tfr	x,d
 	pshs	a		// save sign of a
+	.cfi_adjust_cfa_offset 1
 	// [asign:1][Y:2][ret:2][b:2]  offsets 0,1,3,5
 	// Make a positive
 	tfr	x,d		// D = a (tfr does NOT set flags)
@@ -395,6 +454,7 @@ __modhi3:
 	addd	#1
 .Lsm_a_pos:
 	pshs	d		// save |a|
+	.cfi_adjust_cfa_offset 2
 	// [|a|:2][asign:1][Y:2][ret:2][b:2]  offsets 0,2,3,5,7
 	// Make b positive
 	ldd	7,s
@@ -406,6 +466,7 @@ __modhi3:
 .Lsm_b_pos:
 	// Unsigned division to get remainder
 	puls	d		// D = |a|
+	.cfi_adjust_cfa_offset -2
 	// [asign:1][Y:2][ret:2][|b|:2]  offsets 0,1,3,5
 	ldy	#0
 	ldx	#16
@@ -436,5 +497,9 @@ __modhi3:
 .Lsm_pos:
 	tfr	d,x		// X = signed remainder
 	leas	1,s		// drop sign byte
+	.cfi_adjust_cfa_offset -1
 	puls	y
+	.cfi_adjust_cfa_offset -2
+	.cfi_restore y
 	rts
+	.cfi_endproc

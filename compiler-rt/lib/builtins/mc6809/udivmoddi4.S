@@ -19,7 +19,9 @@
 // ============================================================
 	.globl __udivdi3
 	.type  __udivdi3,@function
+	.cfi_sections .debug_frame
 __udivdi3:
+	.cfi_startproc
 #ifdef __6309__
 	// HD6309 fast path — Bug f98d69f.
 	// Eligibility: divisor's high 48 bits == 0 AND low 16 in [1, 0x7FFF].
@@ -54,8 +56,11 @@ __udivdi3:
 .Ludivdi3_slow:
 #endif
 	pshs	y
+	.cfi_adjust_cfa_offset 2
+	.cfi_offset y, -4
 	tfr	x,y		// Y = sret pointer
 	leas	-17,s		// workspace: 8 quot + 8 rem + 1 counter
+	.cfi_adjust_cfa_offset 17
 	// Copy dividend (a) to quotient workspace
 	ldd	21,s		// a+0 (was S+2, now S+21 after -17 and pshs y)
 	std	,s
@@ -86,7 +91,9 @@ __udivdi3:
 	ldd	6,s
 	std	6,y
 	leas	17,s
+	.cfi_adjust_cfa_offset -17
 	puls	y,pc
+	.cfi_endproc
 	.size __udivdi3, . - __udivdi3
 
 // ============================================================
@@ -95,6 +102,7 @@ __udivdi3:
 	.globl __umoddi3
 	.type  __umoddi3,@function
 __umoddi3:
+	.cfi_startproc
 #ifdef __6309__
 	// HD6309 fast path — see __udivdi3 above.
 	ldd	10,s
@@ -126,8 +134,11 @@ __umoddi3:
 .Lumoddi3_slow:
 #endif
 	pshs	y
+	.cfi_adjust_cfa_offset 2
+	.cfi_offset y, -4
 	tfr	x,y
 	leas	-17,s
+	.cfi_adjust_cfa_offset 17
 	ldd	21,s
 	std	,s
 	ldd	23,s
@@ -154,7 +165,9 @@ __umoddi3:
 	ldd	14,s
 	std	6,y
 	leas	17,s
+	.cfi_adjust_cfa_offset -17
 	puls	y,pc
+	.cfi_endproc
 	.size __umoddi3, . - __umoddi3
 
 // ============================================================
@@ -164,6 +177,7 @@ __umoddi3:
 	.globl __udivmoddi4
 	.type  __udivmoddi4,@function
 __udivmoddi4:
+	.cfi_startproc
 #ifdef __6309__
 	// HD6309 fast path — see __udivdi3 above.
 	ldd	10,s
@@ -204,8 +218,11 @@ __udivmoddi4:
 .Ludivmoddi4_slow:
 #endif
 	pshs	y
+	.cfi_adjust_cfa_offset 2
+	.cfi_offset y, -4
 	tfr	x,y
 	leas	-17,s
+	.cfi_adjust_cfa_offset 17
 	ldd	21,s
 	std	,s
 	ldd	23,s
@@ -245,7 +262,9 @@ __udivmoddi4:
 	std	6,x
 .Ludivmod_done:
 	leas	17,s
+	.cfi_adjust_cfa_offset -17
 	puls	y,pc
+	.cfi_endproc
 	.size __udivmoddi4, . - __udivmoddi4
 
 // ============================================================
@@ -375,10 +394,15 @@ __udivmoddi4:
 	.globl __divdi3
 	.type  __divdi3,@function
 __divdi3:
+	.cfi_startproc
 	pshs	y,u
+	.cfi_adjust_cfa_offset 4
+	.cfi_offset u, -4
+	.cfi_offset y, -6
 	tfr	x,y		// Y = sret pointer
 	// Copy a and b to local workspace (need to negate in place)
 	leas	-17,s		// 8 for a_copy + 8 for b_copy + 1 sign byte
+	.cfi_adjust_cfa_offset 17
 	// a at 23,s..30,s; b at 31,s..38,s (after pshs y,u + leas -17)
 	ldd	23,s
 	std	,s
@@ -414,6 +438,7 @@ __divdi3:
 .Ldivdi3_bpos:
 	// Push args for __udivdi3: a(8) + b(8) on stack, X = sret
 	leas	-16,s
+	.cfi_adjust_cfa_offset 16
 	ldd	16,s		// a_copy+0
 	std	,s
 	ldd	18,s
@@ -433,6 +458,7 @@ __divdi3:
 	tfr	y,x
 	lbsr	__udivdi3
 	leas	16,s
+	.cfi_adjust_cfa_offset -16
 	// Negate result if sign byte bit 7 is set
 	tst	16,s
 	bpl	.Ldivdi3_done
@@ -440,7 +466,9 @@ __divdi3:
 	lbsr	.Lneg64
 .Ldivdi3_done:
 	leas	17,s
+	.cfi_adjust_cfa_offset -17
 	puls	y,u,pc
+	.cfi_endproc
 	.size __divdi3, . - __divdi3
 
 // ============================================================
@@ -450,9 +478,14 @@ __divdi3:
 	.globl __moddi3
 	.type  __moddi3,@function
 __moddi3:
+	.cfi_startproc
 	pshs	y,u
+	.cfi_adjust_cfa_offset 4
+	.cfi_offset u, -4
+	.cfi_offset y, -6
 	tfr	x,y
 	leas	-17,s
+	.cfi_adjust_cfa_offset 17
 	ldd	23,s
 	std	,s
 	ldd	25,s
@@ -485,6 +518,7 @@ __moddi3:
 	lbsr	.Lneg64
 .Lmoddi3_bpos:
 	leas	-16,s
+	.cfi_adjust_cfa_offset 16
 	ldd	16,s
 	std	,s
 	ldd	18,s
@@ -504,6 +538,7 @@ __moddi3:
 	tfr	y,x
 	lbsr	__umoddi3
 	leas	16,s
+	.cfi_adjust_cfa_offset -16
 	// Negate result if sign of a was negative
 	tst	16,s
 	bpl	.Lmoddi3_done
@@ -511,7 +546,9 @@ __moddi3:
 	lbsr	.Lneg64
 .Lmoddi3_done:
 	leas	17,s
+	.cfi_adjust_cfa_offset -17
 	puls	y,u,pc
+	.cfi_endproc
 	.size __moddi3, . - __moddi3
 
 // ============================================================
@@ -523,9 +560,14 @@ __moddi3:
 	.globl __divmoddi4
 	.type  __divmoddi4,@function
 __divmoddi4:
+	.cfi_startproc
 	pshs	y,u
+	.cfi_adjust_cfa_offset 4
+	.cfi_offset u, -4
+	.cfi_offset y, -6
 	tfr	x,y
 	leas	-18,s		// 8 a + 8 b + 1 quot_sign + 1 rem_sign
+	.cfi_adjust_cfa_offset 18
 	// a at 24,s..31,s; b at 32,s..39,s; rem_ptr at 40,s..41,s
 	ldd	24,s
 	std	,s
@@ -564,6 +606,7 @@ __divmoddi4:
 	// Call __udivmoddi4(a, b, rem_ptr)
 	// Need 18 bytes: a(8) + b(8) + rem_ptr(2)
 	leas	-18,s
+	.cfi_adjust_cfa_offset 18
 	ldd	18,s
 	std	,s
 	ldd	20,s
@@ -585,6 +628,7 @@ __divmoddi4:
 	tfr	y,x
 	lbsr	__udivmoddi4
 	leas	18,s
+	.cfi_adjust_cfa_offset -18
 	// Negate quotient if signs differed
 	tst	16,s
 	bpl	.Ldivmod_qok
@@ -599,5 +643,7 @@ __divmoddi4:
 	lbsr	.Lneg64
 .Ldivmod_done:
 	leas	18,s
+	.cfi_adjust_cfa_offset -18
 	puls	y,u,pc
+	.cfi_endproc
 	.size __divmoddi4, . - __divmoddi4
