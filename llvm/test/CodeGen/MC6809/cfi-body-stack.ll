@@ -1,8 +1,8 @@
 ; In a function without a frame pointer the CFA is S plus an offset, and the
 ; body moves S too: a temporary pushed and taken back (`pshs u ; addd ,s++`).
 ; Each such move is noted, so a debugger stopped between the push and its pop
-; does not read the pushed value as the return address.  The prologue's and
-; epilogue's own moves are described by them, once.  A block laid out after
+; does not read the pushed value as the return address; the prologue's and
+; epilogue's moves are noted the same way, once each.  A block laid out after
 ; an epilogue that moved the CFA has it restated (CFIInstrInserter), and the
 ; result verifies: every block's incoming CFA matches every predecessor's.
 ;
@@ -13,7 +13,9 @@ declare i16 @leaf(i16)
 declare void @take(ptr, i16)
 
 ; CHECK-LABEL: middle:
-; CHECK:       .cfi_def_cfa_offset 4
+; CHECK:       pshs u
+; CHECK-NEXT:  .cfi_adjust_cfa_offset 2
+; CHECK-NEXT:  .cfi_rel_offset u, 0
 ; CHECK:       pshs u
 ; CHECK-NEXT:  .cfi_adjust_cfa_offset 2
 ; CHECK-NEXT:  addd ,s++
@@ -30,14 +32,15 @@ define i16 @middle(i16 %a, i16 %b) uwtable {
 
 ; CHECK-LABEL: early:
 ; CHECK:       leas -10,s
-; CHECK-NEXT:  .cfi_def_cfa_offset 16
+; CHECK-NEXT:  .cfi_adjust_cfa_offset 10
 ; CHECK-NOT:   .cfi_adjust_cfa_offset
 ; CHECK:       leas 10,s
-; CHECK-NEXT:  .cfi_def_cfa_offset 6
+; CHECK-NEXT:  .cfi_adjust_cfa_offset -10
 ; CHECK-NEXT:  puls u,y,pc
 ; CHECK-NEXT:  .LBB1_2:
 ; CHECK-NEXT:  .cfi_def_cfa_offset 16
 ; CHECK-NEXT:  leas 10,s
+; CHECK-NEXT:  .cfi_adjust_cfa_offset -10
 define void @early(i16 %a) uwtable {
   %buf = alloca [4 x i16]
   call void @take(ptr %buf, i16 %a)

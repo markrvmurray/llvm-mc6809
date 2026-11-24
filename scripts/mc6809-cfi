@@ -422,6 +422,10 @@ def check_object(tools, obj, label, require):
                 leave(addr, ks, 'return', 2)
                 continue
             if m == 'rti':
+                # An interrupt's return unstacks what the interrupt stacked:
+                # the stack must be back where the routine's CFI began.
+                if reg0 == 'SS':
+                    leave(addr, ks, 'return from interrupt', off0)
                 continue
             if m == 'puls' and 'pc' in regs_of(ops):
                 leave(addr, ks, 'return', sum(regbytes(r) for r in regs_of(ops)))

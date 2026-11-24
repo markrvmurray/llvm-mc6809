@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// In a function without a frame pointer the CFA is S plus a known offset, and
-// the prologue and epilogue say how that offset moves.  The body moves S too:
+// While the CFA is S plus a known offset, every instruction that moves S
+// moves the offset.  The body moves S too, not only the prologue and epilogue:
 // a temporary pushed and taken back (`pshs u ; addd ,s++`), a `leas`, a pull.
 // Between such a push and its pop the offset the CFI gives is short by the
 // pushed bytes, and a debugger stopped there reads the pushed value as the
@@ -20,9 +20,10 @@
 // does not follow the control flow (a block placed after a return, say), LLVM's
 // CFIInstrInserter, which runs next, restates the CFA.
 //
-// A frame-setup or frame-destroy instruction is the prologue's or epilogue's,
-// which describe it themselves.  A function with a frame pointer keeps its CFA
-// on U and needs nothing.
+// Prologue and epilogue included: the frame lowering states only the rule at
+// entry and where each saved register went.  In a function with a frame
+// pointer the CFA moves to it at the prologue's `tfr s,fp` -- from there S
+// may move as it likes -- and back to S at the epilogue's `tfr fp,s`.
 //
 //===----------------------------------------------------------------------===//
 
@@ -34,7 +35,12 @@
 #include "llvm/CodeGen/TargetFrameLowering.h"
 #include "llvm/CodeGen/TargetInstrInfo.h"
 #include "llvm/CodeGen/TargetSubtargetInfo.h"
+#include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/SmallSet.h"
+#include "llvm/CodeGen/MachineFrameInfo.h"
+#include "llvm/MC/MCContext.h"
 #include "llvm/MC/MCDwarf.h"
+#include "llvm/MC/MCRegisterInfo.h"
 
 using namespace llvm;
 
@@ -123,20 +129,77 @@ static int64_t stackDelta(const MachineInstr &MI, const TargetInstrInfo &TII, co
   return 0;
 }
 
+// The register the CFA is reckoned from after MI, given the one before: a
+// frame-pointer function moves it to the frame pointer at its `tfr s,fp` and
+// back to S at its `tfr fp,s`.
+static Register cfaRegisterAfter(const MachineInstr &MI, Register CFAReg, Register FP) {
+  if (!FP || MI.getOpcode() != MC6809::TFRp)
+    return CFAReg;
+  Register Dst = MI.getOperand(0).getReg(), Src = MI.getOperand(1).getReg();
+  if (CFAReg == MC6809::SS && Dst == FP && Src == MC6809::SS)
+    return FP;
+  if (CFAReg == FP && Dst == MC6809::SS && Src == FP)
+    return MC6809::SS;
+  return CFAReg;
+}
+
 bool MC6809StackCFI::runOnMachineFunction(MachineFunction &MF) {
   if (!MF.needsFrameMoves())
-    return false;
-  if (MF.getSubtarget().getFrameLowering()->hasFP(MF))
     return false;
 
   const TargetRegisterInfo &TRI = *MF.getSubtarget().getRegisterInfo();
   const TargetInstrInfo &TII = *MF.getSubtarget().getInstrInfo();
+  const MCRegisterInfo &MRI = *MF.getContext().getRegisterInfo();
+  Register FP = MF.getSubtarget().getFrameLowering()->hasFP(MF) ? TRI.getFrameRegister(MF) : Register();
+
+  // Which register the CFA is reckoned from as each block starts: S at the
+  // entry, and whatever the blocks before it leave.  (Blocks that disagree
+  // would be a frame-lowering bug; CFIInstrInserter, which runs next, would
+  // then report it under -verify-cfiinstrs.)
+  DenseMap<const MachineBasicBlock *, Register> In;
+  SmallVector<const MachineBasicBlock *, 16> Work{&MF.front()};
+  In[&MF.front()] = MC6809::SS;
+  while (!Work.empty()) {
+    const MachineBasicBlock *MBB = Work.pop_back_val();
+    Register R = In[MBB];
+    for (const MachineInstr &MI : *MBB)
+      R = cfaRegisterAfter(MI, R, FP);
+    for (const MachineBasicBlock *Succ : MBB->successors())
+      if (In.try_emplace(Succ, R).second)
+        Work.push_back(Succ);
+  }
+
+  // The registers this function saves: once the epilogue pulls one back it
+  // holds the caller's value again, and its slot is about to be below S.
+  SmallSet<Register, 8> Saved;
+  for (const CalleeSavedInfo &CSI : MF.getFrameInfo().getCalleeSavedInfo())
+    Saved.insert(CSI.getReg());
+
   bool Changed = false;
+  auto Note = [&](MachineBasicBlock &MBB, MachineBasicBlock::iterator After, const MCCFIInstruction &CFI) {
+    unsigned CFIIndex = MF.addFrameInst(CFI);
+    BuildMI(MBB, std::next(After), After->getDebugLoc(), TII.get(TargetOpcode::CFI_INSTRUCTION)).addCFIIndex(CFIIndex);
+    Changed = true;
+  };
   for (MachineBasicBlock &MBB : MF) {
+    auto Found = In.find(&MBB);
+    if (Found == In.end())
+      continue; // unreachable
+    Register CFAReg = Found->second;
     for (auto I = MBB.begin(), E = MBB.end(); I != E; ++I) {
       MachineInstr &MI = *I;
-      if (MI.isMetaInstruction() || MI.getFlag(MachineInstr::FrameSetup) || MI.getFlag(MachineInstr::FrameDestroy))
+      if (MI.isMetaInstruction())
         continue;
+      Register After = cfaRegisterAfter(MI, CFAReg, FP);
+      if (After != CFAReg) {
+        // The two registers are equal here, so the offset carries over.
+        Note(MBB, I, MCCFIInstruction::createDefCfaRegister(nullptr, MRI.getDwarfRegNum(After, /*isEH=*/true)));
+        ++I;
+        CFAReg = After;
+        continue;
+      }
+      if (CFAReg != MC6809::SS)
+        continue; // S moves under a frame pointer without moving the CFA
       bool Known;
       int64_t Delta = stackDelta(MI, TII, TRI, Known);
       if (!Known) {
@@ -147,11 +210,15 @@ bool MC6809StackCFI::runOnMachineFunction(MachineFunction &MF) {
       if (!Delta || MI.isTerminator())
         continue;
       // S fell by -Delta, so the CFA is that much further above it.
-      unsigned CFIIndex = MF.addFrameInst(MCCFIInstruction::createAdjustCfaOffset(nullptr, -Delta));
-      BuildMI(MBB, std::next(I), MI.getDebugLoc(), TII.get(TargetOpcode::CFI_INSTRUCTION)).addCFIIndex(CFIIndex);
+      Note(MBB, I, MCCFIInstruction::createAdjustCfaOffset(nullptr, -Delta));
       ++NumAdjusted;
       ++I; // past the note just inserted
-      Changed = true;
+      if (MI.getOpcode() == MC6809::PULSs && MI.getFlag(MachineInstr::FrameDestroy))
+        for (const MachineOperand &MO : MI.explicit_operands())
+          if (MO.isReg() && Saved.count(MO.getReg())) {
+            Note(MBB, I, MCCFIInstruction::createRestore(nullptr, MRI.getDwarfRegNum(MO.getReg(), /*isEH=*/true)));
+            ++I;
+          }
     }
   }
   return Changed;

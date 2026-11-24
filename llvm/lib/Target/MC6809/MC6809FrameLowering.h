@@ -26,9 +26,10 @@ public:
 
   bool enableShrinkWrapping(const MachineFunction &MF) const override;
 
-  // At entry the caller's call has pushed only the return address: the CFA
-  // is S + 2.  CFIInstrInserter starts every function from this.
-  int getInitialCFAOffset(const MachineFunction &MF) const override { return 2; }
+  // How far the CFA lies above S at entry: what the call, or the interrupt,
+  // stacked.  CFIInstrInserter starts every function from this.
+  int getInitialCFAOffset(const MachineFunction &MF) const override { return entryCFAOffset(MF); }
+  int64_t entryCFAOffset(const MachineFunction &MF) const;
   Register getInitialCFARegister(const MachineFunction &MF) const override;
 
   bool spillCalleeSavedRegisters(MachineBasicBlock &MBB, MachineBasicBlock::iterator MI, ArrayRef<CalleeSavedInfo> CSI, const TargetRegisterInfo *TRI) const override;

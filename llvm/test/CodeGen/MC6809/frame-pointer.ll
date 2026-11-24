@@ -53,25 +53,52 @@ define void @asked(i16 %n) "frame-pointer"="all" {
   ret void
 }
 
-; Without a frame pointer the CFA stays S-relative; the prologue says where
-; it saved U and Y, how far S has moved after the pushes and after the frame
-; is allocated, and the epilogue follows it back down. The return is folded
-; into the last pull, so nothing follows that.
+; Without a frame pointer the CFA stays S-relative: each push and the frame's
+; allocation move it, the prologue says where U and Y went, and the epilogue
+; follows it back down. The return is folded into the last pull, so nothing
+; follows that.
 ; CHECK-LABEL: unwinds:
 ; CHECK:       .cfi_def_cfa s, 2
 ; CHECK:       pshs u,y
-; CHECK-NEXT:  .cfi_offset u, -4
-; CHECK-NEXT:  .cfi_offset y, -6
-; CHECK-NEXT:  .cfi_def_cfa_offset 6
+; CHECK-NEXT:  .cfi_adjust_cfa_offset 4
+; CHECK-NEXT:  .cfi_rel_offset u, 2
+; CHECK-NEXT:  .cfi_rel_offset y, 0
 ; CHECK-NEXT:  leas -10,s
-; CHECK-NEXT:  .cfi_def_cfa_offset 16
+; CHECK-NEXT:  .cfi_adjust_cfa_offset 10
 ; CHECK:       leas 10,s
-; CHECK-NEXT:  .cfi_def_cfa_offset 6
+; CHECK-NEXT:  .cfi_adjust_cfa_offset -10
 ; CHECK-NEXT:  puls u,y,pc
 ; CHECK-NEXT:  .Lfunc_end
 define void @unwinds(i16 %n) uwtable {
   %buf = alloca [4 x i16]
   call void @take(ptr %buf, i16 %n)
+  call void @take(ptr %buf, i16 %n)
+  ret void
+}
+
+; With a frame pointer the locals are allocated before U is pushed, so U's
+; slot is below them (CFA-12, not CFA-4); the CFA moves to U at `tfr s,u`,
+; where S may then move as it likes, back to S at `tfr u,s`, and U is the
+; caller's again once pulled.
+; CHECK-LABEL: framed:
+; CHECK:       leas -8,s
+; CHECK-NEXT:  .cfi_adjust_cfa_offset 8
+; CHECK-NEXT:  pshs u
+; CHECK-NEXT:  .cfi_adjust_cfa_offset 2
+; CHECK-NEXT:  .cfi_rel_offset u, 0
+; CHECK-NEXT:  tfr s,u
+; CHECK-NEXT:  .cfi_def_cfa_register u
+; CHECK-NEXT:  leas -2,s
+; CHECK:       tfr u,s
+; CHECK-NEXT:  .cfi_def_cfa_register s
+; CHECK-NEXT:  puls u
+; CHECK-NEXT:  .cfi_adjust_cfa_offset -2
+; CHECK-NEXT:  .cfi_restore u
+; CHECK-NEXT:  leas 8,s
+; CHECK-NEXT:  .cfi_adjust_cfa_offset -8
+; CHECK-NEXT:  rts
+define void @framed(i16 %n) "frame-pointer"="all" uwtable {
+  %buf = alloca [4 x i16]
   call void @take(ptr %buf, i16 %n)
   ret void
 }

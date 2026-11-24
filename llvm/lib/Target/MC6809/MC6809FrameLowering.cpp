@@ -80,6 +80,30 @@ uint64_t MC6809FrameLowering::getHardStackCalleeSavedSize(const MachineFunction 
 
 Register MC6809FrameLowering::getInitialCFARegister(const MachineFunction &MF) const { return MC6809::SS; }
 
+// What the processor stacked before the first instruction ran.  A call pushes
+// the return address.  An IRQ, NMI or software interrupt stacks the whole
+// machine state -- CC, A, B, DP, X, Y, U and PC, with E and F after B on a
+// 6309 in native mode, the mode a 6309 handler assumes -- and a FIRQ only CC
+// and PC.  Listed from S at entry, lowest address first.
+static ArrayRef<std::pair<MCRegister, unsigned>> entryFrame(const MachineFunction &MF, const MC6809FrameLowering &TFL) {
+  static const std::pair<MCRegister, unsigned> Call[] = {{MC6809::PC, 2}};
+  static const std::pair<MCRegister, unsigned> FIRQ[] = {{MC6809::CC, 1}, {MC6809::PC, 2}};
+  static const std::pair<MCRegister, unsigned> Full[] = {{MC6809::CC, 1}, {MC6809::AA, 1}, {MC6809::AB, 1}, {MC6809::DP, 1}, {MC6809::IX, 2}, {MC6809::IY, 2}, {MC6809::SU, 2}, {MC6809::PC, 2}};
+  static const std::pair<MCRegister, unsigned> Native[] = {{MC6809::CC, 1}, {MC6809::AA, 1}, {MC6809::AB, 1}, {MC6809::AE, 1}, {MC6809::AF, 1}, {MC6809::DP, 1}, {MC6809::IX, 2}, {MC6809::IY, 2}, {MC6809::SU, 2}, {MC6809::PC, 2}};
+  if (!TFL.isISR(MF))
+    return Call;
+  if (TFL.isFIRQ(MF))
+    return FIRQ;
+  return MF.getSubtarget<MC6809Subtarget>().has6309() ? ArrayRef(Native) : ArrayRef(Full);
+}
+
+int64_t MC6809FrameLowering::entryCFAOffset(const MachineFunction &MF) const {
+  int64_t Bytes = 0;
+  for (const auto &Slot : entryFrame(MF, *this))
+    Bytes += Slot.second;
+  return Bytes;
+}
+
 bool MC6809FrameLowering::enableShrinkWrapping(const MachineFunction &MF) const {
   // Shrink-wrapping moves the prologue (LEAS -n,S; PSHS U; TFR S,U) past
   // early-exit blocks. On the MC6809, frame-relative accesses (n,U) require
@@ -176,37 +200,51 @@ bool MC6809FrameLowering::spillCalleeSavedRegisters(MachineBasicBlock &MBB, Mach
   llvm::sort(Fusible, [&](Register A, Register B) { return PshsMask(A) > PshsMask(B); });
 
   // Say where each register went, so that a debugger finds the caller's
-  // value rather than taking this function's.  The CFA is S as it was before
-  // the call pushed the return address (S + 2 at entry), and the pushes here
-  // are the first thing the function does: a register pushed when Pushed
-  // bytes are already on the stack below the return address lies at
-  // CFA - 2 - Pushed - its size.  A push stores the highest mask bit first,
-  // so in a fused push the registers are taken in Fusible's order.  Only the
-  // processor's own registers are described: the direct-page ones an
-  // interrupt handler saves are memory, under DWARF numbers no debugger knows
-  // (and beyond the register count CFIInstrInserter sizes its tables by).
+  // values rather than this function's: its slot as an offset from S just
+  // after the push (.cfi_rel_offset), which the assembler turns into an
+  // offset from the CFA.  What comes before the pushes is not known yet -- an
+  // interrupt stacks more than a call (entryFrame), and a frame-pointer
+  // prologue allocates its locals first -- and how far S has moved is
+  // MC6809StackCFI's to say: it runs last, and notes every push.  A push stores the
+  // highest mask bit first, so in a fused push the first register is the one
+  // furthest from S.  Only the processor's own registers are described: the
+  // direct-page ones an interrupt handler saves are memory, under DWARF
+  // numbers no debugger knows (and beyond the register count CFIInstrInserter
+  // sizes its tables by).
+  // A register the interrupt stacked is described at the slot the processor
+  // put it in (emitPrologue); a handler's own copy of it is not a second
+  // location.
   const MCRegisterInfo *MRI = MBB.getParent()->getContext().getRegisterInfo();
-  int64_t Pushed = 0;
-  auto Saved = [&](Register R, unsigned Bytes) {
-    Pushed += Bytes;
-    if (MC6809::Imag8RegClass.contains(R) || MC6809::Imag16RegClass.contains(R))
-      return;
-    int DwarfReg = MRI->getDwarfRegNum(R, /*isEH=*/true);
-    if (DwarfReg >= 0)
-      buildCFI(MBB, Builder.getInsertPt(), {}, MCCFIInstruction::createOffset(nullptr, DwarfReg, -2 - Pushed));
+  SmallSet<Register, 8> Stacked;
+  for (const auto &Slot : entryFrame(*MBB.getParent(), *this))
+    Stacked.insert(Slot.first);
+  auto Pushed = [&](ArrayRef<std::pair<Register, unsigned>> Regs) {
+    unsigned Above = 0;
+    for (const auto &Slot : Regs)
+      Above += Slot.second;
+    for (const auto &[R, Bytes] : Regs) {
+      Above -= Bytes;
+      if (MC6809::Imag8RegClass.contains(R) || MC6809::Imag16RegClass.contains(R) || Stacked.count(R))
+        continue;
+      int DwarfReg = MRI->getDwarfRegNum(R, /*isEH=*/true);
+      if (DwarfReg >= 0)
+        buildCFI(MBB, Builder.getInsertPt(), {}, MCCFIInstruction::createRelOffset(nullptr, DwarfReg, Above));
+    }
   };
 
   if (!Fusible.empty()) {
     auto MIB = Builder.buildInstr(MC6809::PSHSs);
-    for (Register R : Fusible)
+    SmallVector<std::pair<Register, unsigned>, 4> Regs;
+    for (Register R : Fusible) {
       MIB.addUse(R);
-    for (Register R : Fusible)
-      Saved(R, 2);
+      Regs.push_back({R, 2});
+    }
+    Pushed(Regs);
   }
   for (Register R : Imag16) {
     Builder.buildCopy(Register(MC6809::AD), R);
     Builder.buildInstr(MC6809::PSHSs, {}, {Register(MC6809::AD)});
-    Saved(R, 2);
+    Pushed({{R, 2}});
   }
   // Loaded with the direct-page instruction itself: a COPY from one of these
   // to A is expanded by way of B.  A push of D stores B, then A.
@@ -214,20 +252,19 @@ bool MC6809FrameLowering::spillCalleeSavedRegisters(MachineBasicBlock &MBB, Mach
     Builder.buildInstr(MC6809::LDAd).addReg(Imag8[I]);
     if (I + 1 == E) {
       Builder.buildInstr(MC6809::PSHSs, {}, {Register(MC6809::AA)});
-      Saved(Imag8[I], 1);
+      Pushed({{Imag8[I], 1}});
       break;
     }
     Builder.buildInstr(MC6809::LDBd).addReg(Imag8[I + 1]);
     Builder.buildInstr(MC6809::PSHSs, {}, {Register(MC6809::AD)});
-    Saved(Imag8[I + 1], 1);
-    Saved(Imag8[I], 1);
+    Pushed({{Imag8[I + 1], 1}, {Imag8[I], 1}});
   }
   // PSHSW and PULSW name no register operand; say here that this push reads
   // W and the pull below writes it, or the return that reads the restored W
   // reads a register nothing defined.
   if (HaveAW) {
     Builder.buildInstr(MC6809::PSHSWx, {}, {}).addReg(MC6809::AW, RegState::Implicit);
-    Saved(MC6809::AW, 2);
+    Pushed({{MC6809::AW, 2}});
   }
 
   // Record that the frame pointer is killed by these instructions.
@@ -534,11 +571,21 @@ void MC6809FrameLowering::emitPrologue(MachineFunction &MF, MachineBasicBlock &M
   // (CFA) is S + 2.  The return PC lives at CFA - 2.
   // We emit these before any SP-adjusting instructions so the unwinder's PC
   // table row for address 0 (the function entry) is correct.
+  // An interrupt handler is entered with the machine state stacked instead
+  // (entryFrame): the CFA is S before the interrupt, and each register of
+  // the code it interrupted lies in the slot the processor put it in.  D is
+  // described too, at A's slot, as the A:B pair it is.
   unsigned SPDwarf = MRI->getDwarfRegNum(MC6809::SS, /*isEH=*/true);
-  unsigned PCDwarf = MRI->getDwarfRegNum(MC6809::PC, /*isEH=*/true);
+  const int64_t Entry = entryCFAOffset(MF);
   auto EntryMBBI = MBB.begin();
-  buildCFI(MBB, EntryMBBI, {}, MCCFIInstruction::cfiDefCfa(nullptr, SPDwarf, 2));
-  buildCFI(MBB, EntryMBBI, {}, MCCFIInstruction::createOffset(nullptr, PCDwarf, -2));
+  buildCFI(MBB, EntryMBBI, {}, MCCFIInstruction::cfiDefCfa(nullptr, SPDwarf, Entry));
+  int64_t SlotOffset = -Entry;
+  for (const auto &[Reg, Bytes] : entryFrame(MF, *this)) {
+    buildCFI(MBB, EntryMBBI, {}, MCCFIInstruction::createOffset(nullptr, MRI->getDwarfRegNum(Reg, /*isEH=*/true), SlotOffset));
+    if (Reg == MC6809::AA)
+      buildCFI(MBB, EntryMBBI, {}, MCCFIInstruction::createOffset(nullptr, MRI->getDwarfRegNum(MC6809::AD, /*isEH=*/true), SlotOffset));
+    SlotOffset += Bytes;
+  }
 
   if (!hasFP(MF)) {
     // No frame pointer: S addresses everything, and the outgoing-call area is
@@ -549,16 +596,10 @@ void MC6809FrameLowering::emitPrologue(MachineFunction &MF, MachineBasicBlock &M
     // StackSize-relative offsets from S (eliminateFrameIndex).
     auto AfterPushes = llvm::find_if_not(MBB, [](const MachineInstr &MI) { return MI.getFlag(MachineInstr::FrameSetup); });
     Builder.setInsertPt(MBB, AfterPushes);
-    // The CFA stays S-relative; say how far S has moved from it once the
-    // registers are pushed and again once the frame is allocated. (A push in
-    // the body is noted by MC6809StackCFI, last of all.)
-    int64_t CSRBytes = getHardStackCalleeSavedSize(MF);
-    if (CSRBytes)
-      buildCFI(MBB, Builder.getInsertPt(), {}, MCCFIInstruction::cfiDefCfaOffset(nullptr, CSRBytes + 2));
-    if (StackSize) {
+    // How far each push and the allocation move S, and so the CFA, is
+    // MC6809StackCFI's to say, once nothing will move them again.
+    if (StackSize)
       offsetSP(Builder, -StackSize, MachineInstr::FrameSetup);
-      buildCFI(MBB, Builder.getInsertPt(), {}, MCCFIInstruction::cfiDefCfaOffset(nullptr, CSRBytes + StackSize + 2));
-    }
     return;
   }
 
@@ -579,26 +620,9 @@ void MC6809FrameLowering::emitPrologue(MachineFunction &MF, MachineBasicBlock &M
   Register FPReg = TRI.getFrameRegister(MF);
   Builder.buildInstr(MC6809::TFRp).addDef(FPReg).addUse(MC6809::SS);
 
-  // Bug #164 Tier 2: after TFR S,U the frame pointer is valid.  Switch the
-  // CFA to U-based.  Total offset from U to caller's SP:
-  //   StackSize (locals) + callee-saved bytes + 2 (return address)
-  // = exactly what MFI reports once all frame slots are laid out.
-  // We compute CSR bytes from CalleeSavedInfo rather than relying on
-  // MFI.getStackSize() which only covers locals.
-  int64_t CSRBytes = getHardStackCalleeSavedSize(MF);
-  // A realigned frame's locals are below U (see below), not above it.
-  int64_t TotalOffset = (Realign ? 0 : StackSize) + CSRBytes + 2;
-
-  unsigned FPDwarf = MRI->getDwarfRegNum(FPReg, /*isEH=*/true);
-  // Insert CFI immediately before the first instruction that follows the TFR
-  // we just built (= Builder.getInsertPt()).  Do NOT use std::next() here —
-  // getInsertPt() already points one past the TFR; stepping again lands on
-  // MBB.end() when TFR is the last non-terminator, causing BuildCFI to insert
-  // the directive after the block's branch terminator.  That makes the
-  // AsmPrinter skip the successor BB label, producing an "Undefined temporary
-  // symbol" assembler error (fixed for bug #164 Tier 2 regression).
+  // From the TFR on, the CFA is reckoned from the frame pointer:
+  // MC6809StackCFI says so where it finds the TFR.
   auto AfterTFR = Builder.getInsertPt();
-  buildCFI(MBB, AfterTFR, {}, MCCFIInstruction::cfiDefCfa(nullptr, FPDwarf, TotalOffset));
 
   if (Realign) {
     // [arguments][return address][saved registers] U-> [saved D][locals] S->
@@ -685,7 +709,6 @@ static void foldReturnIntoPull(MachineBasicBlock &MBB) {
 void MC6809FrameLowering::emitEpilogue(MachineFunction &MF, MachineBasicBlock &MBB) const {
   const MachineFrameInfo &MFI = MF.getFrameInfo();
   const TargetRegisterInfo &TRI = *MF.getRegInfo().getTargetRegisterInfo();
-  const MCRegisterInfo *MRI = MF.getContext().getRegisterInfo();
   MachineIRBuilder Builder(MBB, MBB.getFirstTerminator());
 
   // Restore the stack pointer from the frame pointer.
@@ -712,20 +735,9 @@ void MC6809FrameLowering::emitEpilogue(MachineFunction &MF, MachineBasicBlock &M
   // frame's locals lie below the frame pointer, so `tfr u,s` released them.
   if (StackSize && !realignsStack(MF)) {
     offsetSP(Builder, StackSize, MachineInstr::FrameDestroy);
-    // Without a frame pointer the saved registers are still to be pulled:
-    // say where the CFA is until they are.
-    int64_t CSRBytes = getHardStackCalleeSavedSize(MF);
-    if (!hasFP(MF) && CSRBytes)
-      buildCFI(MBB, Builder.getInsertPt(), {}, MCCFIInstruction::cfiDefCfaOffset(nullptr, CSRBytes + 2), MachineInstr::FrameDestroy);
   }
-
-  // Bug #164 Tier 2: restore SP-based CFA for the unwinder at the point of
-  // the return instruction.  After the epilogue unwinds the frame, CFA is
-  // back to SP + 2 (just the return address remains).
-  if (hasFP(MF) || StackSize || getHardStackCalleeSavedSize(MF)) {
-    unsigned SPDwarf = MRI->getDwarfRegNum(MC6809::SS, /*isEH=*/true);
-    buildCFI(MBB, MBB.getFirstTerminator(), {}, MCCFIInstruction::cfiDefCfa(nullptr, SPDwarf, 2), MachineInstr::FrameDestroy);
-  }
+  // The CFA through the epilogue -- back to S at `tfr u,s`, and down with
+  // each pull -- is MC6809StackCFI's to say.
 
   foldReturnIntoPull(MBB);
 }
