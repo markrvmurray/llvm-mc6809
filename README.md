@@ -5,25 +5,30 @@ Motorola 6809 and the Hitachi 6309.
 
 This is a project done in my own time, for education and entertainment. It
 is a long way past the toy stage: the code generator is exercised by a
-benchmark suite of several thousand programs at thirty target and
+benchmark suite of several thousand programs at thirty-one target and
 optimisation combinations, and the toolchain is packaged, checked and
 released by CI.
 
 ## Try it without building anything
 
 The [latest release](https://github.com/markrvmurray/llvm-mc6809/releases)
-carries a self-contained toolchain for Linux (x86-64 and arm64) and macOS
-(Apple silicon). Unpack it anywhere — nothing is baked in, so the directory
-can be moved or renamed — and compile:
+carries a self-contained toolchain for Linux (x86-64 and arm64), macOS
+(Apple silicon) and, experimentally, Windows (x86-64). Unpack it anywhere —
+nothing is baked in, so the directory can be moved or renamed — and compile:
 
 ```sh
 tar -xf mc6809-toolchain-*.tar.xz
 export PATH=$PWD/mc6809-toolchain-*/bin:$PATH
 
-mc6809-clang hello.c -o hello.elf          # bare metal
-mc6809-os9-clang hello.c -o hello          # an OS-9 / NitrOS-9 module
-mc6809-decb-clang hello.c -o HELLO.BIN     # a CoCo LOADM binary
+mc6809-clang -mcrt0=semihost hello.c -o hello.elf   # bare metal, for a simulator
+mc6809-os9-clang hello.c -o hello                   # an OS-9 / NitrOS-9 module
+mc6809-decb-clang hello.c -o HELLO.BIN              # a CoCo LOADM binary
 ```
+
+`-mcrt0=semihost` is the start-up for a simulator, which ends the run when
+`main` returns; leave it out for real hardware. On Windows the bundle is a
+`.tar.gz`, unpacked with the `tar` that comes with Windows 10 and later; it
+has had much less testing than the others, and cannot run what it builds.
 
 No linker script, no include path, no cross-file. Add `-mcpu=hd6309` for
 the 6309, and the right library variant is chosen for you.
@@ -32,11 +37,11 @@ the 6309, and the right library variant is chosen for you.
 
 * **Three targets** — bare metal ELF, OS-9 program modules, and Disk
   Extended Color BASIC binaries.
-* **A C library**, picolibc, in four variants per machine-backed target:
+* **A C library**, picolibc, in four variants for bare metal and OS-9:
   6809 or 6309, integer-only or floating-point. The default is
   integer-only, which is smaller and much faster; ask for the
   floating-point one with `-mlibc=float` when you need `printf("%f")` or
-  `sqrt`.
+  `sqrt`. DECB has the two integer-only ones.
 * **Floating point in software**, from Motorola's own MC6839 ROM — the
   IEEE 754 package Joel Boney wrote for the 6809 in 1980, which Motorola
   released into the public domain. I maintain a reconstruction of it at
@@ -47,7 +52,9 @@ the 6309, and the right library variant is chosen for you.
 * **Bare-bones C++** — no standard library, but the C library under its C++
   names, so `<cstdio>`, `new` and `delete` work. Exceptions and RTTI are
   off, and say so at compile time rather than failing at link.
-* `mc6809-run`, which picks a simulator by looking at what you built.
+* `mc6809-run`, which picks a simulator by looking at what you built. The
+  simulator itself, [USim](https://github.com/markrvmurray/usim), is a
+  separate program.
 
 Everything is position-independent by default: binaries use PCR-relative
 globals and load at any address, which is what OS-9 modules and floating
@@ -70,6 +77,8 @@ point. Neither is a bug.
 
 ## Documentation
 
+* [Release notes](llvm/docs/MC6809-ReleaseNotes.md) — what each release
+  changed, and the known issues.
 * [Using a toolchain](llvm/docs/MC6809-Toolchain-Usage.md) — the targets,
   the library variants, running what you built.
 * [Rolling and installing one](llvm/docs/MC6809-Toolchain-Build.md) — how a
