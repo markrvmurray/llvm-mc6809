@@ -12,8 +12,8 @@ that nobody has to work it out from a hex dump.
 `COPYRIGHT (C) MOTOROLA 1982` and is revision `$82`.
 
 All floating-point arithmetic on this target is done by this ROM.  The
-compiler emits calls to small wrappers — `compiler-rt/lib/builtins/mc6809/
-fp_*.S` — which hand their arguments to it through the register interface at
+compiler emits calls to small wrappers —
+`compiler-rt/lib/builtins/mc6809/fp_*.S` — which hand their arguments to it through the register interface at
 `ROM_BASE+$3D`.  Nothing here reimplements IEEE 754.
 
 ### Where it appears in a bundle
@@ -56,7 +56,8 @@ licence document, and this note makes no legal claim beyond repeating it.
 
 Motorola's public-domain BBS (by 1988) → Rich Kottke's posting, archived on
 Usenet in 1994 → [github.com/brouhaha/fp09](https://github.com/brouhaha/fp09)
-→ a fork carrying a byte-identical reconstruction from the original Motorola
+→ [markrvmurray/nfp09](https://github.com/markrvmurray/nfp09), a fork
+carrying a byte-identical reconstruction from the original Motorola
 sources → `compiler-rt/lib/builtins/mc6809/Float09.bin` in this tree.
 
 The reconstruction matters for confidence rather than for provenance: the
@@ -69,9 +70,11 @@ missing from the build manifest, and zero-offset indexed encodings.
 
 ### If you would rather not ship it
 
-Nothing else in the toolchain depends on it.  A build without floating point
-never links it, and the default libraries are integer-only, so a bundle whose
-users do not use `-mlibc=float` never puts it in a program.  Replacing it
+Nothing else in the toolchain depends on it, and a program that does no
+floating-point arithmetic never links it.  The choice of library does not
+keep it out: any arithmetic on a `float` or a `double` calls the wrappers
+above, and they reach the ROM, whether the C library was built with
+`-mlibc=float` or not.  Replacing it
 would mean building compiler-rt's portable C soft-float for this target
 instead — which is a real piece of work, and slower and larger on a machine
 where both matter.
