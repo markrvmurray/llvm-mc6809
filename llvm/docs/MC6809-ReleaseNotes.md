@@ -116,8 +116,10 @@ CFI is checked as above.
   from the other. On Level 1 the second path sees only what has reached the
   disk, and the file's size as it was when that path opened, and `fflush`
   does not change this; on Level 2 the same happens after a write of a whole
-  sector. NitrOS-9's file manager is fixed on its `main` branch, after
-  v3.3.0, and a system built from that behaves as POSIX expects on both
+  sector.
+* Both are fixed on NitrOS-9's `main` branch, after v3.3.0, though not yet in
+  a release. A system built from it takes the whole name or refuses it with
+  an error, and shows every path of a file what the others wrote, on both
   levels.
 * Programs built on Windows have to be run somewhere else: on a simulator on
   another host, or on real hardware.
