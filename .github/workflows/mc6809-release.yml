@@ -66,7 +66,8 @@ jobs:
       # Every case that needs a machine -- a NitrOS-9 image, a CoCo's ROMs --
       # is named and counted, and cannot be run here.  See the bundle guide.
       MC6809_CHECK_ALLOW_UNRUNNABLE: 1
-      CHECK_MIN_PASS: 39
+      # Every case a runner can run: 48 on 1.1.0-rc2, with 9 not run.
+      CHECK_MIN_PASS: 48
       CHECK_EXPECT_NOTRUN: 9
       RELEASE_TAG: ${{ github.event.inputs.tag || github.ref_name }}
       # Pinned like everything else a release is built from.  usim is not

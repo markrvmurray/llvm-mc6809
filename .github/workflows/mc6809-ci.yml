@@ -53,10 +53,11 @@ jobs:
       USIM_SHA: bf2e69d9e99ffb6dccd02854a0abcabc022ba912
 
       # The acceptance check, minus what a runner cannot have.  Measured on
-      # 2026-08-22 against 1.0-rc1: 48 pass with everything present, 39 pass
-      # and 9 not run without a NitrOS-9 image (six OS-9 cases and the C++
-      # OS-9 case) or MAME with Tandy's ROMs (two DECB cases).
-      CHECK_MIN_PASS: 39
+      # 2026-11-24 against 1.1.0-rc2: 48 pass and 9 not run without a
+      # NitrOS-9 image (the OS-9 cases and the C++ OS-9 case) or MAME with
+      # Tandy's ROMs (the two DECB cases).  The floor is all of them: a case
+      # that stops passing must fail the run, not just lower a count.
+      CHECK_MIN_PASS: 48
       CHECK_EXPECT_NOTRUN: 9
       # Says, in advance and in the log, that this is the reduced check.
       MC6809_CHECK_ALLOW_UNRUNNABLE: 1
