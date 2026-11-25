@@ -468,10 +468,6 @@ write_multilib mc6809-unknown-unknown fp
 write_multilib mc6809-unknown-os9 fp
 write_multilib mc6809-unknown-decb
 
-# `mc6809-clang` computes the triple `mc6809`, not `mc6809-unknown-unknown`,
-# and the sysroot is named after the triple -- so without these the friendly
-# name would find no library and say nothing about it.  `mc6809-elf` is the
-# other spelling people reach for.
 # The CFI a debugger unwinds by, in every library and start-up object here:
 # each routine's CFI must say where its frame is at every instruction, and
 # every hand-written routine must have some.  Wrong CFI shows somebody else's
@@ -494,6 +490,10 @@ fi
 tail -1 "$PREFIX/.cfi-check.log"
 rm -f "$PREFIX/.cfi-objects" "$PREFIX/.cfi-check.log"
 
+# `mc6809-clang` computes the triple `mc6809`, not `mc6809-unknown-unknown`,
+# and the sysroot is named after the triple -- so without these the friendly
+# name would find no library and say nothing about it.  `mc6809-elf` is the
+# other spelling people reach for.
 say "linking the bare-metal directories under the names the short forms compute"
 ( cd "$PREFIX/lib/clang-runtimes"
   for alias in mc6809 mc6809-unknown-unknown-elf mc6809-elf; do
@@ -506,15 +506,14 @@ say "linking the bare-metal directories under the names the short forms compute"
     alias_dir mc6809-unknown-unknown "$alias"
   done )
 
-# ------------------------------------------------------------------- check
-# A bundle that has not compiled and run a program is not known to work.
 # ----------------------------------------------------------------- the docs
 # A bundle should be able to explain itself without the source tree it came
-# from, so the two guides travel with it.
+# from, so the guides and the release notes travel with it.
 say "staging the documents"
 mkdir -p "$PREFIX/share/doc/mc6809"
-for doc in MC6809-Toolchain-Build.md MC6809-Toolchain-Usage.md \
-           MC6809-OS9.md MC6809-OS9-syscalls.md MC6809-Third-Party.md; do
+for doc in MC6809-ReleaseNotes.md MC6809-Toolchain-Build.md \
+           MC6809-Toolchain-Usage.md MC6809-OS9.md MC6809-OS9-syscalls.md \
+           MC6809-Third-Party.md; do
   [ -f "$REPO/llvm/docs/$doc" ] && cp "$REPO/llvm/docs/$doc" \
       "$PREFIX/share/doc/mc6809/$doc"
 done
@@ -540,21 +539,29 @@ Hitachi 6309.  Nothing else needs installing, and nothing is baked in: every
 path is worked out from the binary that was invoked, so this directory can be
 moved or renamed.
 
-    bin/mc6809-clang       hello.c -o hello.elf     # bare metal, on a simulator
-    bin/mc6809-os9-clang   hello.c -o hello         # an OS-9 program module
-    bin/mc6809-decb-clang  hello.c -o hello.bin     # a CoCo LOADM binary
+    bin/mc6809-clang -mcrt0=semihost hello.c -o hello.elf  # bare metal, on a simulator
+    bin/mc6809-os9-clang  hello.c -o hello                 # an OS-9 program module
+    bin/mc6809-decb-clang hello.c -o hello.bin             # a CoCo LOADM binary
 
-Add \`-mcpu=hd6309\` for the Hitachi part and \`-mlibc=float\` for a C library
-that can format a double; both pick libraries as well as code.  On a
-simulator, add \`-mcrt0=semihost\` so the program exits when \`main\` returns.
+\`-mcrt0=semihost\` is the start-up for a simulator: it ends the run when
+\`main\` returns.  Leave it out for real hardware.  Add \`-mcpu=hd6309\` for
+the Hitachi part, and \`-mlibc=float\` for a C library that can format a
+double (bare metal and OS-9 only: DECB has no such library, and says so);
+both pick libraries as well as code.
 
 \`bin/mc6809-run PROGRAM\` runs one, on whichever simulator suits the file --
 USim for bare metal, NitrOS-9 under usim09pt for an OS-9 module.  **The
 simulators are not part of this bundle**; they come from USim, which is a
-separate program.
+separate program.  An OS-9 module also needs \`run-mc6809-os9\`, from
+picolibc's \`scripts/\`, and a NitrOS-9 disk image to boot.  On Windows
+nothing here runs a program: \`mc6809-run\` is a shell script and there is
+no Windows simulator, so run what you build on another host or on the
+machine itself.
 
 Full documentation is in \`share/doc/mc6809/\`:
 
+  * \`MC6809-ReleaseNotes.md\` -- what changed in each release, and the
+    known issues.
   * \`MC6809-Toolchain-Usage.md\` -- what to type, what each target gives you,
     and the limits worth knowing on a 64 KB machine.
   * \`MC6809-Toolchain-Build.md\` -- how this bundle was made and how to check
@@ -569,6 +576,8 @@ This is \`$banner\`, built from
 $(cd "$REPO" && git rev-parse HEAD 2>/dev/null || echo "an unknown revision").
 README
 
+# ------------------------------------------------------------------- check
+# A bundle that has not compiled and run a program is not known to work.
 say "checking the result"
 "$PICOLIBC/scripts/check-mc6809-toolchain" "$PREFIX"
 case $? in
