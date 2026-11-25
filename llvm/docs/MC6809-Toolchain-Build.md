@@ -63,8 +63,8 @@ sysroot beside *that* clang.
 
 * A picolibc checkout beside this one (`../picolibc` by default), with meson
   and ninja available.
-* For checking the result: `usim09batch` and `usim09pt` on the PATH, and a
-  NitrOS-9 image tree (`NITROS9_RECIPES`, default
+* For checking the result: `usim09batch` and `usim09pt` on the PATH (or named
+  by `USIM09BATCH` and `NITROS9_USIM09PT`), and a NitrOS-9 image tree (`NITROS9_RECIPES`, default
   `~/Documents/NitrOS-9/nitros9/recipes/picothing`).
 * Optionally, for the DECB cases: a CoCo-capable MAME
   (`MC6809_MAMECOCO3=/path/to/mamecoco3-headless`) with Tandy's ROMs —
@@ -80,7 +80,7 @@ it is — LLVM's own version says which LLVM we forked and nothing about the
 6809 work.  A release build reports:
 
 ```
-clang --version     llvm-mc6809 clang version 24.0.0 (llvm-mc6809 1.0-rc1 <rev>)
+clang --version     llvm-mc6809 clang version 24.0.0 (llvm-mc6809 1.1.0-rc2 <rev>)
 ld.lld --version    llvm-mc6809 LLD 24.0.0 (<repository> <rev>)
 llc --version       llvm-mc6809 LLVM version 24.0.0
 ```
@@ -108,7 +108,7 @@ no revision at all — a bad trade, since the number is also in
 that says which source built it.
 
 **Editing it for a candidate**: one line in `MC6809-Release.cmake`,
-`MC6809_RELEASE`, which reads `1.0-rc1`, then `1.0-rc2`, then `1.0`.  A
+`MC6809_RELEASE` — `1.1.0-rc1`, then `1.1.0-rc2`, then `1.1.0`.  A
 candidate is built exactly like the release it is a candidate for, so it is
 the only thing that changes between them.
 
@@ -161,12 +161,15 @@ not to hand to anybody.  `--picolibc` defaults to `../picolibc`.
 It stages the tools and the compiler's runtime directory, generates cross
 files pointing at the staged compiler, builds picolibc for each triple **with
 that compiler**, installs it with picolibc's own rules, writes the
-`multilib.yaml` that chooses between library variants, and then checks the
-result by compiling and running programs against it.  It exits non-zero if
-those do not run.
+`multilib.yaml` that chooses between library variants, checks the call-frame
+information of every library and start-up object (`scripts/mc6809-cfi check
+--require`, before the short directory names are made, so each object is
+read once), and then checks the result by compiling and running programs
+against it.  It exits non-zero if the CFI is wrong anywhere or the programs
+do not run.
 
 From a release tree the roll takes about fifty seconds, nearly all of it the
-eight picolibc builds, and the check that follows it another twenty; from the
+ten picolibc builds — four each for bare metal and OS-9, two for DECB — and the check that follows it another twenty; from the
 development tree, several times that, because a Debug clang compiles slowly.
 
 ### Packaging
@@ -181,8 +184,9 @@ run is not a release, it is a large file.  It:
   the compiler's own banner rather than from a number kept in the script;
 * packs `DIR/mc6809-toolchain-<version>-<host>.tar.xz`, which unpacks into a
   directory named for what it is whatever the prefix was called, with `xz`
-  using every core;
-* writes `DIR/mc6809-toolchain-<version>-<host>.tar.xz.sha256` beside it.
+  using every core — or, on Windows, a `.tar.gz`, which the `tar` that comes
+  with Windows unpacks;
+* writes the archive's `.sha256` beside it.
 
 `xz` must be on the `PATH`; macOS `tar` will not make an `.xz` by itself.
 
@@ -193,10 +197,10 @@ built and run the check there, which tests the archive's completeness and the
 bundle's relocatability at once:
 
 ```sh
-shasum -a 256 -c mc6809-toolchain-1.0-rc1-darwin-arm64.tar.xz.sha256
-tar -xf mc6809-toolchain-1.0-rc1-darwin-arm64.tar.xz -C /tmp/unpacked
+shasum -a 256 -c mc6809-toolchain-1.1.0-rc2-darwin-arm64.tar.xz.sha256
+tar -xf mc6809-toolchain-1.1.0-rc2-darwin-arm64.tar.xz -C /tmp/unpacked
 picolibc/scripts/check-mc6809-toolchain --corpus \
-    /tmp/unpacked/mc6809-toolchain-1.0-rc1-darwin-arm64
+    /tmp/unpacked/mc6809-toolchain-1.1.0-rc2-darwin-arm64
 ```
 
 ### Library variants
@@ -224,10 +228,9 @@ the shape clang looks for when `multilib.yaml` names that directory.  Only a
 variant whose headers really differ keeps a copy of them: the 6309 library is
 the same C library built for another processor, so a second set would be a
 megabyte saying so, while a floating-point one differs in the line of
-`picolibc.h` that decides what `printf` can format.  DECB has the processor
-variant but not this one: there the MC6839 ROM is linked into the program,
-and 8 KB inside something that must fit under BASIC is a choice to make
-deliberately.
+`picolibc.h` that decides what `printf` can format.  DECB's `multilib.yaml`
+has an `Error` rule in place of the floating-point ones, so `-mlibc=float`
+there stops with a message rather than quietly linking the integer library.
 
 `multilib.yaml` names the directories and the flags that choose them.  **Each
 sysroot with a variant needs its own copy**: clang reads the file from the
@@ -312,8 +315,8 @@ chain of custody and the exact bytes are in
 picolibc/scripts/check-mc6809-toolchain ~/mc6809
 ```
 
-Forty-eight cases with a CoCo to hand and a NitrOS-9 image, forty-six
-without the CoCo, and every run prints `pass=`, `fail=` and `not-run=`.  The
+Every case runs with a CoCo to hand and a NitrOS-9 image; without them the
+OS-9 and DECB cases are counted as not run.  Every run prints `pass=`, `fail=` and `not-run=`.  The
 last of those is the one to read: a case that could not be attempted is
 counted and named, never silently dropped, and a run with any of them exits
 2 unless `MC6809_CHECK_ALLOW_UNRUNNABLE` says in advance that a smaller
@@ -383,8 +386,8 @@ rather than before one.
 It configures from the development cache with three things changed —
 Release so it finishes inside an hour, assertions kept **on** because
 catching a bad assumption is most of the value, and no lldb, which is a
-fifth of the build and none of the bundle.  `-D` beats `-C`: every entry the
-cache file sets is a plain `CACHE` set with no `FORCE`, so the flags on the
+fifth of the build and none of the bundle.  `-D` beats `-C`: none of the
+entries CI overrides is forced in the cache file, so the flags on the
 command line win.
 
 First run, 2026-08-22: **green, and 2h09** — 2h07 of it the build, about
@@ -396,14 +399,14 @@ Then it runs every MC6809 lit test that needs no simulator, through
 `scripts/check-mc6809-lit.sh BUILD_DIR`, which holds the one list of the
 fork's own tests wherever they live in llvm, clang and lld.  Each release
 host and the Windows build run the same script on their own build, so the
-same set is checked on every platform a bundle comes from.  On 2026-11-24
-that is **313 passed, 72 unsupported, 0 failed** in a tree without lldb (two
-more pass with lldb).
+same set is checked on every platform a bundle comes from.  At 1.1.0-rc2
+that is **324 passed, 72 unsupported, 0 failed** in a tree without lldb.
 
 The tests that run programs — `llvm/test/MC/MC6809/Execution`, and the lldb
 test that debugs one under usim — run **only when asked for**:
-`USIM09BATCH=/path/to/usim09batch` in the environment (and `MAMELLVM6309`
-for the 6309 on MAME).  A simulator that merely happens to be on the `PATH`
+`USIM09BATCH=/path/to/usim09batch` in the environment.  The 6309 tests run on
+usim too (`usim09batch --hd6309`); to run them on MAME instead, set both
+`MC6809_HD6309_SIM=mame` and `MAMELLVM6309`.  A simulator that merely happens to be on the `PATH`
 is not used, so a plain `check-all`, or anybody else's CI, never depends on
 what simulator a machine has lying about or which version of it.  The bench
 sets `USIM09BATCH` itself.
@@ -411,8 +414,8 @@ sets `USIM09BATCH` itself.
 **A suite that stops running reports success**: `lit` exits 0 when every
 test is UNSUPPORTED, which is what a `lit.local.cfg` that no longer
 recognises the target, or a clang that no longer knows the triple, would
-produce.  So the script also requires a minimum number of passes — 313,
-raise it as the suite grows — and says how many tests were skipped rather
+produce.  So the script also requires a minimum number of passes — 313 by
+default, to be raised as the suite grows — and says how many tests were skipped rather
 than burying it.
 
 It then builds a bundle and checks it.  picolibc and usim are checked out
@@ -423,21 +426,19 @@ bare-metal cases really run rather than merely link, and the bundle is
 checked *unpacked from its own tarball*, so completeness and relocatability
 are tested together.  The tarball is uploaded as an artifact.
 
-**What CI still cannot do** is the part that needs machines: six OS-9 cases
+**What CI still cannot do** is the part that needs machines: the OS-9 cases
 and the C++ OS-9 case want a NitrOS-9 image, and the two DECB cases want
 MAME with Tandy's ROMs, which cannot go in a public repository.  So the run
-sets `MC6809_CHECK_ALLOW_UNRUNNABLE` and expects **39 passed, 9 not run**
-against 48 locally.  Both numbers are enforced: fewer passes than
+sets `MC6809_CHECK_ALLOW_UNRUNNABLE` and expects **48 passed, 9 not run**
+(at 1.1.0-rc2).  Both numbers are enforced: fewer passes than
 `CHECK_MIN_PASS` means cases are disappearing rather than failing, and more
 skips than `CHECK_EXPECT_NOTRUN` means something stopped being attempted.
 A green tick means "it builds elsewhere, and a bundle rolled there works as
 far as a machineless runner can tell" — not "releasable".  The full check
 stays a local gate.
 
-Note that the repository still carries upstream LLVM's own workflows, 46 of
-them.  Thirty-one are guarded by `github.repository == 'llvm/llvm-project'`
-and skip; the rest can fire on a pull request and run jobs for projects this
-fork does not build.
+The repository carries no other workflows: upstream LLVM's own are gone, and
+the four here are all `mc6809-*`.
 
 ## Releasing
 
@@ -496,6 +497,24 @@ skip publication altogether — and the careful accounting of what arrived
 would never run.  If no host produced a bundle, the publish
 step fails instead of creating an empty release.
 
+### Cutting one
+
+1. Write the version's section of `MC6809-ReleaseNotes.md`, headed
+   `## <version>` exactly: the workflow takes the notes from that heading,
+   and refuses to start without it.
+2. Set `MC6809_RELEASE` in `MC6809-Release.cmake` to the version, in a
+   commit of its own ("Call it 1.1.0").
+3. Tag both repositories with the same name, `RELEASE_<version>` with each
+   `-` made `_` — `RELEASE_1.1.0_rc2` for 1.1.0-rc2 — llvm-mc6809 on that
+   commit and picolibc on the commit to ship with it.
+4. Push the picolibc tag first, then the llvm-mc6809 one.  The second push
+   starts the release.
+
+A host that cannot get a runner (macOS, more than once) can be re-run once
+the whole run has finished; the publish job then attaches its bundle.  It
+does not rewrite the results table, so that host's row has to be added to
+the release's notes by hand.
+
 ### Two things about triggering, one of them a trap
 
 **A tag runs the workflow as it existed *at that tag*.**  `RELEASE_1.0_rc1`
@@ -503,11 +522,11 @@ was created before this workflow existed, so re-pushing it will run nothing
 at all.  Only a tag created on a commit that already contains the workflow
 can trigger it.
 
-**Manual dispatch is offered only for workflows on the default branch**,
-which here is `main`, while the work is on `MC6809`.  Until the workflow
-reaches `main`, the "Run workflow" button will not appear, and the `tag`
-input — which exists precisely so an already-made tag can be built — cannot
-be used.  Landing the workflow on `main` is what makes that path available.
+**Cut a release by pushing its tag, never by starting the workflow by
+hand.**  The workflow has a manual trigger with a `tag` input, but a run
+started that way takes its *steps* from the branch and its *source* from the
+tag, so the release is built by a workflow its own tag never contained.  The
+trigger is there to rebuild a tag that cannot be pushed again, knowing that.
 
 ## Hosts, and how the target names are made
 
@@ -520,14 +539,14 @@ satisfy that, and the roll script picks by host:
 | host | names | directories | archive |
 |---|---|---|---|
 | macOS, Linux | symlink | symlink | `.tar.xz` |
-| Windows | **hardlink** | junction, else copy | `.zip` |
+| Windows | **hardlink** | a directory of hardlinks | `.tar.gz` |
 
 Windows is the awkward one.  Git-bash quietly turns `ln -s` into a copy
 unless MSYS is configured otherwise, and a copy per name means a fresh
 100 MB `clang-24` each time; an NTFS hardlink is a real directory entry to
 the same file and needs no special rights.  Directories cannot be
-hardlinked, so the sysroot aliases fall back to a junction and then to a
-copy.  The `.exe` suffix is no obstacle to the naming trick:
+hardlinked, so each sysroot alias is a fresh directory tree whose files are
+hardlinks to the real ones.  The `.exe` suffix is no obstacle to the naming trick:
 `parseDriverSuffix` strips it before matching, so `mc6809-os9-clang.exe`
 still derives its triple from its own name.
 
@@ -540,15 +559,14 @@ MC6809_LINK_MODE=hardlink scripts/roll-toolchain.sh --prefix ~/mc6809-hl ...
 
 Measured that way on macOS: no symlinks anywhere in `bin/`, every
 target-named tool sharing an inode with the binary it names, and the
-bundle passing **48 of 48** and all seven sabotages.  So the aliasing
-strategy is proven; what is *not* proven is Windows itself.
+bundle passing every case and all eight sabotages.
 
-**Still untried on a Windows host**: whether meson accepts the generated
-cross files there (the paths are MSYS-style and would want `cygpath -m`),
-whether picolibc builds under it at all, and whether
-`check-mc6809-toolchain` — a shell script — runs under git-bash, which
-decides whether a Windows bundle can be checked or only built.  Those want
-a Windows machine or a `windows-latest` runner, not more guessing here.
+**On Windows itself** the bundle is built by `mc6809-windows-bundle.yml` on a
+`windows-latest` runner, in every release and on demand: picolibc builds
+under meson there, and `check-mc6809-toolchain` runs under git-bash.  It
+builds and links every case and runs none — there is no Windows simulator —
+so a release holds it to 33 passed and 41 not run.  That is much less than
+the other hosts are checked to, and the bundle is described as experimental.
 
 ## Checking the check
 
@@ -561,9 +579,10 @@ knowing that it can fail.  For a long time it could not: twelve of its
 cases ran in a subshell and lost every count they made, and five dress
 rehearsals in a row read as passes over it.
 
-This breaks a *copy* of a bundle, one way at a time -- a variant
+This breaks a *copy* of a bundle, one way at a time — a variant
 directory, a sysroot header, the compiler builtins, `libc.a`, a start-up
-object, one of the target-named tools, the multilib rules -- and requires
+object, start-up code made absolute, one of the target-named tools, the
+multilib rules — and requires
 the check to notice each one.  A non-zero exit does not count as noticing:
 the check also exits 2 when cases could not be run, which has nothing to do
 with the sabotage.  Each case names the `FAIL` line it expects and requires
@@ -574,11 +593,11 @@ It found one gap on its first run, and it was the interesting one: **an
 entire library variant could be deleted and the check still passed**.  The
 link line still named the directory, since multilib rules match on flags
 and not on what is on disk, and the program still printed the right answer,
-since a 6809 libc runs on a 6309.  A bundle rolled with one of the eight
+since a 6809 libc runs on a 6309.  A bundle rolled with one of its
 picolibc builds silently missing would have shipped.  The variant case now
 requires the directory to hold a `libc.a` as well.
 
-Seven of seven, and about two and a half minutes.
+Eight of eight, and about two and a half minutes.
 
 ## Testing the wider suites against a bundle
 
