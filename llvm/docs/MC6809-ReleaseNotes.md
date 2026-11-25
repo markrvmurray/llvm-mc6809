@@ -31,6 +31,24 @@ on the 6309: those calls now find the ROM at run time, so they work wherever
 the program is loaded. The others are slower by less than 3%, and only on
 the 6309.
 
+### Known issues
+
+* NitrOS-9 up to its current release, v3.3.0, cuts a file name short at the
+  first character it does not accept, without an error, so a program can open
+  or delete the wrong file. Names made of letters, digits, `_` and `.` are
+  safe on every version.
+* On NitrOS-9 up to v3.3.0, a file open twice can hide what one path wrote
+  from the other. On Level 1 the second path sees only what has reached the
+  disk, and the file's size as it was when that path opened, and `fflush`
+  does not change this; on Level 2 the same happens after a write of a whole
+  sector.
+* Both are fixed on NitrOS-9's `main` branch, after v3.3.0, though not yet in
+  a release. A system built from it takes the whole name or refuses it with
+  an error, and shows every path of a file what the others wrote, on both
+  levels.
+* Programs built on Windows have to be run somewhere else: on a simulator on
+  another host, or on real hardware.
+
 ## 1.1.0-rc2
 
 The second candidate for llvm-mc6809 1.1.0: a debugger can now follow the
@@ -116,10 +134,8 @@ CFI is checked as above.
   from the other. On Level 1 the second path sees only what has reached the
   disk, and the file's size as it was when that path opened, and `fflush`
   does not change this; on Level 2 the same happens after a write of a whole
-  sector.
-* Both are fixed on NitrOS-9's `main` branch, after v3.3.0, though not yet in
-  a release. A system built from it takes the whole name or refuses it with
-  an error, and shows every path of a file what the others wrote, on both
+  sector. NitrOS-9's file manager is fixed on its `main` branch, after
+  v3.3.0, and a system built from that behaves as POSIX expects on both
   levels.
 * Programs built on Windows have to be run somewhere else: on a simulator on
   another host, or on real hardware.
