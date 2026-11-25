@@ -114,6 +114,13 @@ licence as LLVM: Apache 2.0 with LLVM exceptions.
 
 ## How it was made
 
+This could not have got going without Daniel Thornburgh and the
+[llvm-mos](https://github.com/llvm-mos/llvm-mos) project. Their backend for
+the 6502 showed how an LLVM target for an 8-bit machine can be built at all,
+and much of this one's structure is theirs. Their work goes on helping: each
+update they make to follow upstream LLVM shows how to deal with its API
+changes here as well. Thank you.
+
 I had extensive help from [Claude Code](https://claude.com/claude-code),
 Anthropic's coding assistant, throughout: in the backend, the C library port,
 the tests, the tools and the release machinery. The design decisions, and the
