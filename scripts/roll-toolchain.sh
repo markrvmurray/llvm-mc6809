@@ -418,8 +418,13 @@ done
 # the default stays behind it as the fallback.  Each sysroot that has a
 # variant needs its own copy: the file is read from the sysroot clang picked
 # for the triple, and says nothing about which triple that was.
+#
+# DECB has no floating-point library, so its file says so instead: a
+# `-mlibc=float` there is an error, rather than a program that quietly gets
+# the integer printf and prints `%f` as nothing.
 write_multilib() {
-cat > "$PREFIX/lib/clang-runtimes/$1/multilib.yaml" <<'YAML'
+{
+cat <<'YAML'
 # Which library a link gets.  A rule matches when its flags are among the ones
 # clang worked out for the link.
 #
@@ -437,18 +442,30 @@ Variants:
   Flags: [-mcpu=mc6809, -mlibc=integer]
 - Dir: hd6309
   Flags: [-mcpu=hd6309, -mlibc=integer]
+YAML
+if [ "${2:-}" = fp ]; then
+cat <<'YAML'
 - Dir: fp
   Flags: [-mcpu=mc6809, -mlibc=float]
 - Dir: hd6309-fp
   Flags: [-mcpu=hd6309, -mlibc=float]
+YAML
+else
+cat <<'YAML'
+- Error: there is no floating-point C library for this target; leave out -mlibc=float
+  Flags: [-mlibc=float]
+YAML
+fi
+cat <<'YAML'
 
 Mappings: []
 YAML
+} > "$PREFIX/lib/clang-runtimes/$1/multilib.yaml"
 }
 
 say "writing multilib.yaml"
-write_multilib mc6809-unknown-unknown
-write_multilib mc6809-unknown-os9
+write_multilib mc6809-unknown-unknown fp
+write_multilib mc6809-unknown-os9 fp
 write_multilib mc6809-unknown-decb
 
 # `mc6809-clang` computes the triple `mc6809`, not `mc6809-unknown-unknown`,
