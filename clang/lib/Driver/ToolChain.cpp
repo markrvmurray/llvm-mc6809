@@ -11,6 +11,7 @@
 #include "ToolChains/Arch/AArch64.h"
 #include "ToolChains/Arch/AMDGPU.h"
 #include "ToolChains/Arch/ARM.h"
+#include "ToolChains/Arch/MC6809.h"
 #include "ToolChains/Arch/RISCV.h"
 #include "ToolChains/Clang.h"
 #include "ToolChains/Flang.h"
@@ -442,10 +443,10 @@ static void getMC6809MultilibFlags(const llvm::opt::ArgList &Args,
   // whether the library was built for whole-program optimisation.  A rule in
   // multilib.yaml matches on these; without them it could only match on the
   // triple, which does not separate a 6809 library from a 6309 one.
-  StringRef CPU = Args.getLastArgValue(options::OPT_mcpu_EQ);
-  if (CPU == "6309")
-    CPU = "hd6309";
-  Result.push_back(("-mcpu=" + (CPU.empty() ? StringRef("mc6809") : CPU)).str());
+  // Every spelling the driver accepts for a processor names it the same way
+  // here, so `-mcpu=6809` finds the library `-mcpu=mc6809` does.
+  std::string CPU = tools::mc6809::getMC6809TargetCPU(Args);
+  Result.push_back("-mcpu=" + (CPU.empty() ? std::string("mc6809") : CPU));
 
   Result.push_back(Args.hasArg(options::OPT_flto, options::OPT_flto_EQ)
                        ? "-flto"

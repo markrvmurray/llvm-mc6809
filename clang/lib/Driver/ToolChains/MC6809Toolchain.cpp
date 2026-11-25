@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "MC6809Toolchain.h"
+#include "Arch/MC6809.h"
 
 #include "clang/Driver/CommonArgs.h"
 
@@ -227,8 +228,7 @@ void mc6809::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   // version first. The fallback library is unchanged for plain 6809
   // builds.
   {
-    StringRef CPU = Args.getLastArgValue(options::OPT_mcpu_EQ);
-    if (CPU == "hd6309" || CPU == "6309") {
+    if (mc6809::getMC6809TargetCPU(Args) == "hd6309") {
       SmallString<128> HD6309LibPath(D.ResourceDir);
       llvm::sys::path::append(HD6309LibPath, "lib",
                               TC.getTriple().getTriple(), "hd6309");
@@ -447,8 +447,7 @@ void mc6809::Linker::ConstructJob(Compilation &C, const JobAction &JA,
     SmallString<128> BuiltinsPath(D.ResourceDir);
     llvm::sys::path::append(BuiltinsPath, "lib", "mc6809-unknown-unknown");
     // The HD6309 builtins first, as for the bare-metal triple.
-    StringRef CPU = Args.getLastArgValue(options::OPT_mcpu_EQ);
-    if (CPU == "hd6309" || CPU == "6309") {
+    if (mc6809::getMC6809TargetCPU(Args) == "hd6309") {
       SmallString<128> HD6309Path(BuiltinsPath);
       llvm::sys::path::append(HD6309Path, "hd6309");
       CmdArgs.push_back(Args.MakeArgString(Twine("-L") + HD6309Path.str()));

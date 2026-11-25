@@ -27,6 +27,10 @@
 // PLAIN-NOT: -L{{.*}}hd6309
 // PLAIN: "-L{{.*}}sysroot{{/|\\\\}}lib"
 
+// So does `-mcpu=6809`, the 6809 spelled the short way.
+// RUN: %clang --target=mc6809-unknown-unknown -mcpu=6809 --sysroot=%t/sysroot -### %s 2>&1 \
+// RUN:   | FileCheck %s --check-prefix=PLAIN
+
 // -mcpu=hd6309 gets the variant first, then the default.
 // RUN: %clang --target=mc6809-unknown-unknown -mcpu=hd6309 --sysroot=%t/sysroot -### %s 2>&1 \
 // RUN:   | FileCheck %s --check-prefix=HD6309
