@@ -27,7 +27,8 @@ The boot image is `$NITROS9_RECIPES/l<level>_mega/`'s (default level 2,
 `rel_picothing.srec` in any recipe, since one REL boots every level.  Name
 `NITROS9_BOOT_DSK` and `NITROS9_FIRMWARE` instead if they live somewhere else.
 Without them the suite reports UNSUPPORTED rather than failing, so check that
-it says how many tests ran.
+it says how many tests ran.  `usim09pt` is taken only from
+`NITROS9_USIM09PT`: one that happens to be on the `PATH` is not used.
 
 The test disk is the IDE slave, so the boot image needs the `/J0` descriptor,
 and an image without one counts as absent.  Only the mega images have it: Level
@@ -46,7 +47,7 @@ the login prompt must be up), `NITROS9_TIMEOUT` (instruction cap),
 ## MAME coco3 (needs CoCo 3 ROMs)
 
 ```sh
-export MC6809_OS9_RUNTIME_TESTS=1
+export MC6809_OS9_RUNTIME_TESTS=1                   # or MC6809_OS9_MAME_TESTS=1
 export MAME_ROMPATH=/path/to/coco3/roms
 export OS9_BOOT_DSK=/path/to/nitros9-coco3.dsk     # a bootable L2 floppy image
 export MC6809_OS9_BACKEND=mame                       # if usim09pt is also configured
@@ -60,6 +61,8 @@ Optional: `MAME`, `MAME_SECONDS_TO_RUN`, `MAME_AUTOBOOT_DELAY`, `MAME_VISIBLE=1`
 tools; `KEEP_OS9_TEST_WORKDIR=1` keeps each test's working directory (module,
 disks, console log).  Test cases are `TestCases/*.c` with a `RUN: %run_os9_case
 %s OS9` line and `OS9:` FileCheck lines; the program is run twice, so expect
-its output twice.
+its output twice.  Two more lines shape a case, each used once at most:
+`// ARGS: one two` gives the program those command-line words, and
+`// CFLAGS: -fno-builtin` adds compiler options to its build.
 
 Do not commit ROMs or disk images to this tree.

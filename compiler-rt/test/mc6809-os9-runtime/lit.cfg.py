@@ -68,7 +68,9 @@ clang = find_tool("MC6809_OS9_CLANG", "clang")
 filecheck = find_tool("FILECHECK", "FileCheck")
 os9 = find_tool("OS9_TOOL", "os9")
 mame = find_tool("MAME", "mame")
-usim09pt = os.environ.get("NITROS9_USIM09PT", shutil.which("usim09pt") or "")
+# The simulator is named, never found: a usim09pt that merely happens to be on
+# the PATH is not used, as for every simulator test in this tree.
+usim09pt = os.environ.get("NITROS9_USIM09PT", "")
 
 config.substitutions.append(("%clang", clang))
 config.substitutions.append(("%filecheck", filecheck))
