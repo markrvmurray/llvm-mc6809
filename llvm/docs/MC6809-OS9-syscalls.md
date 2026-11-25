@@ -13,15 +13,15 @@ than only what looked useful at the time.
 **On the Level 1 column**: the shims themselves are level-agnostic -- an
 unticked L1 box beside a ticked L2 one means "never run there", not "not
 written".  What is ticked there comes from two suites: the runtime cases
-(21, green, two of them pinned to Level 1 -- argv[0] is only really tested
-where the data area does not start at zero, and the directory calls are
-worth running in the address space everything shares), which cover start-up,
-the module calls and the console; and the picolibc suite, which runs at
-Level 1 too (`NITROS9_LEVEL=1`) and reaches 105 OK there.  What is still
-unticked either was not reached by a passing Level 1 test, or belongs to a
-test that does not fit: of 172 tests at Level 1, 34 are too big for the one
-64K space it shares with the system, 16 do not link at all, and 2 want a
-coherency Level 1 does not have (below).
+(24, green, three of them pinned to Level 1 -- argv[0] is only really tested
+where the data area does not start at zero, the directory calls are worth
+running in the address space everything shares, and so is growing the heap),
+which cover start-up, the module calls and the console; and the picolibc
+suite, which runs at Level 1 too (`NITROS9_LEVEL=1`) and reaches 181 OK of
+222 there in the 1.1.0-rc2 bench.  What is still unticked either was not
+reached by a passing Level 1 test, or belongs to a test that does not fit:
+of those 222, 19 do not link, 3 are too big for the one 64K space Level 1
+shares with the system, and 17 skip by picolibc's own choice.
 
 Codes are the byte after `SWI2`.  The source of truth for names and numbers
 is `defs/os9.d` in the NitrOS-9 tree.
@@ -37,7 +37,7 @@ is `defs/os9.d` in the NitrOS-9 tree.
 | $04 | F$Wait | wait for a child to die | [ ] | [ ] | with F$Fork |
 | $05 | F$Chain | replace this process with another module | [ ] | [ ] | the shape of `execve()` |
 | $06 | F$Exit | terminate, with a status | [x] | [x] | `_exit` |
-| $07 | F$Mem | change the data area size | [x] | [x] | the heap claim; live `sbrk` still wants it |
+| $07 | F$Mem | change the data area size | [x] | [x] | the heap claim at start-up, and `sbrk` growing it (`heap-grow` cases) |
 | $08 | F$Send | send a signal to a process | [ ] | [ ] | half of `kill()` |
 | $09 | F$Icpt | install a signal handler | [ ] | [ ] | half of `signal()` |
 | $0A | F$Sleep | suspend for a time | [ ] | [ ] | shim in `os9.h`, never exercised |
@@ -91,16 +91,18 @@ is `defs/os9.d` in the NitrOS-9 tree.
 | $90 | I$DeletX | delete from the execution directory | [ ] | [ ] | |
 | $91 | I$ModDsc | modify a device descriptor in memory | [ ] | [ ] | |
 
-**What Level 1 will not do**: two paths open on one file do not see each
-other there.  A reader opened after a write, while the writer still holds the
-file, is given the sectors the file has been allotted -- sector-rounded, never
-written -- while the writer's bytes are still in RBF's buffer; a reader opened
-before the write sees the size the file had then, and still does after the
-writer closes.  Level 2 reads back what was written.  Write, close, then open
-behaves the same at both.  It is the OS, not these wrappers -- a program
-calling I$Create, I$Write and I$Open directly shows it -- and OS-9 has no sync
-call to work around it with, so anything that wants the coherency POSIX
-promises wants Level 2.
+**What NitrOS-9 up to v3.3.0 will not do**: two paths open on one file may
+not see each other.  At Level 1 a reader opened after a write, while the
+writer still holds the file, is given the sectors the file has been allotted
+— sector-rounded, never written -- while the writer's bytes are still in RBF's
+buffer; a reader opened before the write sees the size the file had then,
+and still does after the writer closes.  At Level 2 the same happens after a
+write of a whole sector.  Write, close, then open behaves the same
+everywhere.  It is the OS, not these wrappers -- a program calling I$Create,
+I$Write and I$Open directly shows it -- and OS-9 has no sync call to work
+around it with.  It is a fault in RBF, fixed on NitrOS-9's `main` branch
+after v3.3.0 but not yet in a release; on a system built from `main` the
+two stdio tests that want this coherency pass at both levels.
 
 ### Status calls worth their own boxes
 
