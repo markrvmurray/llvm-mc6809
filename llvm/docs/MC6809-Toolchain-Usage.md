@@ -3,11 +3,14 @@
 A short guide to the compiler once it is installed.  For building one, see
 [MC6809-Toolchain-Build.md](MC6809-Toolchain-Build.md).
 
-Put its `bin` on your PATH:
+Unpack it anywhere and put its `bin` on your PATH:
 
 ```sh
-export PATH=/opt/mc6809/bin:$PATH
+tar -xf mc6809-toolchain-<version>-<host>.tar.xz
+export PATH=$PWD/mc6809-toolchain-<version>-<host>/bin:$PATH
 ```
+
+On Windows the bundle is a `.tar.gz`; see [Windows](#windows).
 
 ## Hello, world, three ways
 
@@ -37,8 +40,22 @@ mc6809-run hello.elf          # picks a simulator by what the file is
 
 It looks at the file — an ELF, an OS-9 module, a DECB binary — and hands it
 to something that can run it, or says plainly that nothing here can.  The
-simulators are separate programs (USim, MAME); the toolchain does not carry
-them.
+simulator is a separate program, [USim](https://github.com/markrvmurray/usim)
+(`usim09batch` for bare metal, `usim09pt` for NitrOS-9), which `mc6809-run`
+expects on the PATH; the toolchain does not carry it.
+
+An OS-9 module needs two more things, because it is run by booting NitrOS-9
+and handing it the module:
+
+* `run-mc6809-os9`, from the `scripts/` directory of
+  [picolibc](https://github.com/markrvmurray/picolibc), on the PATH;
+* a bootable NitrOS-9 disk image for the Pico-Thing machine USim simulates,
+  and its boot firmware.  Name them with `NITROS9_BOOT_DSK` and
+  `NITROS9_FIRMWARE`, or point `NITROS9_RECIPES` at a NitrOS-9 build tree
+  and let `NITROS9_LEVEL` (1 or 2) and `NITROS9_CPU` (6809 or 6309) pick
+  them.  The script's own header lists the rest.
+
+A DECB binary needs a CoCo; see [Running one under MAME](#running-one-under-mame).
 
 ## The tools
 
@@ -106,8 +123,20 @@ The default libraries are integer-only — small, which is the right default on
 a machine with 64 KB.  `-mlibc=float` asks for the ones that can format a
 double and do maths:
 
+```c
+#include <math.h>
+#include <stdio.h>
+int main(void) {
+  double x = 2.0;
+  printf("product %f\n", x * 4.0);
+  printf("sqrt %f\n", sqrt(16.0));
+  return 0;
+}
+```
+
 ```sh
 mc6809-clang -mlibc=float -mcrt0=semihost hello.c -o hello.elf
+mc6809-run hello.elf
 ```
 
 ```
@@ -121,8 +150,9 @@ either way: picolibc's maths lives in `libc.a`.  The flag selects headers as
 well as libraries, because whether plain `printf` can format a double is
 decided in `picolibc.h` at the time the library is built.
 
-It combines with `-mcpu=hd6309`, so there are four libraries per target:
-plain, 6309, floating point, and both.
+It combines with `-mcpu=hd6309`, so bare metal and OS-9 each have four
+libraries: plain, 6309, floating point, and both.  DECB has only the first
+two, and `-mlibc=float` there is an error.
 
 A bare-metal program records in its ELF header which processor it needs, so
 `mc6809-run` starts the right simulator without being told.  An OS-9 module
@@ -138,7 +168,9 @@ depends on the target:
 
 * **Bare metal and DECB**: the 8 KB ROM is part of the compiler's runtime and
   is linked into your program — only if you use floating point, so a program
-  that does none carries none.  Nothing to install.
+  that does none carries none.  Nothing to install.  On DECB that gives you
+  the arithmetic, but not `printf("%f")` or the maths functions: there is no
+  floating-point C library for it.
 * **OS-9**: the ROM is the `FPO9` module, and the start-up code links it at
   run time.  **It must be on the machine**: already in memory, or loadable
   from the execution directory the program was run from.  A program that
@@ -149,6 +181,9 @@ depends on the target:
   it to the target like any other module.  `mc6809-run` does that part for
   you — it asks the compiler where its runtime is and puts the module on the
   disk beside your program.
+
+  In practice OS-9 floating point wants Level 2: at Level 1 the `FPO9`
+  module and a program that uses it seldom fit beside the system.
 
 Expect it to be expensive: a hello-world printing two doubles came to 59,964
 bytes of the 64 KB address space.
@@ -252,7 +287,22 @@ ordinary compile means a `static` function reached from `main` alone.  With
 ## What you get on each target
 
 **Bare metal** is picolibc over a semihosting layer: stdio goes to the
-simulator's console.  On real hardware you would replace that layer.
+simulator's console.  On real hardware you would replace that layer.  The
+machine the libraries are built for, which is the one USim simulates, is laid
+out like this, from the top of memory down:
+
+| Address | What is there |
+|---|---|
+| `$0000`-`$00FF` | the direct page: the compiler's registers at `$00`-`$1F`, `__directpage` variables after them |
+| `$0100`-`$FFC3` | RAM: code, data, heap and stack |
+| `$FFC4`-`$FFC5` | the console, an MC6850 ACIA |
+| `$FFCB` | trace control (simulator only) |
+| `$FFCC` | the halt port: a write stops the simulator, with that exit status |
+| `$FFCD`-`$FFEF` | the reset entry |
+| `$FFF0`-`$FFFF` | the vectors |
+
+A program for other hardware replaces the console routines and links to its
+own memory map.
 
 **OS-9** is a real program module.  It is given `argc`/`argv` from the shell's
 parameter string, a heap that grows through `F$Mem`, and files:
@@ -263,16 +313,22 @@ after your output file, so `-o hello` produces a module called `hello`.
 Characters that some NitrOS-9 versions do not accept in a name are left out, so
 `-o my-prog` produces `myprog`; `-Wl,--os9-name=NAME` sets the name outright.
 
-Two things differ between NitrOS-9 levels and will surprise you if they are
-not expected:
+Three things will surprise you if they are not expected:
 
 * **Room.** A Level 2 task gets seven 8 KB blocks; a module over **57344
-  bytes** does not fail to load, it wedges the boot.  Level 1 shares one 64 KB
-  space with the system and says `E$MemFul` politely instead.
-* **Two paths on one file do not see each other at Level 1.** A reader opened
-  while a writer holds the file gets the sectors the file was allotted, not
-  what was written.  Level 2 is coherent.  Write, close, then open behaves the
-  same on both.
+  bytes** does not fail to load, it wedges the system as it loads.  Level 1
+  shares one 64 KB space with the system and says `E$MemFul` politely
+  instead.
+* **Two paths on one file may not see each other** on NitrOS-9 up to v3.3.0.
+  At Level 1 a reader opened while a writer holds the file sees only what has
+  reached the disk, and the size the file had when it opened; at Level 2 the
+  same happens after a write of a whole sector.  Write, close, then open
+  behaves the same everywhere.  This is a fault in NitrOS-9's file manager,
+  fixed on its `main` branch after v3.3.0 but not yet in a release.
+* **A file name is cut short** at the first character NitrOS-9 up to v3.3.0
+  does not accept, without an error, so a program can open or delete the
+  wrong file.  Names of letters, digits, `_` and `.` are safe; this too is
+  fixed on NitrOS-9's `main` branch.
 
 **DECB** is a `LOADM`/`EXEC` binary: the direct page and the program at
 `$3F00`, and the console through the BASIC ROM.  It runs — on a CoCo 3 under
@@ -297,10 +353,12 @@ the machine to run it on.
 `mc6809-run` cannot: a CoCo is a different machine from the simulators it
 knows.  What works, and the sharp edges found getting it to:
 
+With `decb` from [ToolShed](https://github.com/n6il/toolshed):
+
 ```sh
 decb dskini hello.dsk                            # a Disk BASIC disk
 decb copy -2 -b hello.bin hello.dsk,HELLO.BIN    # -2 machine code, -b binary
-mamecoco3-headless -1 hello.dsk 95 -- -autoboot_script drive.lua
+mame coco3 -flop1 hello.dsk -autoboot_script drive.lua   # coco3h for a 6309
 ```
 
 * **`coco3h` needs its own ROM name.**  MAME looks for `coco3h.zip` (or
@@ -308,7 +366,7 @@ mamecoco3-headless -1 hello.dsk 95 -- -autoboot_script drive.lua
   same: link one to the other in `roms/`.
 * **Do not type a long command with `-autoboot_command`.**  MAME's keyboard
   queue is fixed-size and a CoCo types a few characters a second, so
-  everything after the first Enter is silently dropped -- which looks exactly
+  everything after the first Enter is silently dropped — which looks exactly
   like a program that never ran.  Post one short line at a time from a Lua
   script (`-autoboot_script`) with `emu.wait` between them:
 
@@ -322,15 +380,16 @@ mamecoco3-headless -1 hello.dsk 95 -- -autoboot_script drive.lua
 
 * **Read the screen, not a screenshot.**  The text screen is at `$0400`,
   32×16, so a few lines of Lua turn it into text a script can check.  The
-  VDG has no lowercase -- BASIC stores it as inverse-video uppercase -- so
+  VDG has no lowercase — BASIC stores it as inverse-video uppercase -- so
   case does not survive the trip.
 * **BASIC does not echo the newline before running `EXEC`**, so a screen
   showing `EXEC` with no blank line beneath it may well be a program that has
   already run.
 * **Rebuild the program after rebuilding the library.**  A stale binary on
-  the floppy looks precisely like a fix that did not work.  There is no floating-point DECB library: the
-MC6839 ROM would be linked into the program, and 8 KB is a lot to spend
-under BASIC without deciding to.
+  the floppy looks precisely like a fix that did not work.
+
+There is no floating-point DECB library: the MC6839 ROM would be linked into
+the program, and 8 KB is a lot to spend under BASIC without deciding to.
 
 A program returns to BASIC by returning from `main`, and its output stays on
 screen:
@@ -345,6 +404,35 @@ The start-up saves the stack and the direct page BASIC handed over and puts
 both back, so the interpreter resumes with its own machine — which matters
 more than it sounds: a program runs with `DP` pointing at its own page, and
 Color BASIC reaches its working storage through `DP`.
+
+## Debugging
+
+`-g` gives the usual DWARF debug information, including the call-frame
+information (`.debug_frame`) a debugger unwinds the stack by;
+`-funwind-tables` gives it as `.eh_frame` instead.  The C library and
+start-up code carry it too, checked for every routine when the bundle is
+made.
+
+**There is no debugger in the bundle yet.**  The system lldb on a Mac does
+not accept an MC6809 file, and lldb built from this tree has nothing a user
+can attach it to until USim's gdb-remote server is released.  Both are being
+worked on.  Until then `mc6809-objdump -d -S` and `mc6809-readelf` are the
+tools to look with.
+
+## Windows
+
+The Windows bundle has had much less testing than the others; treat it as
+experimental.  It is a `.tar.gz`; unpack it with the `tar` that comes with
+Windows 10 and later:
+
+```bat
+tar -xf mc6809-toolchain-<version>-windows-x86_64.tar.gz
+```
+
+Its tools' other names are hard links, which that `tar` keeps.  It compiles
+and links for every target, but **it cannot run what it builds**: there is no
+Windows simulator, and `mc6809-run` is a shell script.  Run programs on
+another host or on the machine itself.
 
 ## Limits worth knowing
 
@@ -365,10 +453,13 @@ Color BASIC reaches its working storage through `DP`.
 * **Position-independent by default.** Code is PC-relative, which is what OS-9
   modules need; `-fno-pie` gives absolute addressing for a ROM at a fixed
   address.
+* **Optimisation levels:** `-O0`, `-O1`, `-O2`, `-Os` and `-Oz` are the ones
+  supported.  The others are accepted and tested, but are not what this
+  toolchain is tuned for.
 
 ## When something will not fit
 
 `-Os` is the default in the shipped libraries and usually the right flag for
 your own code too.  `-flto` often wins several per cent more.  Beyond that,
-the honest answer is often that the program is too big for the machine: the
-bench keeps a list of test programs that do not fit at any setting.
+the honest answer is often that the program is too big for the machine:
+some programs do not fit at any setting.
