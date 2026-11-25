@@ -7,7 +7,48 @@ tag with no section here is not published.
 ## Next release
 
 <!-- For 1.1.0-rc3 or 1.1.0, whichever comes first: rename this heading to
-     that version, which is what the release workflow looks for. -->
+     that version, which is what the release workflow looks for, and delete
+     this comment.  Bring the lead paragraph and "How it is tested" up to
+     whatever has landed by then. -->
+
+Since rc2: the driver finds the right library however the processor is
+spelled, asking DECB for a floating-point library it does not have is now an
+error, and the documentation, the bundle's own README included, has been
+brought up to date.  The code the compiler generates is unchanged from rc2.
+
+**Upgrading from rc2**: nothing changes in how a program is built, unless it
+was built for DECB with `-mlibc=float`.  That never gave a floating-point C
+library; it now says so and stops, so drop the flag.
+
+### Fixed
+
+* `-mcpu=6809` found no library: it is accepted as the 6809, but the name
+  went to the library rules as written, matched none of them, and the link
+  failed.  Every spelling of each processor now chooses the same library.
+* `-mlibc=float` for DECB quietly linked the integer C library, whose
+  `printf` prints nothing for `%f`; there is no floating-point library for
+  DECB.  It is now an error that says so.
+* The bundle's README now shows the bare-metal example with
+  `-mcrt0=semihost`, without which a program never ends on a simulator, and
+  says what an OS-9 run needs and that nothing in a Windows bundle runs a
+  program.  These release notes now ship in the bundle, beside the guides.
+
+### Documentation
+
+The guides were audited against the code and corrected throughout.  Among
+what was wrong: the OS-9 guide said the heap could not grow and gave the
+stack as 512 bytes (it grows, and the stack is 2 KB); the build guide
+described the Windows bundle as a `.zip` that had never been tried; the
+third-party note said an integer-only C library keeps the MC6839 ROM out of a
+program, which only doing no floating-point arithmetic does.  The usage guide
+now covers running an OS-9 module, the bare-metal memory map, debugging,
+Windows, and the supported optimisation levels.
+
+### How it is tested
+
+As for rc2, with one change: each Linux and macOS bundle must now pass all 48
+cases of its acceptance check that a runner can run, where before 39 were
+enough.
 
 ### Against 1.0, like for like
 
@@ -19,7 +60,7 @@ what is measured. Both are measured on USim, the 6309 included.
 | | Cycles in all | A typical program |
 |---|---|---|
 | 6809, `-O0` to `-Oz` | 12-20% fewer | 16-24% fewer |
-| 6309, `-O2`, `-Og` and `-Os` | 8-13% fewer | 15-22% fewer |
+| 6309, `-O2`, `-Og` and `-Os` (the 6309 levels the bench runs) | 8-13% fewer | 15-22% fewer |
 
 "A typical program" is the geometric mean of each program's change, which a
 few long-running tests do not dominate.
@@ -36,18 +77,18 @@ the 6309.
 * NitrOS-9 up to its current release, v3.3.0, cuts a file name short at the
   first character it does not accept, without an error, so a program can open
   or delete the wrong file. Names made of letters, digits, `_` and `.` are
-  safe on every version.
+  safe on every version. This is fixed on NitrOS-9's `main` branch, after
+  v3.3.0, though not yet in a release.
 * On NitrOS-9 up to v3.3.0, a file open twice can hide what one path wrote
   from the other. On Level 1 the second path sees only what has reached the
   disk, and the file's size as it was when that path opened, and `fflush`
   does not change this; on Level 2 the same happens after a write of a whole
-  sector.
-* Both are fixed on NitrOS-9's `main` branch, after v3.3.0, though not yet in
-  a release. A system built from it takes the whole name or refuses it with
-  an error, and shows every path of a file what the others wrote, on both
-  levels.
-* Programs built on Windows have to be run somewhere else: on a simulator on
-  another host, or on real hardware.
+  sector. This too is fixed on NitrOS-9's `main` branch: a system built from
+  it shows every path of a file what the others wrote, on both levels.
+* The Windows bundle has had much less testing than the others; treat it as
+  experimental. Programs built on Windows have to be run somewhere else: on a
+  simulator on another host, or on real hardware.
+* There is no debugger in the bundle yet.
 
 ## 1.1.0-rc2
 
