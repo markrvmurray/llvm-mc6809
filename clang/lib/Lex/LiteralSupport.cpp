@@ -138,15 +138,14 @@ convertCharacter(StringRef Char, const llvm::TextEncodingConverter &Converter) {
 }
 
 /// ProcessCharEscape - Parse a standard C escape sequence, which can occur in
-/// either a character or a string literal.
-static unsigned ProcessCharEscape(const char *ThisTokBegin,
-                                  const char *&ThisTokBuf,
-                                  const char *ThisTokEnd, bool &HadError,
-                                  FullSourceLoc Loc, unsigned CharWidth,
-                                  DiagnosticsEngine *Diags,
-                                  const LangOptions &Features,
-                                  StringLiteralEvalMethod EvalMethod,
-                                  llvm::TextEncodingConverter *Converter) {
+/// either a character or a string literal.  \p NewlineIsCR makes '\n' a
+/// carriage return, for a literal that becomes OS-9 program text.
+static unsigned ProcessCharEscape(
+    const char *ThisTokBegin, const char *&ThisTokBuf, const char *ThisTokEnd,
+    bool &HadError, FullSourceLoc Loc, unsigned CharWidth,
+    DiagnosticsEngine *Diags, const LangOptions &Features,
+    StringLiteralEvalMethod EvalMethod, llvm::TextEncodingConverter *Converter,
+    bool NewlineIsCR = false) {
   const char *EscapeBegin = ThisTokBuf;
   bool Delimited = false;
   bool EndDelimiterFound = false;
@@ -188,7 +187,7 @@ static unsigned ProcessCharEscape(const char *ThisTokBegin,
     ResultChar = 12;
     break;
   case 'n':
-    ResultChar = 10;
+    ResultChar = NewlineIsCR ? 13 : 10;
     break;
   case 'r':
     ResultChar = 13;
@@ -350,6 +349,18 @@ static unsigned ProcessCharEscape(const char *ThisTokBegin,
            diag::ext_nonstandard_escape)
         << std::string(1, ResultChar);
     break;
+  case 'l':
+    // OS-9 mode names a line feed '\l', since '\n' is a carriage return.
+    // Elsewhere '\l' is not an escape.
+    if (Features.OS9Newline) {
+      if (Diags)
+        Diag(Diags, Features, Loc, ThisTokBegin, EscapeBegin, ThisTokBuf,
+             diag::ext_nonstandard_escape)
+            << "l";
+      ResultChar = 10;
+      break;
+    }
+    [[fallthrough]];
   default:
     Invalid = true;
     if (!Diags)
@@ -1980,7 +1991,8 @@ CharLiteralParser::CharLiteralParser(const char *begin, const char *end,
         ProcessCharEscape(TokBegin, begin, end, HadError,
                           FullSourceLoc(Loc, PP.getSourceManager()), CharWidth,
                           &PP.getDiagnostics(), PP.getLangOpts(),
-                          StringLiteralEvalMethod::Evaluated, nullptr);
+                          StringLiteralEvalMethod::Evaluated, nullptr,
+                          PP.getLangOpts().OS9Newline);
     *buffer_begin++ = result;
   }
 
@@ -2091,12 +2103,18 @@ CharLiteralParser::CharLiteralParser(const char *begin, const char *end,
 StringLiteralParser::StringLiteralParser(ArrayRef<Token> StringToks,
                                          Preprocessor &PP,
                                          StringLiteralEvalMethod EvalMethod,
-                                         ConversionAction Action)
+                                         ConversionAction Action,
+                                         bool AssemblerText)
     : SM(PP.getSourceManager()), Features(PP.getLangOpts()),
       Target(PP.getTargetInfo()), Diags(&PP.getDiagnostics()),
       TE(&PP.getTextEncoding()), MaxTokenLength(0), SizeBound(0),
       CharByteWidth(0), Kind(tok::unknown), ResultPtr(ResultBuf.data()),
-      EvalMethod(EvalMethod), hadError(false), Pascal(false) {
+      EvalMethod(EvalMethod),
+      // Only a literal in the program's own encoding takes the OS-9 newline;
+      // the other strings the compiler reads are host text.
+      NewlineIsCR(Features.OS9Newline && Action == CA_ToLiteralEncoding &&
+                  !AssemblerText),
+      hadError(false), Pascal(false) {
   init(StringToks, Action);
 }
 
@@ -2365,7 +2383,7 @@ void StringLiteralParser::init(ArrayRef<Token> StringToks,
         unsigned ResultChar = ProcessCharEscape(
             ThisTokBegin, ThisTokBuf, ThisTokEnd, hadError,
             FullSourceLoc(StringToks[i].getLocation(), SM), CharByteWidth * 8,
-            Diags, Features, EvalMethod, Converter);
+            Diags, Features, EvalMethod, Converter, NewlineIsCR);
 
         if (CharByteWidth == 4) {
           // FIXME: Make the type of the result buffer correct instead of

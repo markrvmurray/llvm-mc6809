@@ -247,20 +247,25 @@ class StringLiteralParser {
   unsigned UDSuffixToken;
   unsigned UDSuffixOffset;
   StringLiteralEvalMethod EvalMethod;
+  /// '\n' is a carriage return: an OS-9 program literal.
+  bool NewlineIsCR;
 
 public:
+  /// \p AssemblerText marks a literal that is assembler source, such as an
+  /// asm statement's string, which keeps the host's newline whatever the
+  /// target's literals use.
   StringLiteralParser(
       ArrayRef<Token> StringToks, Preprocessor &PP,
       StringLiteralEvalMethod StringMethod = StringLiteralEvalMethod::Evaluated,
-      ConversionAction Action = CA_NoConversion);
+      ConversionAction Action = CA_NoConversion, bool AssemblerText = false);
   StringLiteralParser(ArrayRef<Token> StringToks, const SourceManager &sm,
                       const LangOptions &features, const TargetInfo &target,
                       DiagnosticsEngine *diags = nullptr)
       : SM(sm), Features(features), Target(target), Diags(diags), TE(nullptr),
         MaxTokenLength(0), SizeBound(0), CharByteWidth(0), Kind(tok::unknown),
         ResultPtr(ResultBuf.data()),
-        EvalMethod(StringLiteralEvalMethod::Evaluated), hadError(false),
-        Pascal(false) {
+        EvalMethod(StringLiteralEvalMethod::Evaluated), NewlineIsCR(false),
+        hadError(false), Pascal(false) {
     init(StringToks, CA_NoConversion);
   }
 

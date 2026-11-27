@@ -1783,6 +1783,14 @@ def mlibc_EQ
              "(default) or float, which adds floating-point printf/scanf and "
              "the maths functions.  Selects both the library and its headers.">;
 
+defm os9_newline : BoolFOption<"os9-newline",
+  LangOpts<"OS9Newline">, DefaultFalse,
+  PosFlag<SetTrue, [], [ClangOption, CC1Option],
+          "Make '\\n' a carriage return and accept '\\l' for a line feed in "
+          "character and string literals, as OS-9 does (the default for an "
+          "OS-9 target)">,
+  NegFlag<SetFalse, [], [ClangOption], "Keep '\\n' a line feed">>;
+
 defm assume_unique_vtables : BoolFOption<"assume-unique-vtables",
   CodeGenOpts<"DisableExactDynamicCast">, DefaultFalse,
   PosFlag<SetFalse>,

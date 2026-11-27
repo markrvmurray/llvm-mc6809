@@ -7453,9 +7453,11 @@ public:
   /// fragments (e.g. "foo" "bar" L"baz").  The result string has to handle
   /// string concatenation ([C99 5.1.1.2, translation phase #6]), so it may come
   /// from multiple tokens.  However, the common case is that StringToks points
-  /// to one string.
+  /// to one string.  \p AssemblerText marks an asm statement's string, which
+  /// keeps the host's newline.
   ExprResult ActOnStringLiteral(ArrayRef<Token> StringToks,
-                                Scope *UDLScope = nullptr);
+                                Scope *UDLScope = nullptr,
+                                bool AssemblerText = false);
 
   ExprResult ActOnUnevaluatedStringLiteral(ArrayRef<Token> StringToks);
 

@@ -3893,8 +3893,11 @@ private:
   /// associated with the class's definition.
   void PopParsingClass(Sema::ParsingClassState);
 
+  /// \p AssemblerText marks an asm statement's string: see
+  /// Sema::ActOnStringLiteral.
   ExprResult ParseStringLiteralExpression(bool AllowUserDefinedLiteral,
-                                          bool Unevaluated);
+                                          bool Unevaluated,
+                                          bool AssemblerText = false);
 
   /// This routine is called when the '@' is seen and consumed.
   /// Current token is an Identifier and is not a 'try'. This

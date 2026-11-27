@@ -40,12 +40,13 @@
 // VALID: CRC: valid (full CRC = $800FE3)
 //
 // Body content sanity: the string "Hello, world!\n" must appear in
-// the module (.rodata flows through the link unchanged) and the
+// the module (.rodata flows through the link unchanged), its '\n' an
+// OS-9 newline, a carriage return, and the
 // I$Write + F$Exit syscall sequences must be present.
 //
 // RUN: xxd -p -c 65536 %t.os9 > %t.os9.hex
 // RUN: FileCheck %s --check-prefix=GREETING < %t.os9.hex
-// GREETING: 48656c6c6f2c20776f726c64210a
+// GREETING: 48656c6c6f2c20776f726c64210d
 // RUN: FileCheck %s --check-prefix=WRITE_CALL < %t.os9.hex
 // WRITE_CALL: 103f8a
 // RUN: FileCheck %s --check-prefix=EXIT_CALL < %t.os9.hex

@@ -175,6 +175,14 @@ void MC6809ToolChain::addClangTargetOptions(const ArgList &DriverArgs,
   // last-occurrence override.
   if (getTriple().isOSOS9())
     CC1Args.push_back("-fdollars-in-identifiers");
+
+  // OS-9 ends a line with a carriage return: SCF ends a line on CR,
+  // I$ReadLn and I$WritLn work in CR-terminated records, and text files
+  // hold CR.  OS-9's own C compilers make '\n' a CR, so do the same for
+  // the OS-9 triple unless the user asks otherwise.
+  if (DriverArgs.hasFlag(options::OPT_fos9_newline,
+                         options::OPT_fno_os9_newline, getTriple().isOSOS9()))
+    CC1Args.push_back("-fos9-newline");
 }
 
 static bool hasLTOEmitAsm(const ArgList &Args) {
