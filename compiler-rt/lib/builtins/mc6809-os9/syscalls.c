@@ -8,7 +8,7 @@
 //
 // The out-of-line half of the OS-9 system-call layer: errno, the POSIX-style
 // _exit/_read/_write, and their NitrOS-9 names. The calls themselves are the
-// inline shims in os9.h; nothing here touches a register by hand.
+// native assembly entries from nitros9-c-libs; nothing here touches a register by hand.
 //
 //===----------------------------------------------------------------------===//
 
@@ -32,7 +32,7 @@ __attribute__((noreturn)) void _exit(int status) {
     __os9_fp_module = 0;
     __os9_unlink(fp);
   }
-  OS9_SYSCALL(OS9_F_EXIT, (), ("d"(status)));
+  n9_exit(status);
   __builtin_unreachable();
 }
 
