@@ -361,6 +361,15 @@ jobs:
           if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             # shellcheck disable=SC2086
             gh release upload "$RELEASE_TAG" $files --repo "$GITHUB_REPOSITORY" --clobber
+            # A re-run host's job (a macOS runner that never came, say) lands
+            # here, and the notes above were built from every attempt's
+            # tallies, the re-run host's included.  Write them over the old
+            # body, after its bundle is attached, or the table keeps only
+            # the hosts of the first run.  The body is all generated, from
+            # the notes file at the tag and the tallies, so nothing written
+            # by hand is lost.
+            gh release edit "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" \
+                --notes-file "$RUNNER_TEMP/notes.md"
           else
             # shellcheck disable=SC2086
             gh release create "$RELEASE_TAG" $files \
