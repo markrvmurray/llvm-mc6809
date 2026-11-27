@@ -12,6 +12,7 @@
 #include "Symbols.h"
 #include "Target.h"
 #include "lld/Common/ErrorHandler.h"
+#include "llvm/ADT/StringExtras.h"
 #include "llvm/BinaryFormat/ELF.h"
 #include "llvm/BinaryFormat/MC6809Flags.h"
 #include "llvm/Object/ELF.h"
@@ -108,6 +109,42 @@ std::optional<uint64_t> getOS9DataAreaOffset(Ctx &ctx, uint64_t va) {
   return std::nullopt;
 }
 
+// Where a loaded input section's bytes start in the output buffer.
+static const uint8_t *getOutputStart(Ctx &ctx, const InputSection &isec) {
+  return ctx.bufferStart + isec.getParent()->offset + isec.outSecOff;
+}
+
+// The loaded input section whose bytes in the output buffer hold loc.
+// getErrorPlace will not do in OS-9 output: it also places non-ALLOC sections
+// (debug info) at their output section's file offset, which binary and OS-9
+// output never assign, so their ranges alias the module body and can claim a
+// word that belongs to a loaded section.
+static const InputSection *findLoadedSection(Ctx &ctx, const uint8_t *loc) {
+  if (!ctx.bufferStart)
+    return nullptr;
+  for (InputSectionBase *d : ctx.inputSections) {
+    auto *isec = dyn_cast<InputSection>(d);
+    if (!isec || !isec->getParent() || !(isec->flags & SHF_ALLOC) ||
+        isec->type == SHT_NOBITS)
+      continue;
+    const uint8_t *start = getOutputStart(ctx, *isec);
+    if (start <= loc && loc < start + isec->getSize())
+      return isec;
+  }
+  return nullptr;
+}
+
+// The "file:(section+offset): " prefix for a diagnostic at loc, found without
+// getErrorPlace in OS-9 output for the reason above.
+static std::string getRelocErrorLoc(Ctx &ctx, const uint8_t *loc) {
+  if (ctx.arg.oFormatOS9) {
+    if (const InputSection *isec = findLoadedSection(ctx, loc))
+      return isec->getLocation(loc - getOutputStart(ctx, *isec)) + ": ";
+    return "";
+  }
+  return getErrorLoc(ctx, loc);
+}
+
 static uint64_t getOS9DataOffset(Ctx &ctx, uint8_t *loc,
                                  const Relocation &rel, uint64_t val) {
   if (std::optional<uint64_t> offset = getOS9DataAreaOffset(ctx, val))
@@ -120,15 +157,19 @@ static uint64_t getOS9DataOffset(Ctx &ctx, uint8_t *loc,
     return 0;
   // Debug info (a DW_OP_addr of a data-area object, say) may name a symbol
   // that was discarded or never defined; it is not loaded, so best effort.
-  if (InputSectionBase *isec = getErrorPlace(ctx, loc).isec)
-    if (!(isec->flags & llvm::ELF::SHF_ALLOC))
-      return val;
+  // Only ELF output relocates debug info. OS-9 output writes and relocates
+  // loaded sections alone, and getErrorPlace would place a debug section
+  // over the module body there (it has no file offset), hiding this error.
+  if (!ctx.arg.oFormatOS9)
+    if (InputSectionBase *isec = getErrorPlace(ctx, loc).isec)
+      if (!(isec->flags & llvm::ELF::SHF_ALLOC))
+        return val;
   const char *name = rel.sym ? rel.sym->getName().data() : "";
   const char *section = "";
   if (auto *d = dyn_cast_or_null<Defined>(rel.sym))
     if (d->section)
       section = d->section->name.data();
-  ErrAlways(ctx) << getErrorLoc(ctx, loc)
+  ErrAlways(ctx) << getRelocErrorLoc(ctx, loc)
                  << "OS-9 data-area relocation target is not in .dp.data, "
                     ".dp.bss, .data or .bss: "
                  << name << " (" << section << ")";
@@ -154,12 +195,20 @@ void MC6809::relocate(uint8_t *loc, const Relocation &rel, uint64_t val) const {
     // data area if it points there, else into the module body -- and let the
     // .os9_reloc table say which (see OS9RelocSection).
     if (ctx.arg.oFormatOS9) {
-      if (InputSectionBase *isec = getErrorPlace(ctx, loc).isec) {
-        const OutputSection *os = isec->getOutputSection();
-        if (os && (os->name == ".data" || os->name == ".dp.data"))
-          if (std::optional<uint64_t> off = getOS9DataAreaOffset(ctx, val))
-            val = *off;
+      // OS-9 output relocates only loaded sections, so every word lies in
+      // one; failing to find it is a linker fault, and guessing would write
+      // a word the CRT then rebases wrongly.
+      const InputSection *isec = findLoadedSection(ctx, loc);
+      if (!isec) {
+        ErrAlways(ctx) << "OS-9 program module: no loaded section holds the "
+                          "16-bit word at file offset 0x"
+                       << utohexstr(loc - ctx.bufferStart);
+        break;
       }
+      const OutputSection *os = isec->getOutputSection();
+      if (os && (os->name == ".data" || os->name == ".dp.data"))
+        if (std::optional<uint64_t> off = getOS9DataAreaOffset(ctx, val))
+          val = *off;
     }
     write16be(loc, static_cast<unsigned short>(val));
     break;
@@ -193,7 +242,7 @@ void MC6809::relocate(uint8_t *loc, const Relocation &rel, uint64_t val) const {
     // DP = U >> 8, so the one-byte operand is the data-area offset itself.
     uint64_t off = getOS9DataOffset(ctx, loc, rel, val);
     if (off > 0xFF)
-      ErrAlways(ctx) << getErrorLoc(ctx, loc)
+      ErrAlways(ctx) << getRelocErrorLoc(ctx, loc)
                      << "OS-9 direct-page operand: object is not in the first "
                         "page of the data area (offset "
                      << off << ")";
@@ -207,7 +256,7 @@ void MC6809::relocate(uint8_t *loc, const Relocation &rel, uint64_t val) const {
     write64be(loc, static_cast<unsigned long long>(val));
     break;
   default:
-    error(getErrorLoc(ctx, loc) + "unrecognized relocation " +
+    error(getRelocErrorLoc(ctx, loc) + "unrecognized relocation " +
           toStr(ctx, rel.type));
   }
 }
