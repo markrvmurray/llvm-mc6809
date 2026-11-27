@@ -495,29 +495,13 @@ void mc6809::Linker::AddLTOOptions(const toolchains::MC6809ToolChain &TC, const 
   addLTOOptions(TC, Args, CmdArgs, Output, Inputs,
                 TC.getLTOMode(Args) == LTOK_Thin);
   addMC6809CodeGenArgs(CmdArgs);
-  unsigned DPBytes = 0;
-  StringRef LTODP = Args.getLastArgValue(options::OPT_mlto_dp_EQ);
-  if (!LTODP.empty()) {
-    if (LTODP.getAsInteger(0, DPBytes))
-      TC.getDriver().Diag(diag::err_drv_invalid_dp) << LTODP;
-  }
-  for (const std::string &Val :
-       Args.getAllArgValues(options::OPT_mreserve_dp_EQ)) {
-    if (Val.empty())
-      continue;
-    unsigned Amt;
-    if (StringRef(Val).getAsInteger(0, Amt)) {
-      TC.getDriver().Diag(diag::err_drv_invalid_dp) << Val;
-      continue;
-    }
-    if (DPBytes < Amt) {
-      TC.getDriver().Diag(diag::err_drv_too_much_dp_reserved) << Val;
-      continue;
-    }
-    DPBytes -= Amt;
-  }
-  if (DPBytes) {
-    CmdArgs.push_back("-mllvm");
-    CmdArgs.push_back(Args.MakeArgString("-dp-avail=" + Twine(DPBytes)));
+  // Direct-page allocation at link time is not finished: it moves stack slots
+  // into the direct page that the code generator still addresses off S, past
+  // the frame.  Refuse its flags rather than miscompile.
+  for (const Arg *A :
+       Args.filtered(options::OPT_mlto_dp_EQ, options::OPT_mreserve_dp_EQ)) {
+    A->claim();
+    TC.getDriver().Diag(diag::err_drv_mc6809_lto_dp_unsupported)
+        << A->getAsString(Args);
   }
 }

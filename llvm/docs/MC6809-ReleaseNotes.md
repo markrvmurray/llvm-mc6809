@@ -27,7 +27,8 @@ compiles.  Rebuilding also relinks any OS-9 module that was linked with
 debug information (`-g`), which the linker fix below needs.  Otherwise
 nothing changes in how a program is built, unless it was built for DECB
 with `-mlibc=float`.  That never gave a floating-point C library; it now
-says so and stops, so drop the flag.
+says so and stops, so drop the flag.  The same goes for `-mlto-dp` and
+`-mreserve-dp`, which are now refused: see below.
 
 ### Changed behaviour
 
@@ -40,6 +41,14 @@ says so and stops, so drop the flag.
   a line feed; `-fos9-newline` asks for the OS-9 newline on another
   target.  An `asm` string keeps its line feeds, since it is assembler
   source.
+* `-mlto-dp` and `-mreserve-dp`, which gave a link-time-optimised program
+  bytes of the direct page for the compiler to use, are refused with an
+  error.  Given those bytes, the compiler could move a function's stack
+  slots into the direct page but go on addressing them on the stack, past
+  the function's own frame, so the program silently overwrote its caller's
+  stack (or, in an interrupt handler, the interrupted code's).  It could
+  also link the same input into different programs from one run to the
+  next.  They will come back once the direct-page allocation is finished.
 * For the OS-9 target the compiler's rewrites of `printf` into `puts` and
   of `puts("")` into `putchar` follow the C library's newline, a carriage
   return, so they keep doing what the call would have done.

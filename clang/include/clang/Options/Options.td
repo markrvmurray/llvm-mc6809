@@ -6682,11 +6682,13 @@ def mtune_EQ : Joined<["-"], "mtune=">, Group<m_Group>,
   Visibility<[ClangOption, FlangOption]>,
   HelpText<"Only supported on AArch64, PowerPC, RISC-V, SPARC, SystemZ, and X86">;
 def mlto_dp_EQ : Joined<["-"], "mlto-dp=">, Group<m_Group>,
-  HelpText<"Allocate a number of bytes of direct page for use by the compiler in LTO.">;
+  HelpText<"MC6809: give the compiler this many bytes of direct page at link-time "
+           "optimisation.  Not supported yet: refused">;
 def mlto_zp_EQ : Joined<["-"], "mlto-zp=">, Group<m_Group>,
   HelpText<"Allocate a number of bytes of zero page for use by the compiler in LTO.">;
 def mreserve_dp_EQ : Joined<["-"], "mreserve-dp=">, Group<m_Group>,
-  HelpText<"Reserve a number of bytes of direct page from the region allocated to the compiler in LTO">;
+  HelpText<"MC6809: keep this many bytes of the -mlto-dp region for the program.  "
+           "Not supported yet: refused">;
 def mreserve_zp_EQ : Joined<["-"], "mreserve-zp=">, Group<m_Group>,
   HelpText<"Reserve a number of bytes of zero page from the region allocated to the compiler in LTO">;
 def multi_lib_config : Joined<["-", "--"], "multi-lib-config=">,
