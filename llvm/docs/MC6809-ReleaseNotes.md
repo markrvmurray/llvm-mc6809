@@ -11,17 +11,30 @@ tag with no section here is not published.
      this comment.  Bring the lead paragraph and "How it is tested" up to
      whatever has landed by then. -->
 
-Since rc2: the driver finds the right library however the processor is
-spelled, asking DECB for a floating-point library it does not have is now an
-error, and the documentation, the bundle's own README included, has been
-brought up to date.  The code the compiler generates is unchanged from rc2.
+Since rc2: the linker no longer corrupts pointers in an OS-9 module built
+with debug information, the driver finds the right library however the
+processor is spelled, asking DECB for a floating-point library it does not
+have is now an error, and the documentation, the bundle's own README
+included, has been brought up to date.  The code the compiler generates is
+unchanged from rc2.
 
-**Upgrading from rc2**: nothing changes in how a program is built, unless it
-was built for DECB with `-mlibc=float`.  That never gave a floating-point C
-library; it now says so and stops, so drop the flag.
+**Upgrading from rc2**: relink any OS-9 module that was linked with debug
+information (`-g`).  Otherwise nothing changes in how a program is built,
+unless it was built for DECB with `-mlibc=float`.  That never gave a
+floating-point C library; it now says so and stops, so drop the flag.
 
 ### Fixed
 
+* An OS-9 module linked with debug information could hold wrong pointers in
+  its initialised data.  The linker makes each such pointer relative to the
+  data area or the module, so that the start-up code can rebase it, but a
+  debug section could hide the word, which was then left as a raw address;
+  the program saw a pointer to the wrong place, with no error.  Whether a
+  word was hit depended only on the link's layout.  In the C library this
+  silently lost everything written to `stderr` in some programs, and a
+  function pointer could as well have jumped into nothing.  Every such
+  pointer is now converted, and one the linker cannot place is an error.
+  Bare-metal and DECB programs were not affected.
 * `-mcpu=6809` found no library: it is accepted as the 6809, but the name
   went to the library rules as written, matched none of them, and the link
   failed.  Every spelling of each processor now chooses the same library.
