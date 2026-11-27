@@ -20,8 +20,10 @@
 #include "MC6809RegisterInfo.h"
 #include "MC6809Subtarget.h"
 #include "MCTargetDesc/MC6809MCTargetDesc.h"
+#include "llvm/ADT/MapVector.h"
 #include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/ADT/SCCIterator.h"
+#include "llvm/ADT/SetVector.h"
 #include "llvm/Analysis/BasicAliasAnalysis.h"
 #include "llvm/Analysis/BlockFrequencyInfo.h"
 #include "llvm/Analysis/CallGraph.h"
@@ -390,7 +392,9 @@ SCCGraph MC6809DirectPageAlloc::buildSCCGraph(Module &M) {
   LLVM_DEBUG(CG.dump());
 
   std::vector<SCC> SCCs;
-  std::vector<SmallSet<const CallGraphNode *, 4>> SCCCallees;
+  // In insertion order, not pointer order: the callee order decides the order
+  // the frequencies are summed in, and so the placement for identical input.
+  std::vector<SmallSetVector<const CallGraphNode *, 4>> SCCCallees;
   DenseMap<const CallGraphNode *, size_t> SCCIdx;
   std::vector<std::unique_ptr<Candidate>> Candidates;
   DenseMap<GlobalVariable *, Candidate *> GVCandidates;
@@ -453,7 +457,9 @@ void MC6809DirectPageAlloc::collectCandidates(MachineFunction &MF, std::vector<s
   const MachineFrameInfo &MFI = MF.getFrameInfo();
   auto &BFI = getAnalysis<BlockFrequencyInfoWrapperPass>(MF.getFunction()).getBFI();
 
-  DenseMap<GlobalVariable *, float> GlobalBenefit;
+  // In insertion order, not pointer order: candidates of equal benefit keep
+  // the order they are collected in, which decides who gets the last bytes.
+  MapVector<GlobalVariable *, float> GlobalBenefit;
   for (MachineBasicBlock &MBB : MF) {
     for (MachineInstr &MI : MBB) {
       for (const MachineOperand &MO : MI.operands()) {
@@ -656,7 +662,9 @@ std::vector<EntryGraph> MC6809DirectPageAlloc::buildEntryGraphs(Module &M, SCCGr
 
       // Find all calls within the SCC and propagate entry frequencies across
       // the edges.
-      DenseMap<const Function *, float> CalleeFreqs;
+      // In insertion order, so the entry frequencies are summed in the same
+      // order every run.
+      MapVector<const Function *, float> CalleeFreqs;
       for (Function *F : Component->Funcs) {
         LLVM_DEBUG(dbgs() << "    " << F->getName() << "\n");
         MachineFunction *MF = MMI->getMachineFunction(*F);
