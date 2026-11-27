@@ -76,7 +76,7 @@ add_custom_command(
 )
 
 # syscalls.o -- errno and the POSIX-style entry points, C over the inline
-# shims in include/os9.h.
+# native calls declared by the canonical os9.h.
 add_custom_command(
     OUTPUT  "${_OS9_SYSCALLS_OUT}"
     COMMAND ${CMAKE_COMMAND} -E make_directory "${_OS9_BUILD_LIB_DIR}"

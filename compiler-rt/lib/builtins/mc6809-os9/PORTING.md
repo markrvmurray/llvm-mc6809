@@ -1,58 +1,36 @@
 # OS-9 Runtime Porting Notes
 
-This directory is the LLVM landing area for OS-9 runtime support.  The
-CMOC/Kreider support tree at `~/Projects/coco-shelf/cmoc_os9` is the
-reference implementation, but its objects and assembly cannot be copied in
-wholesale because CMOC and LLVM use different C ABIs and object/tool formats.
+Compiler-rt owns startup and POSIX support. The pinned
+[nitros9-c-libs](https://github.com/nitros9project/nitros9-c-libs) checkout
+owns OS calls: its `lib/*.as`, `os9/include/os9.h` and `include/os9raw.h`
+are built/installed by this directory's CMake rules. Do not add local
+syscall implementations or copies of those headers.
 
-## System-Call Layer
+## Native calls
 
-`include/os9.h` owns the low-level OS-9 entry points.  A system call is one
-`os9 <code>` instruction, so each is a static inline shim around a single
-`OS9_SYSCALL(code, (outputs), (inputs))` -- inline asm whose register
-marshalling is the compiler's job.  `syscalls.c` (linked from
-`libclang_rt.os9.a`) adds `errno` and the out-of-line POSIX-style calls.
+The shared selector places LLVM's first word/pointer and integer result
+in X, uses U for the data base, and preserves registers used by each kernel
+service. Calling-convention selection occurs inside the assembly body at
+build time; there is no runtime ABI bridge. X:U seek/status and module calls
+preserve the original assembly in the shared library.
 
-The direct shims mirror the CMOC low-level I/O helpers:
+Ordinary `_os_*` calls return zero or an OS-9 error code and set errno on
+failure. Read/write calls update the actual transfer count. Read EOF is a
+successful zero-byte read. Raw create reports an existing file; Unix
+replacement/truncation belongs in creat/create above this layer.
 
-```c
-int _os_write(int fd, const void *buf, int *countp);
-int _os_writeln(int fd, const void *buf, int *countp);
-int _os_read(int fd, void *buf, int *countp);
-int _os_readln(int fd, void *buf, int *countp);
-int _os_open(const char *name, int mode, int *pathp);
-int _os_close(int fd);
-```
+Picolibc's `libos/os9` supplies POSIX policies and errno translation. The
+out-of-line `_read`/`_write` functions here retain their byte-count/-1 API.
+`_exit` performs runtime cleanup before calling the shared native exit entry.
 
-They return `0` on success, or the OS-9 error code on failure (also stored
-in `errno`), and update `*countp` with the actual transfer count on success.
-EOF from `I$Read`/`I$ReadLn` is a successful zero-byte read.
+## Build and provenance
 
-The POSIX-style `_read` and `_write` wrappers stay byte-count based: they
-return the actual byte count on success, `0` at EOF for `_read`, or `-1` with
-`errno` set on error.
+Python 3 and lwasm are required. CMake fetches `nitros9-c-libs.revision`;
+`NITROS9_C_LIBS_SOURCE_DIR` overrides the checkout for development and
+`NITROS9_LWASM` selects the assembler. Installed `nitros9-os-calls.json`
+records the requested revision and actual source hashes.
 
-## Source Mapping
-
-Initial reference files in `cmoc_os9`:
-
-- `lib/io.as`: direct `_os_read`, `_os_readln`, `_os_write`,
-  `_os_writeln`, and seek wrappers.
-- `lib/syscommon.as`: `_oserr`, `_osret`, `_os9err`, and `_sysret` error
-  helper conventions.
-- `include/os9.d`: OS-9 syscall and error constants.
-- `include/errno.h`, `include/unistd.h`, and higher-level `lib/*.as`/`lib/*.c`:
-  future libc surface to port after the syscall layer is stable.
-
-## Porting Rule
-
-Port behavior and API shape, not generated artifacts.  Express an imported
-routine as C over `OS9_SYSCALL` rather than as assembly; the compiler owns
-the calling convention (first pointer/16-bit argument in `X`, first 8-bit in
-`B`, the rest on the stack, 16-bit results in `X`).  A call that hands `U`
-to the kernel needs a hand-written stub that saves and restores it.
-
-Keep CMOC-specific direct-page/Y data-base assumptions out of the LLVM runtime.
-Do not write through PC-relative addresses in OS-9 program modules: writable
-runtime state belongs in the per-process data area addressed from `U`/`DP`,
-not in the reentrant module body.
+Validate a new shared call with the library's three-compiler kernel probe,
+then rebuild this runtime and picolibc. Keep writable state in the process
+area addressed from U/DP, never in the reentrant module body. Keep
+compiler-specific startup and arithmetic primitives in compiler-rt.
