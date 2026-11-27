@@ -313,8 +313,13 @@ after your output file, so `-o hello` produces a module called `hello`.
 Characters that some NitrOS-9 versions do not accept in a name are left out, so
 `-o my-prog` produces `myprog`; `-Wl,--os9-name=NAME` sets the name outright.
 
-Three things will surprise you if they are not expected:
+Four things will surprise you if they are not expected:
 
+* **`'\n'` is a carriage return** ($0D), as in OS-9's own C compilers,
+  because OS-9 ends a line with one; `'\r'` is one too, and `'\l'` is a line
+  feed.  Text files therefore hold CR, and a `switch` cannot have both
+  `'\n'` and `'\r'` as cases.  `-fno-os9-newline` keeps `'\n'` a line feed;
+  [MC6809-OS9.md](MC6809-OS9.md) has the details.
 * **Room.** A Level 2 task gets seven 8 KB blocks; a module over **57344
   bytes** does not fail to load, it wedges the system as it loads.  Level 1
   shares one 64 KB space with the system and says `E$MemFul` politely

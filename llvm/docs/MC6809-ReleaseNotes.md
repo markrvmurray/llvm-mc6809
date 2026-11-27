@@ -4,20 +4,19 @@ Each release has a section headed `## <version>`, which the release workflow
 publishes on that release's GitHub page above the table of test results.  A
 tag with no section here is not published.
 
-## Next release
+## 1.1.0-rc3
 
-<!-- For 1.1.0-rc3 or 1.1.0, whichever comes first: rename this heading to
-     that version, which is what the release workflow looks for, and delete
-     this comment.  Bring the lead paragraph and "How it is tested" up to
-     whatever has landed by then. -->
-
-Since rc2: in C for OS-9, `'\n'` is now a carriage return, the platform's
-line separator; the linker no longer corrupts pointers in an OS-9 module
-built with debug information; the driver finds the right library however
-the processor is spelled; asking DECB for a floating-point library it does
-not have is now an error; and the documentation, the bundle's own README
-included, has been brought up to date.  Apart from the OS-9 newline, the
-code the compiler generates is unchanged from rc2.
+The third candidate for llvm-mc6809 1.1.0.  On OS-9, `'\n'` is now a
+carriage return, the platform's line separator, and the C library writes
+text lines the way OS-9 expects; the linker no longer corrupts pointers in
+an OS-9 module built with debug information; and `-mlto-dp`, which could
+miscompile, is refused until it is finished.  The driver also finds the
+right library however the processor is spelled, DECB refuses a
+floating-point library it does not have, and the documentation, the
+bundle's own README included, has been checked against the code.  Apart
+from the OS-9 newline, the code the compiler generates is unchanged from
+rc2: every program the bench runs on bare metal takes exactly as many
+cycles as it did.
 
 **Upgrading from rc2**: rebuild OS-9 programs.  Their `'\n'` is now a
 carriage return, so code that wanted a real line feed should say `'\l'`,
@@ -49,6 +48,12 @@ says so and stops, so drop the flag.  The same goes for `-mlto-dp` and
   stack (or, in an interrupt handler, the interrupted code's).  It could
   also link the same input into different programs from one run to the
   next.  They will come back once the direct-page allocation is finished.
+* On OS-9 the C library writes a text stream with `I$WritLn`, so an SCF
+  device applies its path's own settings, such as the line feed it adds
+  after each carriage return, and a file on disk gets every byte as written.
+  A stream opened with `b` in its mode, a stream with its own write
+  function, and `write` itself still use `I$Write`.  Nothing in the library
+  translates CR or LF.
 * For the OS-9 target the compiler's rewrites of `printf` into `puts` and
   of `puts("")` into `putchar` follow the C library's newline, a carriage
   return, so they keep doing what the call would have done.
@@ -65,6 +70,10 @@ says so and stops, so drop the flag.  The same goes for `-mlto-dp` and
   function pointer could as well have jumped into nothing.  Every such
   pointer is now converted, and one the linker cannot place is an error.
   Bare-metal and DECB programs were not affected.
+* `freopen` on a stream made with `funopen` passed the stream's cookie to
+  `close` as though it were a file descriptor, instead of calling the
+  stream's own close function, and left the stream marked as a cookie
+  stream once it had been reopened on a file.  Every target was affected.
 * `-mcpu=6809` found no library: it is accepted as the 6809, but the name
   went to the library rules as written, matched none of them, and the link
   failed.  Every spelling of each processor now chooses the same library.
@@ -93,11 +102,19 @@ As for rc2, with one change: each Linux and macOS bundle must now pass all 48
 cases of its acceptance check that a runner can run, where before 39 were
 enough.
 
+Before this candidate was cut, the compiler and C library were run at every
+level the bench covers, 20 on the 6809 and 8 on the 6309 under USim and the
+three OS-9 builds on NitrOS-9 Level 1 and Level 2, with no failure and no
+time-out, and the compiler's own 424 tests passed.  Every test that passed
+in rc2's run passed again, two new tests of OS-9 text output passed at each
+OS-9 level, and no bare-metal program's cycle count changed.
+
 ### Against 1.0, like for like
 
 Measured on the rc2 compiler and C library, against 1.0's, on the test
 programs whose own sources are unchanged since 1.0 (82 to 86 at each level,
-counting those that pass in both). The C library's own changes are part of
+counting those that pass in both).  rc3 gives exactly the same cycle counts,
+so these figures hold for it. The C library's own changes are part of
 what is measured. Both are measured on USim, the 6309 included.
 
 | | Cycles in all | A typical program |
@@ -128,6 +145,10 @@ the 6309.
   does not change this; on Level 2 the same happens after a write of a whole
   sector. This too is fixed on NitrOS-9's `main` branch: a system built from
   it shows every path of a file what the others wrote, on both levels.
+* NitrOS-9 Level 2 built from its `main` branch between 23 and 27 November
+  2026 hangs just after it starts: a program that chains to a smaller one,
+  as the start-up program does to the shell, fails.  Build from `main` as it
+  is now, which has the fix.
 * The Windows bundle has had much less testing than the others; treat it as
   experimental. Programs built on Windows have to be run somewhere else: on a
   simulator on another host, or on real hardware.
