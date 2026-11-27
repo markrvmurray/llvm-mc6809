@@ -53,6 +53,7 @@ $lit --no-progress-bar -v \
   llvm/test/LTO/Resolution/MC6809 \
   llvm/test/tools/llvm-objdump/MC6809 \
   llvm/test/tools/mc6809-cfi \
+  llvm/test/Transforms/InstCombine/mc6809-*.ll \
   clang/test/CodeGen/MC6809 \
   clang/test/Driver/mc6809*.c \
   clang/test/Preprocessor/mc6809*.c \

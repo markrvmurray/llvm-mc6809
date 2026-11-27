@@ -125,6 +125,10 @@ static void initializeBase(TargetLibraryInfoImpl &TLI, const Triple &T) {
   // is a 16-bit architecture because then it most likely is 16 bits. If that
   // isn't true for a target those defaults should be overridden below.
   TLI.setIntSize(T.isArch16Bit() ? 16 : 32);
+
+  // OS-9 ends a line with a carriage return, and its C library's '\n' is
+  // one.
+  TLI.setNewline(T.isOSOS9() ? '\r' : '\n');
 }
 
 /// Initialize the set of available library functions based on the specified
@@ -961,7 +965,8 @@ TargetLibraryInfoImpl::TargetLibraryInfoImpl(const TargetLibraryInfoImpl &TLI)
       ShouldExtI32Return(TLI.ShouldExtI32Return),
       ShouldSignExtI32Param(TLI.ShouldSignExtI32Param),
       ShouldSignExtI32Return(TLI.ShouldSignExtI32Return),
-      SizeOfInt(TLI.SizeOfInt), IsErrnoFunctionCall(TLI.IsErrnoFunctionCall) {
+      SizeOfInt(TLI.SizeOfInt), Newline(TLI.Newline),
+      IsErrnoFunctionCall(TLI.IsErrnoFunctionCall) {
   memcpy(AvailableArray, TLI.AvailableArray, sizeof(AvailableArray));
   VectorDescs = TLI.VectorDescs;
   ScalarDescs = TLI.ScalarDescs;
@@ -973,7 +978,8 @@ TargetLibraryInfoImpl::TargetLibraryInfoImpl(TargetLibraryInfoImpl &&TLI)
       ShouldExtI32Return(TLI.ShouldExtI32Return),
       ShouldSignExtI32Param(TLI.ShouldSignExtI32Param),
       ShouldSignExtI32Return(TLI.ShouldSignExtI32Return),
-      SizeOfInt(TLI.SizeOfInt), IsErrnoFunctionCall(TLI.IsErrnoFunctionCall) {
+      SizeOfInt(TLI.SizeOfInt), Newline(TLI.Newline),
+      IsErrnoFunctionCall(TLI.IsErrnoFunctionCall) {
   std::move(std::begin(TLI.AvailableArray), std::end(TLI.AvailableArray),
             AvailableArray);
   VectorDescs = TLI.VectorDescs;
@@ -987,6 +993,7 @@ TargetLibraryInfoImpl &TargetLibraryInfoImpl::operator=(const TargetLibraryInfoI
   ShouldSignExtI32Param = TLI.ShouldSignExtI32Param;
   ShouldSignExtI32Return = TLI.ShouldSignExtI32Return;
   SizeOfInt = TLI.SizeOfInt;
+  Newline = TLI.Newline;
   IsErrnoFunctionCall = TLI.IsErrnoFunctionCall;
   memcpy(AvailableArray, TLI.AvailableArray, sizeof(AvailableArray));
   return *this;
@@ -999,6 +1006,7 @@ TargetLibraryInfoImpl &TargetLibraryInfoImpl::operator=(TargetLibraryInfoImpl &&
   ShouldSignExtI32Param = TLI.ShouldSignExtI32Param;
   ShouldSignExtI32Return = TLI.ShouldSignExtI32Return;
   SizeOfInt = TLI.SizeOfInt;
+  Newline = TLI.Newline;
   IsErrnoFunctionCall = TLI.IsErrnoFunctionCall;
   std::move(std::begin(TLI.AvailableArray), std::end(TLI.AvailableArray),
             AvailableArray);

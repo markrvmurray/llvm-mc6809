@@ -99,6 +99,7 @@ class TargetLibraryInfoImpl {
 #include "llvm/Analysis/TargetLibraryInfo.inc"
   bool ShouldExtI32Param, ShouldExtI32Return, ShouldSignExtI32Param, ShouldSignExtI32Return;
   unsigned SizeOfInt;
+  char Newline;
   bool IsErrnoFunctionCall;
 
   enum AvailabilityState {
@@ -271,6 +272,13 @@ public:
   void setIntSize(unsigned Bits) {
     SizeOfInt = Bits;
   }
+
+  /// Get the character the C library ends a line with: the one puts appends
+  /// and a text stream's line buffering flushes on.
+  char getNewline() const { return Newline; }
+
+  /// Initialize the C library's newline character.
+  void setNewline(char C) { Newline = C; }
 
   /// Returns the largest vectorization factor used in the list of
   /// vector functions.
@@ -626,6 +634,9 @@ public:
   unsigned getIntSize() const {
     return Impl->getIntSize();
   }
+
+  /// \copydoc TargetLibraryInfoImpl::getNewline()
+  char getNewline() const { return Impl->getNewline(); }
 
   /// Handle invalidation from the pass manager.
   ///

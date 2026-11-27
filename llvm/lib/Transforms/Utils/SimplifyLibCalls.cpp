@@ -3562,7 +3562,7 @@ Value *LibCallSimplifier::optimizePrintFString(CallInst *CI, IRBuilderBase &B) {
       return copyFlags(*CI, emitPutChar(IntChar, B, TLI));
     }
     // printf("%s", str"\n") --> puts(str)
-    if (OperandStr.back() == '\n') {
+    if (OperandStr.back() == TLI->getNewline()) {
       if (!isLibFuncEmittable(CI->getModule(), TLI, LibFunc_puts))
         return nullptr;
       OperandStr = OperandStr.drop_back();
@@ -3573,7 +3573,7 @@ Value *LibCallSimplifier::optimizePrintFString(CallInst *CI, IRBuilderBase &B) {
   }
 
   // printf("foo\n") --> puts("foo")
-  if (FormatStr.back() == '\n' &&
+  if (FormatStr.back() == TLI->getNewline() &&
       !FormatStr.contains('%')) { // No format characters.
     if (!isLibFuncEmittable(CI->getModule(), TLI, LibFunc_puts))
       return nullptr;
@@ -3595,7 +3595,8 @@ Value *LibCallSimplifier::optimizePrintFString(CallInst *CI, IRBuilderBase &B) {
   }
 
   // printf("%s\n", str) --> puts(str)
-  if (FormatStr == "%s\n" && CI->arg_size() > 1 &&
+  if (FormatStr.size() == 3 && FormatStr.starts_with("%s") &&
+      FormatStr.back() == TLI->getNewline() && CI->arg_size() > 1 &&
       CI->getArgOperand(1)->getType()->isPointerTy())
     return copyFlags(*CI, emitPutS(CI->getArgOperand(1), B, TLI));
   return nullptr;
@@ -4043,7 +4044,8 @@ Value *LibCallSimplifier::optimizePuts(CallInst *CI, IRBuilderBase &B) {
     // putchar takes an argument of the same type as puts returns, i.e.,
     // int, which need not be 32 bits wide.
     Type *IntTy = CI->getType();
-    return copyFlags(*CI, emitPutChar(ConstantInt::get(IntTy, '\n'), B, TLI));
+    return copyFlags(
+        *CI, emitPutChar(ConstantInt::get(IntTy, TLI->getNewline()), B, TLI));
   }
 
   return nullptr;
