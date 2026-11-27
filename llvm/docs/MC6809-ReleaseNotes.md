@@ -11,17 +11,38 @@ tag with no section here is not published.
      this comment.  Bring the lead paragraph and "How it is tested" up to
      whatever has landed by then. -->
 
-Since rc2: the linker no longer corrupts pointers in an OS-9 module built
-with debug information, the driver finds the right library however the
-processor is spelled, asking DECB for a floating-point library it does not
-have is now an error, and the documentation, the bundle's own README
-included, has been brought up to date.  The code the compiler generates is
-unchanged from rc2.
+Since rc2: in C for OS-9, `'\n'` is now a carriage return, the platform's
+line separator; the linker no longer corrupts pointers in an OS-9 module
+built with debug information; the driver finds the right library however
+the processor is spelled; asking DECB for a floating-point library it does
+not have is now an error; and the documentation, the bundle's own README
+included, has been brought up to date.  Apart from the OS-9 newline, the
+code the compiler generates is unchanged from rc2.
 
-**Upgrading from rc2**: relink any OS-9 module that was linked with debug
-information (`-g`).  Otherwise nothing changes in how a program is built,
-unless it was built for DECB with `-mlibc=float`.  That never gave a
-floating-point C library; it now says so and stops, so drop the flag.
+**Upgrading from rc2**: rebuild OS-9 programs.  Their `'\n'` is now a
+carriage return, so code that wanted a real line feed should say `'\l'`,
+and code that compared a character with both `'\n'` and `'\r'` now tests
+the same value twice: a `switch` with both as `case` labels no longer
+compiles.  Rebuilding also relinks any OS-9 module that was linked with
+debug information (`-g`), which the linker fix below needs.  Otherwise
+nothing changes in how a program is built, unless it was built for DECB
+with `-mlibc=float`.  That never gave a floating-point C library; it now
+says so and stops, so drop the flag.
+
+### Changed behaviour
+
+* For the OS-9 target, `'\n'` is a carriage return ($0D) in character and
+  string literals of every width, as in OS-9's own C compilers: SCF ends a
+  line on CR, `I$ReadLn` and `I$WritLn` work in CR-terminated records, and
+  text files hold CR.  `'\r'` is a carriage return too, and the new
+  `'\l'` names a line feed ($0A).  The C library is built the same way, so
+  its lines end in CR with no translation.  `-fno-os9-newline` keeps `'\n'`
+  a line feed; `-fos9-newline` asks for the OS-9 newline on another
+  target.  An `asm` string keeps its line feeds, since it is assembler
+  source.
+* For the OS-9 target the compiler's rewrites of `printf` into `puts` and
+  of `puts("")` into `putchar` follow the C library's newline, a carriage
+  return, so they keep doing what the call would have done.
 
 ### Fixed
 
