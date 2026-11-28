@@ -105,7 +105,7 @@ enough.
 Before this candidate was cut, the compiler and C library were run at every
 level the bench covers, 20 on the 6809 and 8 on the 6309 under USim and the
 three OS-9 builds on NitrOS-9 Level 1 and Level 2, with no failure and no
-time-out, and the compiler's own 424 tests passed.  Every test that passed
+time-out, and the compiler's own 426 tests passed.  Every test that passed
 in rc2's run passed again, two new tests of OS-9 text output passed at each
 OS-9 level, and no bare-metal program's cycle count changed.
 
